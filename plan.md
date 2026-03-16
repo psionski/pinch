@@ -26,7 +26,8 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 | ORM | Drizzle ORM | Type-safe, SQL-like query builder, great SQLite support |
 | Migrations | Drizzle Kit | Schema-driven, generates SQL migrations |
 | Validation | Zod | Shared schemas for API, MCP tools, and forms |
-| MCP | @modelcontextprotocol/sdk | Streamable HTTP transport, mounted inside Next.js |
+| MCP | @modelcontextprotocol/sdk | Streamable HTTP transport, mounted inside Next.js (stateless mode) |
+| Scheduling | node-cron | In-process cron via Next.js instrumentation hook |
 
 ## Architecture
 
@@ -79,6 +80,8 @@ Key: API routes and MCP tools call the **same service layer**. No logic duplicat
 
 ### Tables
 
+**Money amounts are stored as integers in cents** (e.g., €12.10 → `1210`). This avoids floating-point precision errors. Format to decimal only on display/output.
+
 ```sql
 -- Categories (hierarchical — parent_id allows subcategories)
 CREATE TABLE categories (
@@ -94,7 +97,7 @@ CREATE TABLE categories (
 -- Transactions
 CREATE TABLE transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  amount REAL NOT NULL,          -- always positive; type field distinguishes income/expense
+  amount INTEGER NOT NULL,       -- cents (e.g. 1210 = €12.10); always positive
   type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense')),
   description TEXT NOT NULL,
   merchant TEXT,                 -- store/vendor name
@@ -113,7 +116,7 @@ CREATE TABLE receipts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   merchant TEXT,
   date TEXT NOT NULL,
-  total REAL,                    -- receipt total (for validation against sum of items)
+  total INTEGER,                 -- cents; receipt total (for validation against sum of items)
   image_path TEXT,               -- path to stored receipt image
   raw_text TEXT,                 -- OCR/vision extracted text
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -124,14 +127,14 @@ CREATE TABLE budgets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   month TEXT NOT NULL,           -- YYYY-MM format
-  amount REAL NOT NULL,
+  amount INTEGER NOT NULL,       -- cents
   UNIQUE(category_id, month)
 );
 
 -- Recurring Transactions (templates for auto-generated transactions)
 CREATE TABLE recurring_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  amount REAL NOT NULL,
+  amount INTEGER NOT NULL,       -- cents
   type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense')),
   description TEXT NOT NULL,
   merchant TEXT,
@@ -148,7 +151,20 @@ CREATE TABLE recurring_transactions (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Full-text search for transaction descriptions and merchants
+CREATE VIRTUAL TABLE transactions_fts USING fts5(
+  description,
+  merchant,
+  notes,
+  content='transactions',
+  content_rowid='id'
+);
 ```
+
+**FTS5 sync:** The service layer keeps `transactions_fts` in sync with the `transactions` table on insert/update/delete. This powers text search in `list_transactions` and the MCP `list_transactions` tool.
+
+**`updated_at` management:** SQLite has no auto-update trigger for timestamps. The service layer is responsible for setting `updated_at = datetime('now')` on every UPDATE call. No triggers needed — services are the single mutation path.
 
 ### Indices
 
@@ -170,6 +186,22 @@ CREATE INDEX idx_budgets_category_month ON budgets(category_id, month);
 -- Recurring lookups
 CREATE INDEX idx_recurring_active ON recurring_transactions(is_active);
 CREATE INDEX idx_recurring_frequency ON recurring_transactions(frequency, is_active);
+
+-- FTS5 sync triggers (keep full-text index in sync with transactions table)
+CREATE TRIGGER transactions_ai AFTER INSERT ON transactions BEGIN
+  INSERT INTO transactions_fts(rowid, description, merchant, notes)
+  VALUES (new.id, new.description, new.merchant, new.notes);
+END;
+CREATE TRIGGER transactions_ad AFTER DELETE ON transactions BEGIN
+  INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes)
+  VALUES ('delete', old.id, old.description, old.merchant, old.notes);
+END;
+CREATE TRIGGER transactions_au AFTER UPDATE ON transactions BEGIN
+  INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes)
+  VALUES ('delete', old.id, old.description, old.merchant, old.notes);
+  INSERT INTO transactions_fts(rowid, description, merchant, notes)
+  VALUES (new.id, new.description, new.merchant, new.notes);
+END;
 ```
 
 ### SQLite PRAGMAs (set on every connection)
@@ -230,18 +262,79 @@ PRAGMA busy_timeout = 5000;
 |------|-------------|
 | `query` | Execute **read-only** SQL against the DB. Returns JSON results. For ad-hoc analysis: window functions, CTEs, date math, cross-table joins, custom aggregations — anything the pre-built tools don't cover. |
 
-## Recurring Transaction Engine
+## Scheduled Tasks & Recurring Transaction Engine
 
-**How it works:**
+### Scheduling approach: `instrumentation.ts` + `node-cron`
+
+Next.js provides a stable `instrumentation.ts` hook whose `register()` function runs exactly once when the server starts. Since Pinch is self-hosted (long-lived Node.js process, not serverless), we use this to start in-process cron jobs via `node-cron`.
+
+```typescript
+// src/instrumentation.ts
+export async function register(): Promise<void> {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { initCronJobs } = await import("@/lib/cron");
+    initCronJobs();
+  }
+}
+```
+
+**Dev mode safety:** Use a `globalThis` singleton guard to prevent duplicate jobs from hot-reload re-execution:
+
+```typescript
+// src/lib/cron.ts
+const globalForCron = globalThis as unknown as { cronInitialized?: boolean };
+
+export function initCronJobs(): void {
+  if (globalForCron.cronInitialized) return;
+  globalForCron.cronInitialized = true;
+
+  // Schedule recurring transaction generation — daily at 02:00
+  cron.schedule("0 2 * * *", async () => {
+    await recurringService.generatePending(new Date());
+  });
+
+  // Schedule SQLite backup — daily at 03:00
+  cron.schedule("0 3 * * *", async () => {
+    await backupDatabase();
+  });
+}
+```
+
+### Recurring transaction generation
 
 1. Each recurring template defines: amount, description, category, frequency (daily/weekly/monthly/yearly), schedule details, start/end date
 2. The engine tracks `last_generated` — the last date it created a transaction for this template
-3. On app startup + once daily (via Next.js cron or middleware check): scan all active templates, generate any missing transactions between `last_generated` and today
+3. Runs daily at 02:00 via cron (see above) + on first request after startup via middleware. Also manually triggerable via `generate_recurring` MCP tool.
 4. Generated transactions link back to their template via `recurring_id`
 5. Generated transactions are normal transactions — editable, deletable, recategorizable independently
 6. Deactivating a template stops future generation but doesn't touch already-generated transactions
 
 **MCP management:** The AI assistant can create/modify/pause/resume recurring templates. Example: "I'm canceling my Netflix" → `update_recurring(id, is_active: false)`.
+
+## MCP Integration Details
+
+The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint at `/api/mcp`. Each POST request creates a fresh `McpServer` + `NodeStreamableHTTPServerTransport` instance, registers tools, handles the request, and tears down. No session state between requests.
+
+**Key decisions:**
+- **Stateless mode:** `sessionIdGenerator: undefined` — no `Mcp-Session-Id` headers, no SSE resumption. This is the simplest model and fits Next.js route handlers perfectly. The AI assistant makes independent tool calls; there is no multi-turn MCP session state to preserve.
+- **JSON responses:** `enableJsonResponse: true` — returns plain JSON instead of SSE. Simpler to debug, no streaming needed for our tool calls.
+- **Request/Response compatibility:** Next.js App Router uses Web `Request`/`Response`, but the MCP SDK's `NodeStreamableHTTPServerTransport.handleRequest()` expects Node.js `IncomingMessage`/`ServerResponse`. Options: (a) use `mcp-handler` (Vercel's adapter library) which abstracts this, or (b) write a thin conversion layer. Evaluate both during Sprint 7; prefer fewer dependencies.
+- **Tool registration:** Factor tool registration into a shared `registerTools(server)` function so the per-request server setup is minimal.
+
+```typescript
+// Simplified pattern for /api/mcp/route.ts
+export async function POST(req: Request): Promise<Response> {
+  const body = await req.json();
+  const server = new McpServer({ name: "pinch", version: "1.0.0" });
+  registerTools(server);
+  const transport = new NodeStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+  await server.connect(transport);
+  // ... handle request conversion and return response
+}
+```
 
 ## Web UI Pages
 
@@ -307,11 +400,60 @@ PRAGMA busy_timeout = 5000;
 
 Default currency is **EUR (€)**. Start single-currency for simplicity, but keep the door open for multi-currency later — avoid hardcoding EUR assumptions deep in business logic. When multi-currency is needed, add a `currency` field to transactions and an exchange rate table.
 
+## API Conventions
+
+### Error response contract
+
+All API routes and MCP tool errors return a consistent shape:
+
+```json
+{
+  "error": "Human-readable error message",
+  "code": "VALIDATION_ERROR",
+  "details": { }
+}
+```
+
+Error codes: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `INTERNAL_ERROR`. The `details` field is optional and carries structured info (e.g., Zod validation issues). MCP tools return errors via the MCP protocol's error mechanism but use the same `code` values for consistency.
+
+### Pagination contract
+
+All list endpoints use consistent pagination:
+
+- **Request:** `limit` (default 50, max 200) + `offset` (default 0)
+- **Response envelope:**
+```json
+{
+  "data": [ ... ],
+  "total": 1234,
+  "limit": 50,
+  "offset": 0,
+  "hasMore": true
+}
+```
+
+Shared Zod schema for pagination params in `src/lib/validators/common.ts`.
+
+### Tags
+
+Tags are stored as a JSON text array on transactions and recurring templates (e.g., `["groceries", "weekly-shop"]`). Query support:
+
+- **Filter by tag:** `list_transactions` accepts a `tags` filter param — matches transactions containing any of the specified tags (OR logic). Implemented via `json_each()` in SQLite.
+- **List all tags:** Dedicated service method that scans distinct tags across all transactions (for autocomplete in UI and MCP).
+- No separate tags table — kept simple. If tagging gets complex (e.g., tag colors, descriptions), promote to a table later.
+
+### Receipt image serving
+
+Receipt images stored in `data/receipts/` are not in the `public/` directory, so Next.js static serving won't reach them. Serve via a dedicated API route:
+
+- `GET /api/receipts/[id]/image` — looks up the receipt by ID, reads `image_path`, streams the file with appropriate `Content-Type`.
+- Protected by the same access controls as other API routes.
+
 ## Data Storage
 
 - **Database:** `src/data/pinch.db` (SQLite, gitignored)
 - **Receipt images:** `data/receipts/YYYY-MM/receipt-{id}.{ext}` (organized by month, gitignored)
-- **Backups:** Periodic SQLite backup via `.backup` command (can be automated via cron)
+- **Backups:** Daily automated backup via cron job (see Scheduled Tasks section). Uses SQLite `.backup` command to `data/backups/pinch-YYYY-MM-DD.db`. Keep last 7 daily backups (auto-rotate old ones).
 
 ## Project Structure
 
@@ -325,6 +467,7 @@ pinch/
 ├── drizzle.config.ts
 ├── .gitignore
 ├── src/
+│   ├── instrumentation.ts       # Next.js instrumentation hook (starts cron jobs)
 │   ├── app/                     # Next.js App Router
 │   │   ├── layout.tsx           # Root layout (sidebar nav, global styles)
 │   │   ├── page.tsx             # Dashboard
@@ -340,7 +483,7 @@ pinch/
 │   │   │   └── page.tsx
 │   │   └── api/
 │   │       ├── mcp/
-│   │       │   └── route.ts     # MCP Streamable HTTP endpoint
+│   │       │   └── route.ts     # MCP Streamable HTTP endpoint (stateless)
 │   │       ├── transactions/
 │   │       │   └── route.ts
 │   │       ├── categories/
@@ -349,8 +492,12 @@ pinch/
 │   │       │   └── route.ts
 │   │       ├── budgets/
 │   │       │   └── route.ts
-│   │       └── recurring/
-│   │           └── route.ts
+│   │       ├── recurring/
+│   │       │   └── route.ts
+│   │       └── receipts/
+│   │           └── [id]/
+│   │               └── image/
+│   │                   └── route.ts  # Serve receipt images
 │   ├── components/
 │   │   ├── ui/                  # shadcn/ui components
 │   │   ├── charts/              # Tremor chart wrappers
@@ -359,16 +506,18 @@ pinch/
 │   │   ├── budgets/             # Budget progress bars, form
 │   │   └── layout/              # Sidebar, header, breadcrumbs
 │   ├── lib/
+│   │   ├── cron.ts              # Cron job definitions (recurring gen, backup)
 │   │   ├── db/
 │   │   │   ├── index.ts         # DB connection singleton + PRAGMAs
 │   │   │   ├── schema.ts        # Drizzle table definitions
 │   │   │   └── seed.ts          # Default categories + sample data (dev)
 │   │   ├── services/
-│   │   │   ├── transactions.ts  # CRUD + batch + filtered queries
+│   │   │   ├── transactions.ts  # CRUD + batch + filtered queries + FTS sync
 │   │   │   ├── categories.ts    # CRUD + merge + recategorize
 │   │   │   ├── reports.ts       # Aggregations, trends, comparisons
 │   │   │   ├── budgets.ts       # Set/get/compare
-│   │   │   └── recurring.ts     # Template CRUD + generation engine
+│   │   │   ├── recurring.ts     # Template CRUD + generation engine
+│   │   │   └── backup.ts        # SQLite backup logic
 │   │   ├── mcp/
 │   │   │   ├── server.ts        # MCP server init + tool registration
 │   │   │   └── tools/
@@ -379,15 +528,17 @@ pinch/
 │   │   │       ├── recurring.ts
 │   │   │       └── query.ts     # Read-only SQL escape hatch
 │   │   ├── validators/          # Zod schemas (shared by API + MCP + forms)
+│   │   │   ├── common.ts        # Pagination, error envelope
 │   │   │   ├── transactions.ts
 │   │   │   ├── categories.ts
 │   │   │   ├── budgets.ts
 │   │   │   └── recurring.ts
 │   │   └── utils/
 │   │       ├── dates.ts         # Date helpers (month ranges, formatting)
-│   │       └── currency.ts      # EUR formatting
+│   │       └── currency.ts      # Cents ↔ decimal formatting
 │   └── data/                    # Runtime data (gitignored)
 │       ├── pinch.db             # SQLite database
+│       ├── backups/             # Daily SQLite backups (auto-rotated)
 │       └── receipts/            # Receipt images organized by YYYY-MM/
 ├── drizzle/                     # Generated migrations
 └── public/
@@ -397,6 +548,14 @@ pinch/
 ## Development Sprints
 
 Each sprint is a self-contained chunk of work that results in something testable. Sprints are designed to be completable in a single AI agent session with human review between sprints.
+
+Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI) and **Full App** (complete web experience + polish).
+
+---
+
+## Phase 1: MVP — Usable via MCP + Minimal Dashboard
+
+*Goal: A working backend with MCP tools so the AI assistant can start entering and querying transactions. Plus a basic dashboard and transaction list so you can see your data in a browser. This is the "start using it daily" milestone.*
 
 ---
 
@@ -418,21 +577,23 @@ Each sprint is a self-contained chunk of work that results in something testable
 **Goal:** Drizzle ORM wired to SQLite, full schema defined, migrations running.
 
 - [ ] Install Drizzle ORM + better-sqlite3 + Drizzle Kit
-- [ ] Define all tables in `src/lib/db/schema.ts` (categories, transactions, receipts, budgets, recurring_transactions)
+- [ ] Define all tables in `src/lib/db/schema.ts` (categories, transactions, receipts, budgets, recurring_transactions) — amounts as INTEGER (cents)
+- [ ] Define FTS5 virtual table and sync triggers for transaction text search
 - [ ] Configure `drizzle.config.ts`
 - [ ] DB connection singleton with PRAGMAs (`src/lib/db/index.ts`)
 - [ ] Generate and run initial migration
 - [ ] Seed script: default categories (Groceries, Rent, Utilities, Transport, Entertainment, Dining, Health, Shopping, Subscriptions, Income, Other)
-- [ ] Tests: DB connects, schema creates tables, seed runs, basic insert/select works
+- [ ] Tests: DB connects, schema creates tables, seed runs, basic insert/select works, FTS search returns results
 
-**Done when:** `npm run db:migrate` creates the database, `npm run db:seed` populates categories, tests verify round-trip CRUD.
+**Done when:** `npm run db:migrate` creates the database, `npm run db:seed` populates categories, tests verify round-trip CRUD and full-text search.
 
 ---
 
-### Sprint 3: Zod Validators
+### Sprint 3: Validators & Shared Types
 **Goal:** Shared validation schemas that will be used by API routes, MCP tools, and forms.
 
-- [ ] `src/lib/validators/transactions.ts` — create, update, list filters (date range, category, amount range, merchant, text search, pagination)
+- [ ] `src/lib/validators/common.ts` — pagination params, error envelope schema
+- [ ] `src/lib/validators/transactions.ts` — create (amounts in cents), update, list filters (date range, category, amount range, merchant, text search, tags, pagination)
 - [ ] `src/lib/validators/categories.ts` — create, update, recategorize filters, merge params
 - [ ] `src/lib/validators/budgets.ts` — set budget, query params
 - [ ] `src/lib/validators/recurring.ts` — create, update, generation params
@@ -446,10 +607,13 @@ Each sprint is a self-contained chunk of work that results in something testable
 ### Sprint 4: Service Layer — Transactions & Categories
 **Goal:** Core business logic for the two primary domains.
 
-- [ ] `TransactionService`: create, createBatch, getById, list (with all filters + pagination), update, delete, deleteBatch
+- [ ] `TransactionService`: create, createBatch, getById, list (with all filters + FTS text search + pagination), update, delete, deleteBatch
+- [ ] FTS sync on insert/update/delete (service layer keeps `transactions_fts` in sync)
+- [ ] `updated_at` set explicitly on every update call
 - [ ] `CategoryService`: create, getAll (with hierarchy), getById, update, delete, recategorize (bulk move), merge
-- [ ] All services use Drizzle queries, accept validated types, return typed results
-- [ ] Tests: full CRUD, filter combinations, batch operations, category merge reassigns transactions, recategorize works
+- [ ] Tag listing: service method to get all distinct tags across transactions
+- [ ] All services use Drizzle queries, accept validated types, return typed results with pagination envelope
+- [ ] Tests: full CRUD, filter combinations, FTS search, tag filtering via `json_each()`, batch operations, category merge reassigns transactions, recategorize works
 
 **Done when:** Services fully tested against real SQLite. No API routes yet — just the logic layer.
 
@@ -461,6 +625,7 @@ Each sprint is a self-contained chunk of work that results in something testable
 - [ ] `ReportService`: spendingSummary (grouped by category/month/merchant, with period comparison), categoryBreakdown, trends (time series), topMerchants
 - [ ] `BudgetService`: set, getForMonth (all categories with spend vs budget), copyFromPreviousMonth
 - [ ] `RecurringService`: create, list (with next occurrence), update, delete, generatePending (create missing transactions up to a date)
+- [ ] `BackupService`: run SQLite `.backup`, auto-rotate old backups (keep last 7)
 - [ ] Tests: report aggregations return correct numbers, budget status calculates correctly, recurring generation creates expected transactions
 
 **Done when:** All five services complete and tested. The entire backend logic works without any HTTP layer.
@@ -470,7 +635,7 @@ Each sprint is a self-contained chunk of work that results in something testable
 ### Sprint 6: API Routes
 **Goal:** REST API exposing all services via Next.js route handlers.
 
-- [ ] `POST/GET /api/transactions` — create + list
+- [ ] `POST/GET /api/transactions` — create + list (with pagination envelope)
 - [ ] `GET/PATCH/DELETE /api/transactions/[id]` — single transaction ops
 - [ ] `POST/GET /api/categories` — create + list
 - [ ] `PATCH/DELETE /api/categories/[id]` — single category ops
@@ -478,8 +643,9 @@ Each sprint is a self-contained chunk of work that results in something testable
 - [ ] `GET /api/reports/summary` + `/breakdown` + `/trends` + `/top-merchants`
 - [ ] `POST/GET /api/budgets` — set + get status
 - [ ] `POST/GET/PATCH/DELETE /api/recurring` — full CRUD + `POST /api/recurring/generate`
-- [ ] All routes: validate with Zod, call service, return JSON. Consistent error shape.
-- [ ] Integration tests: hit route handlers, verify responses
+- [ ] `GET /api/receipts/[id]/image` — serve receipt images from `data/receipts/`
+- [ ] All routes: validate with Zod, call service, return JSON with consistent error shape (`{ error, code, details? }`)
+- [ ] Integration tests: hit route handlers, verify responses and error contract
 
 **Done when:** Full API working, tested end-to-end through route handlers.
 
@@ -489,59 +655,75 @@ Each sprint is a self-contained chunk of work that results in something testable
 **Goal:** MCP endpoint with all tools, calling the same service layer as API routes.
 
 - [ ] MCP server setup with @modelcontextprotocol/sdk (`src/lib/mcp/server.ts`)
-- [ ] Mount as Streamable HTTP endpoint at `/api/mcp`
+- [ ] Mount as stateless Streamable HTTP endpoint at `/api/mcp` (see MCP Integration Details section)
+- [ ] Resolve Request/Response compatibility (evaluate `mcp-handler` vs thin conversion layer)
 - [ ] Transaction tools: add_transaction, add_transactions (batch), update_transaction, delete_transaction, list_transactions
 - [ ] Category tools: list_categories, create_category, update_category, recategorize, merge_categories
 - [ ] Report tools: spending_summary, category_breakdown, trends, top_merchants
 - [ ] Budget tools: set_budget, get_budget_status
 - [ ] Recurring tools: create_recurring, list_recurring, update_recurring, delete_recurring, generate_recurring
 - [ ] Escape hatch: query (read-only SQL)
-- [ ] Tests: tool registration works, tools call correct services
+- [ ] Tests: tool registration works, tools call correct services, stateless request lifecycle works
 
-**Done when:** MCP endpoint responds to tool calls, all tools wired to services.
+**Done when:** MCP endpoint responds to tool calls, all tools wired to services. Verified with a real MCP client.
 
 ---
 
-### Sprint 8: App Shell & Layout
-**Goal:** Navigation, layout, and the structural UI — no data yet.
+### Sprint 8: Scheduled Tasks
+**Goal:** Cron jobs for recurring transaction generation and database backups.
+
+- [ ] Install `node-cron`
+- [ ] `src/instrumentation.ts` — calls `initCronJobs()` on server start (with `NEXT_RUNTIME === "nodejs"` guard)
+- [ ] `src/lib/cron.ts` — `globalThis` singleton guard to prevent duplicate jobs in dev mode
+- [ ] Cron job: generate pending recurring transactions (daily at 02:00)
+- [ ] Cron job: SQLite backup with rotation (daily at 03:00)
+- [ ] Tests: verify `generatePending` idempotency, backup file creation and rotation
+
+**Done when:** Recurring transactions auto-generate, backups auto-rotate, no duplicate jobs in dev mode.
+
+---
+
+### Sprint 9: App Shell + Minimal Dashboard
+**Goal:** Navigable layout with a functional dashboard — the first thing you see in the browser.
 
 - [ ] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Recurring)
 - [ ] Responsive: sidebar collapses on mobile
 - [ ] Active route highlighting
-- [ ] Breadcrumbs component
 - [ ] Install and configure Tremor
-- [ ] Empty state components for each page (placeholder content)
+- [ ] Dashboard: KPI cards (total spend this month, delta vs last month, top category, budget utilization)
+- [ ] Dashboard: spending trend AreaChart (last 6 months)
+- [ ] Dashboard: category breakdown donut chart (current month)
+- [ ] Dashboard: recent transactions list (last 10-20 entries with category badges)
+- [ ] Empty state components for pages not yet built
 
-**Done when:** You can click through all pages, responsive layout works, looks clean.
-
----
-
-### Sprint 9: Dashboard
-**Goal:** Main dashboard with real data from API.
-
-- [ ] KPI cards: total spend this month, delta vs last month (% change), top category, budget utilization
-- [ ] Spending trend: Tremor AreaChart, last 6 months
-- [ ] Category breakdown: donut chart, current month
-- [ ] Recent transactions: last 10-20 entries with category badges
-- [ ] Budget alerts: categories approaching (>80%) or over budget
-- [ ] Upcoming recurring: next 5 due recurring transactions
-
-**Done when:** Dashboard renders with real data, charts display correctly.
+**Done when:** Dashboard renders with real data, you can navigate the shell, other pages show placeholders.
 
 ---
 
 ### Sprint 10: Transactions Page
-**Goal:** Full transaction management UI.
+**Goal:** Full transaction management UI — the most-used page.
 
 - [ ] Transaction list with sortable columns (date, amount, category, merchant)
 - [ ] Filter bar: date range picker, category dropdown, amount range, text search, type toggle (income/expense/all)
 - [ ] Pagination
-- [ ] Add transaction form (manual entry)
+- [ ] Add transaction form (manual entry — amounts entered as decimals, converted to cents)
 - [ ] Inline edit (click to modify)
 - [ ] Bulk select → recategorize / delete
 - [ ] Receipt indicator badge, recurring indicator badge
 
 **Done when:** Can create, view, filter, edit, bulk-manage, and delete transactions through the UI.
+
+---
+
+**--- MVP milestone ---**
+
+*After Sprint 10, the app is usable daily: the AI assistant can enter transactions via MCP, you can view and manage them in the web UI, recurring transactions auto-generate, and the DB backs up automatically.*
+
+---
+
+## Phase 2: Full App — Complete Web Experience
+
+*Goal: Build out all remaining UI pages, receipt flow, documentation, and polish.*
 
 ---
 
@@ -561,9 +743,10 @@ Each sprint is a self-contained chunk of work that results in something testable
 ### Sprint 12: Budgets Page
 **Goal:** Budget management and tracking UI.
 
-- [ ] Set monthly budgets per category (form with amount input)
+- [ ] Set monthly budgets per category (form with amount input in decimal, stored as cents)
 - [ ] Progress bars: green (<60%) → yellow (60-90%) → red (>90%)
 - [ ] Copy budgets from previous month (one-click)
+- [ ] Dashboard: budget alerts (categories approaching >80% or over budget)
 - [ ] Historical budget adherence chart
 
 **Done when:** Can set, view, and track budgets. Visual feedback on spending vs budget.
@@ -577,6 +760,7 @@ Each sprint is a self-contained chunk of work that results in something testable
 - [ ] Create/edit form: amount, description, merchant, category, frequency, schedule, start/end date
 - [ ] Toggle active/inactive
 - [ ] View generated transactions for a template
+- [ ] Dashboard: upcoming recurring (next 5 due)
 
 **Done when:** Full recurring transaction management through the UI.
 
@@ -602,7 +786,7 @@ Each sprint is a self-contained chunk of work that results in something testable
 - [ ] Receipt image storage (`data/receipts/YYYY-MM/receipt-{id}.{ext}`)
 - [ ] `add_transactions` MCP tool: batch add with receipt metadata (merchant, date, total, image_path, raw_text)
 - [ ] Receipt record creation in DB, linked to transactions via `receipt_id`
-- [ ] UI: receipt icon on transactions → click to see full receipt, all items, original image
+- [ ] UI: receipt icon on transactions → click to see full receipt, all items, original image (served via `/api/receipts/[id]/image`)
 
 **Done when:** MCP can create receipts with linked transactions, UI displays receipt details.
 
@@ -628,7 +812,6 @@ Each sprint is a self-contained chunk of work that results in something testable
 - [ ] Mobile-responsive audit and fixes
 - [ ] CSV export for any filtered view
 - [ ] Tailscale access verification middleware
-- [ ] SQLite backup script
 - [ ] Error boundaries and loading states across all pages
 - [ ] Performance: check query efficiency, add missing indices if needed
 
