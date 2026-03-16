@@ -57,15 +57,16 @@ Key: API routes and MCP tools call the **same service layer**. No logic duplicat
 
 ## Access & Security
 
-**Tailscale-only access.** No auth layer in the app itself.
+**Phase 1: Tailscale-only access.** No auth layer in the app initially.
 
 - App binds to `0.0.0.0:<port>` but is only reachable via Tailscale network
 - Works on all devices: desktop browser, iOS (Tailscale app), Android
 - Optional safety net: middleware that verifies requests come from the Tailscale interface (`100.x.x.x` source IP)
 - MCP endpoint is also Tailscale-only — Snippy accesses it via the VPS Tailscale IP
-- Zero passwords, zero tokens, zero session management
 
-**Why this over app-level auth:** Single user, personal VPS. Building login flows, password resets, session handling is pure waste. Tailscale gives us mutual WireGuard authentication at the network level — stronger than any password form.
+**Why Tailscale-first:** Single user, personal VPS. Tailscale gives us mutual WireGuard authentication at the network level — good enough to start without building login flows.
+
+**Future: app-level auth.** The architecture should not make auth hard to add later. Keep auth concerns isolated (middleware/route guards), so we can slot in session-based or token-based auth when needed (e.g., shared access, public exposure).
 
 ## Database Schema
 
@@ -297,7 +298,7 @@ PRAGMA busy_timeout = 5000;
 
 ## Currency
 
-All amounts in **EUR (€)**. Single-currency app. No exchange rate logic needed.
+Default currency is **EUR (€)**. Start single-currency for simplicity, but keep the door open for multi-currency later — avoid hardcoding EUR assumptions deep in business logic. When multi-currency is needed, add a `currency` field to transactions and an exchange rate table.
 
 ## Data Storage
 
@@ -425,9 +426,10 @@ pinch/
 - [ ] Export: CSV download for any filtered view
 - [ ] SQLite backup automation
 
-## Future Considerations (not in scope now, but architecture supports)
+## Future Considerations (not in scope now, but design should accommodate)
 
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
-- **Multi-currency:** Add `currency` field to transactions, exchange rate table. All reporting converts to EUR base. Only build if actually needed.
+- **Multi-currency:** Add `currency` field to transactions, exchange rate table. All reporting converts to EUR base. Avoid hardcoding EUR assumptions in business logic so this is easy to add.
 - **Attachments:** Beyond receipts — invoices, contracts. Generalize receipt storage to a generic attachments table.
-- **Shared access:** If Tsveti needs access, Tailscale sharing or simple PIN auth. Current architecture doesn't preclude it.
+- **App-level auth:** Session-based or token-based auth for shared access or public exposure. Keep auth concerns in middleware/route guards so this can be slotted in cleanly.
+- **Shared access:** Multiple users or shared household access. Auth is a prerequisite.
