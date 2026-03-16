@@ -69,7 +69,19 @@ Workflow:
 - Imports: use `@/` path alias for `src/`.
 - Prefer named exports over default exports.
 - Keep files under ~300 lines. If longer, split into focused modules.
-- Commit messages: concise, imperative mood ("Add transaction service", not "Added transaction service").
+- **Commit messages:** [Conventional Commits](https://www.conventionalcommits.org/) — e.g. `feat: add transaction service`, `fix: handle null category on delete`, `chore: update drizzle config`. Use imperative mood in the description.
+- **Branching:** Gitflow — `main` is production, `develop` is the integration branch. Feature branches off `develop` (`feature/...`), release branches (`release/...`), hotfixes off `main` (`hotfix/...`).
+
+## Documentation
+
+This is intended to be a public open-source project. Maintain documentation accordingly:
+
+- **README.md** — project overview, screenshots, features, setup/install instructions, usage guide, tech stack, contributing guidelines. Keep it up to date as features land.
+- **LICENSE** — pick and include an open-source license.
+- **CONTRIBUTING.md** — how to set up the dev environment, run tests, submit PRs, coding standards.
+- **API docs** — document REST API endpoints and MCP tools (can live in README or a dedicated `docs/` folder).
+- Keep docs concise and practical. Don't write walls of text — developers should be able to get running in under 5 minutes.
+- Update docs when adding or changing user-facing features. Don't let docs drift from reality.
 
 ## What NOT to Do
 

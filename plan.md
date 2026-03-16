@@ -4,7 +4,14 @@
 
 ## Overview
 
-Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded in the app for AI interaction: receipt scanning, categorization, batch operations, ad-hoc SQL queries. Single-user, self-hosted on VPS, accessed via Tailscale.
+Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded in the app for AI interaction: receipt scanning, categorization, batch operations, ad-hoc SQL queries.
+
+## Actors
+
+| Actor | What it is | How it interacts with Pinch |
+|-------|-----------|----------------------------|
+| **User** | The human (app owner). | Browses the web UI from any device. Sends receipts/commands to the AI assistant via Telegram. |
+| **AI** | An AI assistant (e.g. built on [OpenClaw](https://github.com/openclaw/openclaw)) running on the same VPS as Pinch. | Connects to Pinch's MCP endpoint on localhost. Uses MCP tools to add transactions, scan receipts, query reports, manage categories/budgets — acts as the AI-powered data entry and analysis layer. |
 
 ## Tech Stack
 
@@ -53,7 +60,7 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 └──────────────────────────────────────────────┘
 ```
 
-Key: API routes and MCP tools call the **same service layer**. No logic duplication. The UI calls API routes; Snippy calls MCP tools. Both hit the same services → same DB.
+Key: API routes and MCP tools call the **same service layer**. No logic duplication. The UI calls API routes; the AI assistant calls MCP tools. Both hit the same services → same DB.
 
 ## Access & Security
 
@@ -62,7 +69,7 @@ Key: API routes and MCP tools call the **same service layer**. No logic duplicat
 - App binds to `0.0.0.0:<port>` but is only reachable via Tailscale network
 - Works on all devices: desktop browser, iOS (Tailscale app), Android
 - Optional safety net: middleware that verifies requests come from the Tailscale interface (`100.x.x.x` source IP)
-- MCP endpoint is also Tailscale-only — Snippy accesses it via the VPS Tailscale IP
+- MCP endpoint is localhost-only — the AI assistant runs on the same host
 
 **Why Tailscale-first:** Single user, personal VPS. Tailscale gives us mutual WireGuard authentication at the network level — good enough to start without building login flows.
 
@@ -234,7 +241,7 @@ PRAGMA busy_timeout = 5000;
 5. Generated transactions are normal transactions — editable, deletable, recategorizable independently
 6. Deactivating a template stops future generation but doesn't touch already-generated transactions
 
-**MCP management:** Snippy can create/modify/pause/resume recurring templates. Example: "I'm canceling my Netflix" → `update_recurring(id, is_active: false)`.
+**MCP management:** The AI assistant can create/modify/pause/resume recurring templates. Example: "I'm canceling my Netflix" → `update_recurring(id, is_active: false)`.
 
 ## Web UI Pages
 
@@ -284,17 +291,17 @@ PRAGMA busy_timeout = 5000;
 
 ## Receipt Flow
 
-1. User sends photo to Snippy via Telegram
-2. Snippy uses vision model to extract: merchant name, date, line items (description + amount per item), total
-3. Snippy calls MCP `add_transactions` with:
-   - Array of items (each becomes a transaction)
+1. User sends photo to the AI assistant via Telegram
+2. AI assistant uses vision model to extract: merchant name, date, line items (description + amount per item), total
+3. AI assistant calls `add_transactions` with:
+   - Array of items (each becomes a transaction with its own category)
    - Receipt metadata: merchant, date, total, image stored to `data/receipts/`
 4. Receipt record created in `receipts` table with `image_path` and `raw_text`
-5. Each transaction linked via `receipt_id`
-6. Snippy confirms: "Added 7 items from Kaufland (€43.20) — categorized as Groceries"
+5. Each transaction linked via `receipt_id` — a single receipt can span multiple categories (e.g. eggs → Groceries, cigarettes → Tobacco on the same Kaufland receipt)
+6. AI assistant confirms: "Added 7 items from Kaufland (€43.20) — 5× Groceries, 1× Tobacco, 1× Household"
 7. In the web UI: receipt icon on transactions → click to see full receipt, all items, original image
 
-**Category assignment:** Snippy uses merchant name + item descriptions to assign categories. If a merchant is seen before, reuse the previous category. If ambiguous, ask. Over time, category assignment gets smarter via accumulated history.
+**Category assignment:** The AI assistant uses item descriptions (per line item) and merchant name to assign categories. Each item on a receipt is categorized independently. If a merchant/item pattern has been seen before, reuse the previous category. If ambiguous, ask. Over time, category assignment gets smarter via accumulated history.
 
 ## Currency
 
@@ -387,44 +394,245 @@ pinch/
     └── favicon.ico
 ```
 
-## Development Phases
+## Development Sprints
 
-### Phase 1: Foundation
-- [ ] Initialize Next.js 15 + Tailwind 4 + shadcn/ui
-- [ ] Set up Drizzle + SQLite schema + initial migration
-- [ ] Implement service layer: transactions CRUD, categories CRUD
-- [ ] API routes for transactions + categories
-- [ ] MCP server with core tools: add/list/update/delete transactions, manage categories
-- [ ] Seed script with default categories (Groceries, Rent, Utilities, Transport, Entertainment, Dining, Health, Shopping, Subscriptions, Income, Other)
-- [ ] Tailscale access verification middleware
+Each sprint is a self-contained chunk of work that results in something testable. Sprints are designed to be completable in a single AI agent session with human review between sprints.
 
-### Phase 2: Dashboard & Core UI
-- [ ] App shell: sidebar navigation, responsive layout
-- [ ] Dashboard: KPI cards, spending trend (Tremor AreaChart), category donut chart, recent transactions
-- [ ] Transactions page: list with sorting, filter bar, inline edit, add form
-- [ ] Categories page: tree view, CRUD, merge UI
+---
 
-### Phase 3: MCP Intelligence + Receipts
-- [ ] Full MCP tools: reporting, recategorize, merge, query escape hatch
-- [ ] Receipt flow: add_transactions with receipt metadata + image storage
-- [ ] Receipt display in transaction list (icon + detail view)
-- [ ] Category auto-assignment logic (merchant history)
+### Sprint 1: Project Scaffolding
+**Goal:** Bootable Next.js app with tooling configured. Nothing custom yet — just the skeleton.
 
-### Phase 4: Budgets & Recurring
-- [ ] Budget service + MCP tools + API routes
-- [ ] Budget UI: set budgets, progress bars, copy from previous month
-- [ ] Recurring transaction engine (generation on startup + daily)
-- [ ] Recurring MCP tools + UI page
-- [ ] Budget alerts on dashboard
-- [ ] Upcoming recurring widget on dashboard
+- [ ] Initialize Next.js 15 (App Router) with TypeScript strict mode
+- [ ] Install and configure Tailwind CSS 4
+- [ ] Initialize shadcn/ui, add a few base components (Button, Card, Input, Table)
+- [ ] Set up path alias (`@/` → `src/`)
+- [ ] Configure Vitest for testing
+- [ ] Verify: `npm run dev` starts, `npm run build` passes, `npm test` runs
 
-### Phase 5: Reports & Polish
-- [ ] Reports page: date range picker, category bars, trends, merchant breakdown, budget vs actual
-- [ ] Income vs expenses summary
+**Done when:** App boots to a blank page, all tooling works, tests run green.
+
+---
+
+### Sprint 2: Database & Schema
+**Goal:** Drizzle ORM wired to SQLite, full schema defined, migrations running.
+
+- [ ] Install Drizzle ORM + better-sqlite3 + Drizzle Kit
+- [ ] Define all tables in `src/lib/db/schema.ts` (categories, transactions, receipts, budgets, recurring_transactions)
+- [ ] Configure `drizzle.config.ts`
+- [ ] DB connection singleton with PRAGMAs (`src/lib/db/index.ts`)
+- [ ] Generate and run initial migration
+- [ ] Seed script: default categories (Groceries, Rent, Utilities, Transport, Entertainment, Dining, Health, Shopping, Subscriptions, Income, Other)
+- [ ] Tests: DB connects, schema creates tables, seed runs, basic insert/select works
+
+**Done when:** `npm run db:migrate` creates the database, `npm run db:seed` populates categories, tests verify round-trip CRUD.
+
+---
+
+### Sprint 3: Zod Validators
+**Goal:** Shared validation schemas that will be used by API routes, MCP tools, and forms.
+
+- [ ] `src/lib/validators/transactions.ts` — create, update, list filters (date range, category, amount range, merchant, text search, pagination)
+- [ ] `src/lib/validators/categories.ts` — create, update, recategorize filters, merge params
+- [ ] `src/lib/validators/budgets.ts` — set budget, query params
+- [ ] `src/lib/validators/recurring.ts` — create, update, generation params
+- [ ] Export inferred TypeScript types from each schema
+- [ ] Tests: valid inputs pass, invalid inputs fail with expected errors
+
+**Done when:** All validators defined with full type inference, test coverage on edge cases.
+
+---
+
+### Sprint 4: Service Layer — Transactions & Categories
+**Goal:** Core business logic for the two primary domains.
+
+- [ ] `TransactionService`: create, createBatch, getById, list (with all filters + pagination), update, delete, deleteBatch
+- [ ] `CategoryService`: create, getAll (with hierarchy), getById, update, delete, recategorize (bulk move), merge
+- [ ] All services use Drizzle queries, accept validated types, return typed results
+- [ ] Tests: full CRUD, filter combinations, batch operations, category merge reassigns transactions, recategorize works
+
+**Done when:** Services fully tested against real SQLite. No API routes yet — just the logic layer.
+
+---
+
+### Sprint 5: Service Layer — Reports, Budgets, Recurring
+**Goal:** Remaining services that build on top of transactions/categories.
+
+- [ ] `ReportService`: spendingSummary (grouped by category/month/merchant, with period comparison), categoryBreakdown, trends (time series), topMerchants
+- [ ] `BudgetService`: set, getForMonth (all categories with spend vs budget), copyFromPreviousMonth
+- [ ] `RecurringService`: create, list (with next occurrence), update, delete, generatePending (create missing transactions up to a date)
+- [ ] Tests: report aggregations return correct numbers, budget status calculates correctly, recurring generation creates expected transactions
+
+**Done when:** All five services complete and tested. The entire backend logic works without any HTTP layer.
+
+---
+
+### Sprint 6: API Routes
+**Goal:** REST API exposing all services via Next.js route handlers.
+
+- [ ] `POST/GET /api/transactions` — create + list
+- [ ] `GET/PATCH/DELETE /api/transactions/[id]` — single transaction ops
+- [ ] `POST/GET /api/categories` — create + list
+- [ ] `PATCH/DELETE /api/categories/[id]` — single category ops
+- [ ] `POST /api/categories/recategorize` + `POST /api/categories/merge`
+- [ ] `GET /api/reports/summary` + `/breakdown` + `/trends` + `/top-merchants`
+- [ ] `POST/GET /api/budgets` — set + get status
+- [ ] `POST/GET/PATCH/DELETE /api/recurring` — full CRUD + `POST /api/recurring/generate`
+- [ ] All routes: validate with Zod, call service, return JSON. Consistent error shape.
+- [ ] Integration tests: hit route handlers, verify responses
+
+**Done when:** Full API working, tested end-to-end through route handlers.
+
+---
+
+### Sprint 7: MCP Server
+**Goal:** MCP endpoint with all tools, calling the same service layer as API routes.
+
+- [ ] MCP server setup with @modelcontextprotocol/sdk (`src/lib/mcp/server.ts`)
+- [ ] Mount as Streamable HTTP endpoint at `/api/mcp`
+- [ ] Transaction tools: add_transaction, add_transactions (batch), update_transaction, delete_transaction, list_transactions
+- [ ] Category tools: list_categories, create_category, update_category, recategorize, merge_categories
+- [ ] Report tools: spending_summary, category_breakdown, trends, top_merchants
+- [ ] Budget tools: set_budget, get_budget_status
+- [ ] Recurring tools: create_recurring, list_recurring, update_recurring, delete_recurring, generate_recurring
+- [ ] Escape hatch: query (read-only SQL)
+- [ ] Tests: tool registration works, tools call correct services
+
+**Done when:** MCP endpoint responds to tool calls, all tools wired to services.
+
+---
+
+### Sprint 8: App Shell & Layout
+**Goal:** Navigation, layout, and the structural UI — no data yet.
+
+- [ ] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Recurring)
+- [ ] Responsive: sidebar collapses on mobile
+- [ ] Active route highlighting
+- [ ] Breadcrumbs component
+- [ ] Install and configure Tremor
+- [ ] Empty state components for each page (placeholder content)
+
+**Done when:** You can click through all pages, responsive layout works, looks clean.
+
+---
+
+### Sprint 9: Dashboard
+**Goal:** Main dashboard with real data from API.
+
+- [ ] KPI cards: total spend this month, delta vs last month (% change), top category, budget utilization
+- [ ] Spending trend: Tremor AreaChart, last 6 months
+- [ ] Category breakdown: donut chart, current month
+- [ ] Recent transactions: last 10-20 entries with category badges
+- [ ] Budget alerts: categories approaching (>80%) or over budget
+- [ ] Upcoming recurring: next 5 due recurring transactions
+
+**Done when:** Dashboard renders with real data, charts display correctly.
+
+---
+
+### Sprint 10: Transactions Page
+**Goal:** Full transaction management UI.
+
+- [ ] Transaction list with sortable columns (date, amount, category, merchant)
+- [ ] Filter bar: date range picker, category dropdown, amount range, text search, type toggle (income/expense/all)
+- [ ] Pagination
+- [ ] Add transaction form (manual entry)
+- [ ] Inline edit (click to modify)
+- [ ] Bulk select → recategorize / delete
+- [ ] Receipt indicator badge, recurring indicator badge
+
+**Done when:** Can create, view, filter, edit, bulk-manage, and delete transactions through the UI.
+
+---
+
+### Sprint 11: Categories Page
+**Goal:** Category management with hierarchy and merge.
+
+- [ ] Tree view showing parent → children hierarchy
+- [ ] Per-category stats: total spend (current month), transaction count, budget status
+- [ ] Create / rename / reparent / change icon & color
+- [ ] Merge UI: select source → target, preview affected transactions, confirm
+- [ ] Click-through to filtered transaction list
+
+**Done when:** Full category CRUD and merge working in the UI.
+
+---
+
+### Sprint 12: Budgets Page
+**Goal:** Budget management and tracking UI.
+
+- [ ] Set monthly budgets per category (form with amount input)
+- [ ] Progress bars: green (<60%) → yellow (60-90%) → red (>90%)
+- [ ] Copy budgets from previous month (one-click)
+- [ ] Historical budget adherence chart
+
+**Done when:** Can set, view, and track budgets. Visual feedback on spending vs budget.
+
+---
+
+### Sprint 13: Recurring Transactions Page
+**Goal:** Recurring template management UI.
+
+- [ ] List: description, amount, frequency, next occurrence, status (active/paused)
+- [ ] Create/edit form: amount, description, merchant, category, frequency, schedule, start/end date
+- [ ] Toggle active/inactive
+- [ ] View generated transactions for a template
+
+**Done when:** Full recurring transaction management through the UI.
+
+---
+
+### Sprint 14: Reports Page
+**Goal:** Rich reporting with configurable date ranges and visualizations.
+
+- [ ] Date range picker with presets (this month, last month, last 3/6/12 months, YTD, custom)
+- [ ] Spending by category: horizontal bar chart
+- [ ] Trends: multi-line chart (total + selected categories over time)
+- [ ] Merchant breakdown: table with merchant, total spend, count, avg transaction
+- [ ] Budget vs actual: grouped bar chart
+- [ ] Income vs expenses: summary card + trend chart
+
+**Done when:** All report types render with real data, date range filtering works.
+
+---
+
+### Sprint 15: Receipts Flow
+**Goal:** Receipt scanning support for MCP + display in UI.
+
+- [ ] Receipt image storage (`data/receipts/YYYY-MM/receipt-{id}.{ext}`)
+- [ ] `add_transactions` MCP tool: batch add with receipt metadata (merchant, date, total, image_path, raw_text)
+- [ ] Receipt record creation in DB, linked to transactions via `receipt_id`
+- [ ] UI: receipt icon on transactions → click to see full receipt, all items, original image
+
+**Done when:** MCP can create receipts with linked transactions, UI displays receipt details.
+
+---
+
+### Sprint 16: Documentation & Project Files
+**Goal:** Make this a proper public open-source project.
+
+- [ ] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
+- [ ] LICENSE file (choose an appropriate open-source license)
+- [ ] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
+- [ ] API documentation — REST endpoints and MCP tools (in README or `docs/`)
+- [ ] Verify .gitignore, .env.example, and any other dotfiles are in order
+
+**Done when:** A developer can clone the repo, read the README, and get running. Project looks professional on GitHub.
+
+---
+
+### Sprint 17: Polish & Hardening
+**Goal:** Production readiness.
+
 - [ ] Dark mode (Tailwind dark variant)
-- [ ] Mobile-responsive layout (Tailscale works on iOS)
-- [ ] Export: CSV download for any filtered view
-- [ ] SQLite backup automation
+- [ ] Mobile-responsive audit and fixes
+- [ ] CSV export for any filtered view
+- [ ] Tailscale access verification middleware
+- [ ] SQLite backup script
+- [ ] Error boundaries and loading states across all pages
+- [ ] Performance: check query efficiency, add missing indices if needed
+
+**Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
 ## Future Considerations (not in scope now, but design should accommodate)
 
