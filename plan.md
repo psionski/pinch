@@ -661,7 +661,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 5: Service Layer — Reports, Budgets, Recurring
+### Sprint 5: Service Layer — Reports, Budgets, Recurring ✅
 **Goal:** Remaining services that build on top of transactions/categories.
 
 - [x] `ReportService`: spendingSummary (grouped by category/month/merchant, with period comparison), categoryBreakdown, trends (time series), topMerchants
@@ -674,20 +674,20 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 6: API Routes
+### Sprint 6: API Routes ✅
 **Goal:** REST API exposing all services via Next.js route handlers.
 
-- [ ] `POST/GET /api/transactions` — create + list (with pagination envelope)
-- [ ] `GET/PATCH/DELETE /api/transactions/[id]` — single transaction ops
-- [ ] `POST/GET /api/categories` — create + list
-- [ ] `PATCH/DELETE /api/categories/[id]` — single category ops
-- [ ] `POST /api/categories/recategorize` + `POST /api/categories/merge`
-- [ ] `GET /api/reports/summary` + `/breakdown` + `/trends` + `/top-merchants`
-- [ ] `POST/GET /api/budgets` — set + get status
-- [ ] `POST/GET/PATCH/DELETE /api/recurring` — full CRUD + `POST /api/recurring/generate`
-- [ ] `GET /api/receipts/[id]/image` — serve receipt images from `data/receipts/`
-- [ ] All routes: validate with Zod, call service, return JSON with consistent error shape (`{ error, code, details? }`)
-- [ ] Integration tests: hit route handlers, verify responses and error contract
+- [x] `POST/GET /api/transactions` — create + list (with pagination envelope)
+- [x] `GET/PATCH/DELETE /api/transactions/[id]` — single transaction ops
+- [x] `POST/GET /api/categories` — create + list
+- [x] `PATCH/DELETE /api/categories/[id]` — single category ops
+- [x] `POST /api/categories/recategorize` + `POST /api/categories/merge`
+- [x] `GET /api/reports/summary` + `/breakdown` + `/trends` + `/top-merchants`
+- [x] `POST/GET /api/budgets` — set + get status
+- [x] `POST/GET/PATCH/DELETE /api/recurring` — full CRUD + `POST /api/recurring/generate`
+- [x] `GET /api/receipts/[id]/image` — serve receipt images from `data/receipts/`
+- [x] All routes: validate with Zod, call service, return JSON with consistent error shape (`{ error, code, details? }`)
+- [x] Integration tests: hit route handlers, verify responses and error contract
 
 **Done when:** Full API working, tested end-to-end through route handlers.
 
