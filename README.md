@@ -62,8 +62,11 @@ Open [http://localhost:4000](http://localhost:4000).
 | `npm run start` | Start production server |
 | `npm run db:generate` | Generate Drizzle migrations from schema changes |
 | `npm run db:migrate` | Apply pending migrations |
-| `npm run db:seed` | Seed database with sample data |
+| `npm run db:seed` | Seed database with 3 months of realistic sample data |
 | `npm run db:studio` | Open Drizzle Studio (DB browser) |
+| `npm run check` | Lint + format check (ESLint + Prettier) |
+| `npm run lint:fix` | Auto-fix lint issues |
+| `npm run format:fix` | Auto-format all files |
 | `npm test` | Run tests |
 
 ## MCP Integration
