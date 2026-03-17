@@ -1,0 +1,22 @@
+# Normalize line endings to LF in the repo; convert to native on checkout
+* text=auto eol=lf
+
+# Windows scripts need CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — no conversion
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.db binary
+*.sqlite binary
