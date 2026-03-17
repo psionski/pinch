@@ -112,8 +112,12 @@ describe("getById", () => {
 
 describe("list", () => {
   beforeEach(() => {
-    service.create(tx({ amount: 100, description: "Groceries", merchant: "ALDI", date: "2026-01-10" }));
-    service.create(tx({ amount: 200, description: "Coffee", merchant: "Starbucks", date: "2026-02-15" }));
+    service.create(
+      tx({ amount: 100, description: "Groceries", merchant: "ALDI", date: "2026-01-10" })
+    );
+    service.create(
+      tx({ amount: 200, description: "Coffee", merchant: "Starbucks", date: "2026-02-15" })
+    );
     service.create(tx({ amount: 300, description: "Rent", date: "2026-03-01", type: "expense" }));
     service.create(tx({ amount: 500, description: "Salary", type: "income", date: "2026-03-01" }));
   });

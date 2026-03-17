@@ -21,10 +21,7 @@ async function seed(): Promise<void> {
   console.log("Seeding default categories...");
 
   for (const category of DEFAULT_CATEGORIES) {
-    await db
-      .insert(categories)
-      .values(category)
-      .onConflictDoNothing();
+    await db.insert(categories).values(category).onConflictDoNothing();
   }
 
   console.log(`Seeded ${DEFAULT_CATEGORIES.length} categories.`);

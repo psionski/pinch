@@ -80,11 +80,7 @@ export class CategoryService {
   }
 
   delete(id: number): boolean {
-    const result = this.db
-      .delete(categories)
-      .where(eq(categories.id, id))
-      .returning()
-      .all();
+    const result = this.db.delete(categories).where(eq(categories.id, id)).returning().all();
     return result.length > 0;
   }
 
@@ -135,8 +131,7 @@ export class CategoryService {
 
     this.db.transaction((tx) => {
       // Move all transactions to target
-      tx
-        .update(transactions)
+      tx.update(transactions)
         .set({
           categoryId: targetCategoryId,
           updatedAt: sql`(datetime('now'))`,
@@ -145,14 +140,13 @@ export class CategoryService {
         .run();
 
       // Transfer budgets that don't conflict with an existing target budget for the same month
-      tx
-        .update(budgets)
+      tx.update(budgets)
         .set({ categoryId: targetCategoryId })
         .where(
           and(
             eq(budgets.categoryId, sourceCategoryId),
-            sql`${budgets.month} NOT IN (SELECT month FROM budgets WHERE category_id = ${targetCategoryId})`,
-          ),
+            sql`${budgets.month} NOT IN (SELECT month FROM budgets WHERE category_id = ${targetCategoryId})`
+          )
         )
         .run();
 

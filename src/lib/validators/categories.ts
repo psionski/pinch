@@ -2,7 +2,9 @@ import { z } from "zod";
 import { IsoDateSchema } from "./common";
 
 // Hex color: #RRGGBB or #RGB
-const HexColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color (e.g. #FF5733)");
+const HexColorSchema = z
+  .string()
+  .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color (e.g. #FF5733)");
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 
@@ -29,21 +31,27 @@ export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;
 // ─── Recategorize ─────────────────────────────────────────────────────────────
 // Bulk-move transactions matching a filter to a new category
 
-export const RecategorizeSchema = z.object({
-  targetCategoryId: z.number().int().positive("Target category ID is required"),
-  sourceCategoryId: z.number().int().positive().optional(),
-  merchantPattern: z.string().max(255).optional(),
-  descriptionPattern: z.string().max(255).optional(),
-  dateFrom: IsoDateSchema.optional(),
-  dateTo: IsoDateSchema.optional(),
-}).refine(
-  (data) => data.sourceCategoryId !== undefined
-    || data.merchantPattern !== undefined
-    || data.descriptionPattern !== undefined
-    || data.dateFrom !== undefined
-    || data.dateTo !== undefined,
-  { message: "At least one filter (sourceCategoryId, merchantPattern, descriptionPattern, dateFrom, dateTo) is required" },
-);
+export const RecategorizeSchema = z
+  .object({
+    targetCategoryId: z.number().int().positive("Target category ID is required"),
+    sourceCategoryId: z.number().int().positive().optional(),
+    merchantPattern: z.string().max(255).optional(),
+    descriptionPattern: z.string().max(255).optional(),
+    dateFrom: IsoDateSchema.optional(),
+    dateTo: IsoDateSchema.optional(),
+  })
+  .refine(
+    (data) =>
+      data.sourceCategoryId !== undefined ||
+      data.merchantPattern !== undefined ||
+      data.descriptionPattern !== undefined ||
+      data.dateFrom !== undefined ||
+      data.dateTo !== undefined,
+    {
+      message:
+        "At least one filter (sourceCategoryId, merchantPattern, descriptionPattern, dateFrom, dateTo) is required",
+    }
+  );
 
 export type RecategorizeInput = z.infer<typeof RecategorizeSchema>;
 

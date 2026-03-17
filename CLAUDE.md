@@ -20,6 +20,7 @@ See `plan.md` for full architecture, schema, and roadmap.
 **Always use Context7 MCP to look up library documentation before writing code that depends on a library.** Do not guess or rely on potentially outdated training data for API surfaces. This applies to all dependencies — Next.js, Drizzle, shadcn/ui, Tremor, Zod, MCP SDK, Tailwind, etc.
 
 Workflow:
+
 1. `resolve-library-id` to get the Context7-compatible library ID
 2. `query-docs` with your specific question
 3. Write code based on the actual current API
@@ -27,28 +28,33 @@ Workflow:
 ## Code Quality Standards
 
 ### TypeScript
+
 - Strict mode is non-negotiable. No `any` types — use `unknown` and narrow, or define proper types.
 - Prefer `interface` for object shapes, `type` for unions/intersections/utilities.
 - All function signatures must have explicit return types for exported/public functions.
 - Use Zod schemas as the single source of truth for validation, then infer TypeScript types from them (`z.infer<typeof schema>`).
 
 ### Architecture
+
 - **Service layer is the single source of truth for business logic.** API routes and MCP tools are thin wrappers that validate input (Zod), call services, and format output. No business logic in routes or tool handlers.
 - **No logic duplication.** If both an API route and an MCP tool need the same operation, it lives in the service layer.
 - Keep modules focused and small. One service per domain (transactions, categories, reports, budgets, recurring).
 - Shared validators in `src/lib/validators/` — used by API routes, MCP tools, and frontend forms.
 
 ### Database
+
 - All schema changes go through Drizzle Kit migrations. Never modify the DB manually.
 - Set SQLite PRAGMAs on every connection (WAL mode, foreign keys ON, etc. — see plan.md).
 - Use Drizzle's query builder for type-safe queries. Raw SQL only for the `query` escape hatch MCP tool (read-only).
 
 ### Error Handling
+
 - Validate at system boundaries (API input, MCP tool input, user-submitted forms). Trust internal code.
 - Return structured error responses from API routes (consistent shape with `error` field).
 - Don't over-catch. Let unexpected errors propagate to the framework's error handler.
 
 ### Components & UI
+
 - Use shadcn/ui components as the base. Don't reinvent accessible primitives.
 - Tremor for charts and dashboard widgets.
 - Components should be composable and focused. No god-components.
@@ -56,12 +62,13 @@ Workflow:
 
 ## Definition of Done
 
-**Work is not complete until both of these pass with zero errors:**
+**Work is not complete until all three of these pass with zero errors:**
 
 1. **Type check:** `npx tsc --noEmit`
-2. **Tests:** `npm test`
+2. **Lint + format:** `npm run check`
+3. **Tests:** `npm test`
 
-Run both before considering any task finished. Do not move on if either fails.
+Run all three before considering any task finished. Do not move on if any fails.
 
 ## Testing
 

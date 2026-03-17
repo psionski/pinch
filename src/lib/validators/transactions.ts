@@ -36,7 +36,10 @@ export type UpdateTransactionInput = z.infer<typeof UpdateTransactionSchema>;
 // ─── Batch Create ─────────────────────────────────────────────────────────────
 
 export const CreateTransactionsBatchSchema = z.object({
-  transactions: z.array(CreateTransactionSchema).min(1, "At least one transaction required").max(100),
+  transactions: z
+    .array(CreateTransactionSchema)
+    .min(1, "At least one transaction required")
+    .max(100),
   receiptId: z.number().int().positive().optional(),
 });
 

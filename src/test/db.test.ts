@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -140,9 +140,7 @@ describe("Database", () => {
         .returning()
         .all();
 
-      db.delete(schema.transactions)
-        .where(eq(schema.transactions.id, inserted.id))
-        .run();
+      db.delete(schema.transactions).where(eq(schema.transactions.id, inserted.id)).run();
 
       const rows = db.select().from(schema.transactions).all();
       expect(rows).toHaveLength(0);
@@ -161,7 +159,7 @@ describe("Database", () => {
             date: "2026-03-17",
             categoryId: 9999,
           })
-          .run(),
+          .run()
       ).toThrow();
     });
   });
@@ -180,13 +178,10 @@ describe("Database", () => {
         })
         .run();
 
-      const client = (db as unknown as { session: { db: Database.Database } }).session?.db
-        ?? (db as unknown as { _: { client: Database.Database } })._?.client;
-
       // Access the underlying better-sqlite3 client via the internal drizzle structure
       // We use a raw SQL query to verify FTS
       const rawClient = Object.values(db).find(
-        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function",
+        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function"
       ) as Database.Database | undefined;
 
       expect(rawClient).toBeDefined();
@@ -204,13 +199,25 @@ describe("Database", () => {
 
       db.insert(schema.transactions)
         .values([
-          { amount: 400, type: "expense", description: "Lunch", merchant: "McDonald's", date: "2026-03-17" },
-          { amount: 200, type: "expense", description: "Coffee", merchant: "Costa Coffee", date: "2026-03-17" },
+          {
+            amount: 400,
+            type: "expense",
+            description: "Lunch",
+            merchant: "McDonald's",
+            date: "2026-03-17",
+          },
+          {
+            amount: 200,
+            type: "expense",
+            description: "Coffee",
+            merchant: "Costa Coffee",
+            date: "2026-03-17",
+          },
         ])
         .run();
 
       const rawClient = Object.values(db).find(
-        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function",
+        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function"
       ) as Database.Database | undefined;
 
       expect(rawClient).toBeDefined();
@@ -228,7 +235,12 @@ describe("Database", () => {
 
       const [tx] = db
         .insert(schema.transactions)
-        .values({ amount: 100, type: "expense", description: "Old description", date: "2026-03-17" })
+        .values({
+          amount: 100,
+          type: "expense",
+          description: "Old description",
+          date: "2026-03-17",
+        })
         .returning()
         .all();
 
@@ -238,7 +250,7 @@ describe("Database", () => {
         .run();
 
       const rawClient = Object.values(db).find(
-        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function",
+        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function"
       ) as Database.Database | undefined;
 
       expect(rawClient).toBeDefined();
@@ -260,14 +272,19 @@ describe("Database", () => {
 
       const [tx] = db
         .insert(schema.transactions)
-        .values({ amount: 100, type: "expense", description: "Temporary entry", date: "2026-03-17" })
+        .values({
+          amount: 100,
+          type: "expense",
+          description: "Temporary entry",
+          date: "2026-03-17",
+        })
         .returning()
         .all();
 
       db.delete(schema.transactions).where(eq(schema.transactions.id, tx.id)).run();
 
       const rawClient = Object.values(db).find(
-        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function",
+        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function"
       ) as Database.Database | undefined;
 
       expect(rawClient).toBeDefined();

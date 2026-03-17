@@ -1,16 +1,4 @@
-import {
-  and,
-  eq,
-  gte,
-  lte,
-  like,
-  inArray,
-  desc,
-  asc,
-  or,
-  sql,
-  type SQL,
-} from "drizzle-orm";
+import { and, eq, gte, lte, like, inArray, desc, asc, or, sql, type SQL } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { transactions } from "@/lib/db/schema";
@@ -81,20 +69,11 @@ export class TransactionService {
       notes: tx.notes,
       tags: tx.tags ? JSON.stringify(tx.tags) : undefined,
     }));
-    return this.db
-      .insert(transactions)
-      .values(values)
-      .returning()
-      .all()
-      .map(parseTransaction);
+    return this.db.insert(transactions).values(values).returning().all().map(parseTransaction);
   }
 
   getById(id: number): ParsedTransaction | null {
-    const [row] = this.db
-      .select()
-      .from(transactions)
-      .where(eq(transactions.id, id))
-      .all();
+    const [row] = this.db.select().from(transactions).where(eq(transactions.id, id)).all();
     return row ? parseTransaction(row) : null;
   }
 
@@ -106,22 +85,24 @@ export class TransactionService {
     if (input.categoryId !== undefined) filters.push(eq(transactions.categoryId, input.categoryId));
     if (input.amountMin !== undefined) filters.push(gte(transactions.amount, input.amountMin));
     if (input.amountMax !== undefined) filters.push(lte(transactions.amount, input.amountMax));
-    if (input.merchant !== undefined) filters.push(like(transactions.merchant, `%${input.merchant}%`));
+    if (input.merchant !== undefined)
+      filters.push(like(transactions.merchant, `%${input.merchant}%`));
     if (input.type !== undefined) filters.push(eq(transactions.type, input.type));
     if (input.receiptId !== undefined) filters.push(eq(transactions.receiptId, input.receiptId));
-    if (input.recurringId !== undefined) filters.push(eq(transactions.recurringId, input.recurringId));
+    if (input.recurringId !== undefined)
+      filters.push(eq(transactions.recurringId, input.recurringId));
 
     if (input.search !== undefined) {
       // Wrap in double quotes to force FTS5 phrase matching and neutralize special syntax
       const sanitized = `"${input.search.replace(/"/g, '""')}"`;
       filters.push(
-        sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${sanitized})`,
+        sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${sanitized})`
       );
     }
 
     if (input.tags !== undefined && input.tags.length > 0) {
       const tagConditions = input.tags.map(
-        (tag) => sql`EXISTS (SELECT 1 FROM json_each(${transactions.tags}) WHERE value = ${tag})`,
+        (tag) => sql`EXISTS (SELECT 1 FROM json_each(${transactions.tags}) WHERE value = ${tag})`
       );
       filters.push(or(...tagConditions)!);
     }
@@ -186,20 +167,13 @@ export class TransactionService {
   }
 
   delete(id: number): boolean {
-    const result = this.db
-      .delete(transactions)
-      .where(eq(transactions.id, id))
-      .returning()
-      .all();
+    const result = this.db.delete(transactions).where(eq(transactions.id, id)).returning().all();
     return result.length > 0;
   }
 
   deleteBatch(ids: number[]): number {
-    return this.db
-      .delete(transactions)
-      .where(inArray(transactions.id, ids))
-      .returning()
-      .all().length;
+    return this.db.delete(transactions).where(inArray(transactions.id, ids)).returning().all()
+      .length;
   }
 
   /** Returns all distinct tags across all transactions, sorted alphabetically. */
@@ -208,7 +182,7 @@ export class TransactionService {
       sql`SELECT DISTINCT j.value AS tag
           FROM ${transactions}, json_each(${transactions.tags}) AS j
           WHERE ${transactions.tags} IS NOT NULL
-          ORDER BY j.value`,
+          ORDER BY j.value`
     );
     return rows.map((r) => r.tag);
   }

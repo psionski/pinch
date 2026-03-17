@@ -1,26 +1,31 @@
-import { integer, sqliteTable, text, index, uniqueIndex, check, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  sqliteTable,
+  text,
+  index,
+  uniqueIndex,
+  check,
+  type AnySQLiteColumn,
+} from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ─── Categories ──────────────────────────────────────────────────────────────
 
-export const categories = sqliteTable(
-  "categories",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    name: text("name").notNull().unique(),
-    parentId: integer("parent_id").references((): AnySQLiteColumn => categories.id, {
-      onDelete: "set null",
-    }),
-    icon: text("icon"),
-    color: text("color"),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(datetime('now'))`),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default(sql`(datetime('now'))`),
-  },
-);
+export const categories = sqliteTable("categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  parentId: integer("parent_id").references((): AnySQLiteColumn => categories.id, {
+    onDelete: "set null",
+  }),
+  icon: text("icon"),
+  color: text("color"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
 
 // ─── Receipts ─────────────────────────────────────────────────────────────────
 
@@ -69,8 +74,11 @@ export const recurringTransactions = sqliteTable(
     index("idx_recurring_active").on(table.isActive),
     index("idx_recurring_frequency").on(table.frequency, table.isActive),
     check("recurring_type_check", sql`${table.type} IN ('income', 'expense')`),
-    check("recurring_frequency_check", sql`${table.frequency} IN ('daily', 'weekly', 'monthly', 'yearly')`),
-  ],
+    check(
+      "recurring_frequency_check",
+      sql`${table.frequency} IN ('daily', 'weekly', 'monthly', 'yearly')`
+    ),
+  ]
 );
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
@@ -112,7 +120,7 @@ export const transactions = sqliteTable(
     index("idx_transactions_receipt").on(table.receiptId),
     index("idx_transactions_recurring").on(table.recurringId),
     check("transactions_type_check", sql`${table.type} IN ('income', 'expense')`),
-  ],
+  ]
 );
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
@@ -131,7 +139,7 @@ export const budgets = sqliteTable(
     index("idx_budgets_month").on(table.month),
     index("idx_budgets_category_month").on(table.categoryId, table.month),
     uniqueIndex("uq_budgets_category_month").on(table.categoryId, table.month),
-  ],
+  ]
 );
 
 // ─── Inferred Types ───────────────────────────────────────────────────────────

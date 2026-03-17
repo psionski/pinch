@@ -68,9 +68,7 @@ describe("ErrorResponseSchema", () => {
   });
 
   it("rejects unknown error code", () => {
-    expect(() =>
-      ErrorResponseSchema.parse({ error: "oops", code: "UNKNOWN_CODE" })
-    ).toThrow();
+    expect(() => ErrorResponseSchema.parse({ error: "oops", code: "UNKNOWN_CODE" })).toThrow();
   });
 });
 
