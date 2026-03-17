@@ -1,10 +1,5 @@
 import { z } from "zod";
-import { PaginationSchema } from "./common";
-
-// ISO 8601 date string: YYYY-MM-DD
-const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
-
-const TransactionTypeSchema = z.enum(["income", "expense"]);
+import { PaginationSchema, IsoDateSchema, TransactionTypeSchema } from "./common";
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 

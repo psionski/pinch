@@ -17,7 +17,7 @@ AI-powered personal finance tracker. Track spending, scan receipts, manage budge
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS 4 + shadcn/ui |
 | Charts | Tremor |

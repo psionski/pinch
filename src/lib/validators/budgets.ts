@@ -1,7 +1,5 @@
 import { z } from "zod";
-
-// YYYY-MM month format
-const YearMonthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format");
+import { YearMonthSchema } from "./common";
 
 // ─── Set Budget ───────────────────────────────────────────────────────────────
 

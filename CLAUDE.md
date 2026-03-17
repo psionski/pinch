@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-Pinch is an AI-powered personal finance tracker. Web dashboard (Next.js 15) + MCP server for AI-driven data entry/analysis. Single-user (for now), self-hosted, SQLite-backed. Default currency EUR — avoid hardcoding currency assumptions deep in logic.
+Pinch is an AI-powered personal finance tracker. Web dashboard (Next.js 16) + MCP server for AI-driven data entry/analysis. Single-user (for now), self-hosted, SQLite-backed. Default currency EUR — avoid hardcoding currency assumptions deep in logic.
 
 See `plan.md` for full architecture, schema, and roadmap.
 
 ## Tech Stack
 
-- **Framework:** Next.js 15 (App Router) — full-stack React + API routes + MCP endpoint
+- **Framework:** Next.js 16 (App Router) — full-stack React + API routes + MCP endpoint
 - **Language:** TypeScript (strict mode) — end-to-end type safety
 - **Styling:** Tailwind CSS 4 + shadcn/ui + Tremor (charts)
 - **Database:** SQLite via better-sqlite3, Drizzle ORM, Drizzle Kit migrations

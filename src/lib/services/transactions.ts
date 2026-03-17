@@ -8,7 +8,6 @@ import {
   desc,
   asc,
   or,
-  isNotNull,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -35,7 +34,8 @@ function parseTags(raw: string | null): string[] | null {
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as string[]) : null;
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((item): item is string => typeof item === "string");
   } catch {
     return null;
   }
@@ -112,8 +112,10 @@ export class TransactionService {
     if (input.recurringId !== undefined) filters.push(eq(transactions.recurringId, input.recurringId));
 
     if (input.search !== undefined) {
+      // Wrap in double quotes to force FTS5 phrase matching and neutralize special syntax
+      const sanitized = `"${input.search.replace(/"/g, '""')}"`;
       filters.push(
-        sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${input.search})`,
+        sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${sanitized})`,
       );
     }
 
@@ -161,9 +163,7 @@ export class TransactionService {
   }
 
   update(id: number, input: UpdateTransactionInput): ParsedTransaction | null {
-    if (!this.getById(id)) return null;
-
-    const [row] = this.db
+    const rows = this.db
       .update(transactions)
       .set({
         ...(input.amount !== undefined ? { amount: input.amount } : {}),
@@ -182,7 +182,7 @@ export class TransactionService {
       .returning()
       .all();
 
-    return row ? parseTransaction(row) : null;
+    return rows.length > 0 ? parseTransaction(rows[0]) : null;
   }
 
   delete(id: number): boolean {
@@ -204,27 +204,12 @@ export class TransactionService {
 
   /** Returns all distinct tags across all transactions, sorted alphabetically. */
   listTags(): string[] {
-    const rows = this.db
-      .select({ tags: transactions.tags })
-      .from(transactions)
-      .where(isNotNull(transactions.tags))
-      .all();
-
-    const tagSet = new Set<string>();
-    for (const row of rows) {
-      if (row.tags) {
-        try {
-          const parsed: unknown = JSON.parse(row.tags);
-          if (Array.isArray(parsed)) {
-            for (const tag of parsed) {
-              if (typeof tag === "string") tagSet.add(tag);
-            }
-          }
-        } catch {
-          // malformed JSON — skip
-        }
-      }
-    }
-    return [...tagSet].sort();
+    const rows = this.db.all<{ tag: string }>(
+      sql`SELECT DISTINCT j.value AS tag
+          FROM ${transactions}, json_each(${transactions.tags}) AS j
+          WHERE ${transactions.tags} IS NOT NULL
+          ORDER BY j.value`,
+    );
+    return rows.map((r) => r.tag);
   }
 }

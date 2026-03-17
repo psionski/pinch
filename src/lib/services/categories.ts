@@ -63,9 +63,7 @@ export class CategoryService {
   }
 
   update(id: number, input: UpdateCategoryInput): Category | null {
-    if (!this.getById(id)) return null;
-
-    const [row] = this.db
+    const rows = this.db
       .update(categories)
       .set({
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -78,7 +76,7 @@ export class CategoryService {
       .returning()
       .all();
 
-    return row ?? null;
+    return rows.length > 0 ? rows[0] : null;
   }
 
   delete(id: number): boolean {
@@ -135,29 +133,31 @@ export class CategoryService {
   merge(input: MergeCategoriesInput): void {
     const { sourceCategoryId, targetCategoryId } = input;
 
-    // Move all transactions to target
-    this.db
-      .update(transactions)
-      .set({
-        categoryId: targetCategoryId,
-        updatedAt: sql`(datetime('now'))`,
-      })
-      .where(eq(transactions.categoryId, sourceCategoryId))
-      .run();
+    this.db.transaction((tx) => {
+      // Move all transactions to target
+      tx
+        .update(transactions)
+        .set({
+          categoryId: targetCategoryId,
+          updatedAt: sql`(datetime('now'))`,
+        })
+        .where(eq(transactions.categoryId, sourceCategoryId))
+        .run();
 
-    // Transfer budgets that don't conflict with an existing target budget for the same month
-    this.db
-      .update(budgets)
-      .set({ categoryId: targetCategoryId })
-      .where(
-        and(
-          eq(budgets.categoryId, sourceCategoryId),
-          sql`${budgets.month} NOT IN (SELECT month FROM budgets WHERE category_id = ${targetCategoryId})`,
-        ),
-      )
-      .run();
+      // Transfer budgets that don't conflict with an existing target budget for the same month
+      tx
+        .update(budgets)
+        .set({ categoryId: targetCategoryId })
+        .where(
+          and(
+            eq(budgets.categoryId, sourceCategoryId),
+            sql`${budgets.month} NOT IN (SELECT month FROM budgets WHERE category_id = ${targetCategoryId})`,
+          ),
+        )
+        .run();
 
-    // Delete source category — cascade-deletes any remaining source budgets
-    this.db.delete(categories).where(eq(categories.id, sourceCategoryId)).run();
+      // Delete source category — cascade-deletes any remaining source budgets
+      tx.delete(categories).where(eq(categories.id, sourceCategoryId)).run();
+    });
   }
 }

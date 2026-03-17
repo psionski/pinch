@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, index, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, index, uniqueIndex, check, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ─── Categories ──────────────────────────────────────────────────────────────
@@ -68,6 +68,8 @@ export const recurringTransactions = sqliteTable(
   (table) => [
     index("idx_recurring_active").on(table.isActive),
     index("idx_recurring_frequency").on(table.frequency, table.isActive),
+    check("recurring_type_check", sql`${table.type} IN ('income', 'expense')`),
+    check("recurring_frequency_check", sql`${table.frequency} IN ('daily', 'weekly', 'monthly', 'yearly')`),
   ],
 );
 
@@ -109,6 +111,7 @@ export const transactions = sqliteTable(
     index("idx_transactions_type_date").on(table.type, table.date),
     index("idx_transactions_receipt").on(table.receiptId),
     index("idx_transactions_recurring").on(table.recurringId),
+    check("transactions_type_check", sql`${table.type} IN ('income', 'expense')`),
   ],
 );
 

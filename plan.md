@@ -17,7 +17,7 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Framework | Next.js 15 (App Router) | Full-stack: React frontend + API routes + MCP endpoint |
+| Framework | Next.js 16 (App Router) | Full-stack: React frontend + API routes + MCP endpoint |
 | Language | TypeScript (strict) | End-to-end type safety |
 | Styling | Tailwind CSS 4 | Utility-first, fast iteration |
 | UI Components | shadcn/ui | Accessible, composable, Tailwind-native |
@@ -604,7 +604,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ### Sprint 1: Project Scaffolding ✅
 **Goal:** Bootable Next.js app with tooling configured. Nothing custom yet — just the skeleton.
 
-- [x] Initialize Next.js 15 (App Router) with TypeScript strict mode
+- [x] Initialize Next.js 16 (App Router) with TypeScript strict mode
 - [x] Install and configure Tailwind CSS 4
 - [x] Initialize shadcn/ui, add a few base components (Button, Card, Input, Table)
 - [x] Set up path alias (`@/` → `src/`)

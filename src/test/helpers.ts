@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "path";
 import * as schema from "@/lib/db/schema";
+import { ensureFtsTriggers } from "@/lib/db/index";
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, "../../drizzle");
 
@@ -13,5 +14,6 @@ export function makeTestDb() {
   client.pragma("foreign_keys = ON");
   const db = drizzle({ client, schema });
   migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  ensureFtsTriggers(client);
   return db;
 }

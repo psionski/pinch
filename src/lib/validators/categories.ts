@@ -1,10 +1,8 @@
 import { z } from "zod";
+import { IsoDateSchema } from "./common";
 
 // Hex color: #RRGGBB or #RGB
 const HexColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color (e.g. #FF5733)");
-
-// ISO 8601 date string: YYYY-MM-DD
-const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 
@@ -38,7 +36,14 @@ export const RecategorizeSchema = z.object({
   descriptionPattern: z.string().max(255).optional(),
   dateFrom: IsoDateSchema.optional(),
   dateTo: IsoDateSchema.optional(),
-});
+}).refine(
+  (data) => data.sourceCategoryId !== undefined
+    || data.merchantPattern !== undefined
+    || data.descriptionPattern !== undefined
+    || data.dateFrom !== undefined
+    || data.dateTo !== undefined,
+  { message: "At least one filter (sourceCategoryId, merchantPattern, descriptionPattern, dateFrom, dateTo) is required" },
+);
 
 export type RecategorizeInput = z.infer<typeof RecategorizeSchema>;
 

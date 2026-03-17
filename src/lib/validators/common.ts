@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+// ─── Shared Primitives ───────────────────────────────────────────────────────
+
+/** ISO 8601 date string: YYYY-MM-DD */
+export const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+
+/** YYYY-MM month format */
+export const YearMonthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format");
+
+export const TransactionTypeSchema = z.enum(["income", "expense"]);
+
+export const FrequencySchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 export const PaginationSchema = z.object({

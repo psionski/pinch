@@ -265,13 +265,9 @@ describe("update", () => {
 
   it("sets updatedAt on update", () => {
     const created = service.create(tx());
-    const original = created.updatedAt;
-    // Sleep is not reliable for same-second checks; just verify the field exists
     const updated = service.update(created.id, { amount: 500 });
     expect(updated!.updatedAt).toBeDefined();
-    // updatedAt should be a valid datetime string
     expect(updated!.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}/);
-    void original; // used to prevent lint warning
   });
 
   it("clears nullable field when set to null", () => {
