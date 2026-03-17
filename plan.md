@@ -490,7 +490,7 @@ Receipt images are uploaded via a **companion REST endpoint** (not MCP — see R
 
 ## Data Storage
 
-- **Database:** `src/data/pinch.db` (SQLite, gitignored)
+- **Database:** `data/pinch.db` (SQLite, gitignored)
 - **Receipt images:** `data/receipts/YYYY-MM/receipt-{id}.{ext}` (organized by month, gitignored)
 - **Backups:** Daily automated backup via cron job (see Scheduled Tasks section). Uses SQLite `.backup` command to `data/backups/pinch-YYYY-MM-DD.db`. Keep last 7 daily backups (auto-rotate old ones).
 
@@ -578,10 +578,10 @@ pinch/
 │   │   └── utils/
 │   │       ├── dates.ts         # Date helpers (month ranges, formatting)
 │   │       └── currency.ts      # Cents ↔ decimal formatting
-│   └── data/                    # Runtime data (gitignored)
-│       ├── pinch.db             # SQLite database
-│       ├── backups/             # Daily SQLite backups (auto-rotated)
-│       └── receipts/            # Receipt images organized by YYYY-MM/
+├── data/                        # Runtime user data (gitignored)
+│   ├── pinch.db                 # SQLite database
+│   ├── backups/                 # Daily SQLite backups (auto-rotated)
+│   └── receipts/                # Receipt images organized by YYYY-MM/
 ├── drizzle/                     # Generated migrations
 └── public/
     └── favicon.ico

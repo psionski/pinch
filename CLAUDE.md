@@ -54,6 +54,15 @@ Workflow:
 - Components should be composable and focused. No god-components.
 - Server Components by default; only use `"use client"` when you need interactivity or browser APIs.
 
+## Definition of Done
+
+**Work is not complete until both of these pass with zero errors:**
+
+1. **Type check:** `npx tsc --noEmit`
+2. **Tests:** `npm test`
+
+Run both before considering any task finished. Do not move on if either fails.
+
 ## Testing
 
 - **Write tests for all service layer logic.** Services are the core of the app — they must be tested.
