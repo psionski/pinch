@@ -1,65 +1,90 @@
-import Image from "next/image";
+import {
+  getReportService,
+  getBudgetService,
+  getTransactionService,
+  getCategoryService,
+} from "@/lib/api/services";
+import { KpiCards } from "@/components/dashboard/kpi-cards";
+import { SpendingTrendChart } from "@/components/dashboard/spending-trend-chart";
+import { CategoryDonutChart } from "@/components/dashboard/category-donut-chart";
+import { RecentTransactions } from "@/components/dashboard/recent-transactions";
+import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
-export default function Home() {
+function getCurrentMonth(): { monthStart: string; monthEnd: string; currentMonth: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const currentMonth = `${year}-${String(month).padStart(2, "0")}`;
+  const monthStart = `${currentMonth}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
+  return { monthStart, monthEnd, currentMonth };
+}
+
+function getPreviousMonth(currentMonth: string): { prevMonthStart: string; prevMonthEnd: string } {
+  const [year, month] = currentMonth.split("-").map(Number);
+  const prevDate = new Date(year, month - 2, 1);
+  const prevYear = prevDate.getFullYear();
+  const prevMonth = prevDate.getMonth() + 1;
+  const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  const prevMonthStart = `${prevMonthStr}-01`;
+  const prevLastDay = new Date(prevYear, prevMonth, 0).getDate();
+  const prevMonthEnd = `${prevMonthStr}-${String(prevLastDay).padStart(2, "0")}`;
+  return { prevMonthStart, prevMonthEnd };
+}
+
+export default function DashboardPage(): React.ReactElement {
+  const reportService = getReportService();
+  const budgetService = getBudgetService();
+  const transactionService = getTransactionService();
+  const categoryService = getCategoryService();
+
+  const { monthStart, monthEnd, currentMonth } = getCurrentMonth();
+  const { prevMonthStart, prevMonthEnd } = getPreviousMonth(currentMonth);
+
+  const summary = reportService.spendingSummary({
+    dateFrom: monthStart,
+    dateTo: monthEnd,
+    groupBy: "category",
+    type: "expense",
+    compareDateFrom: prevMonthStart,
+    compareDateTo: prevMonthEnd,
+  });
+
+  const breakdown = reportService.categoryBreakdown({
+    dateFrom: monthStart,
+    dateTo: monthEnd,
+    type: "expense",
+  });
+
+  const trends = reportService.trends({ months: 6, type: "expense" });
+
+  const budgetStatus = budgetService.getForMonth({ month: currentMonth });
+
+  const recentTx = transactionService.list({
+    limit: 15,
+    offset: 0,
+    sortBy: "date",
+    sortOrder: "desc",
+  });
+
+  const allCategories = categoryService.getAll();
+  const categoryMap = new Map<number, CategoryWithCountResponse>(
+    allCategories.map((c) => [c.id, c])
+  );
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between bg-white px-16 py-32 sm:items-start dark:bg-black">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl leading-10 font-semibold tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="bg-foreground text-background flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 transition-colors hover:bg-[#383838] md:w-[158px] dark:hover:bg-[#ccc]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] md:w-[158px] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+
+      <KpiCards summary={summary} budgetStatus={budgetStatus} />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <SpendingTrendChart data={trends} />
+        <CategoryDonutChart data={breakdown} />
+      </div>
+
+      <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-# 🤏🪙 Pinch
+# 🪙 Pinch
 
 AI-powered personal finance tracker. Track spending, scan receipts, manage budgets — with an MCP interface for AI-driven data entry and analysis.
 
@@ -20,7 +20,7 @@ AI-powered personal finance tracker. Track spending, scan receipts, manage budge
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS 4 + shadcn/ui |
-| Charts | Tremor |
+| Charts | Recharts (via shadcn/ui) |
 | Database | SQLite via better-sqlite3 |
 | ORM | Drizzle ORM + Drizzle Kit |
 | Validation | Zod |

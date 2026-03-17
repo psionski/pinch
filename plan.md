@@ -712,32 +712,32 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 8: Scheduled Tasks
+### Sprint 8: Scheduled Tasks ✅
 **Goal:** Cron jobs for recurring transaction generation and database backups.
 
-- [ ] Install `node-cron`
-- [ ] `src/instrumentation.ts` — calls `initCronJobs()` on server start (with `NEXT_RUNTIME === "nodejs"` guard)
-- [ ] `src/lib/cron.ts` — `globalThis` singleton guard to prevent duplicate jobs in dev mode
-- [ ] Cron job: generate pending recurring transactions (daily at 02:00)
-- [ ] Cron job: SQLite backup with rotation (daily at 03:00)
-- [ ] Tests: verify `generatePending` idempotency, backup file creation and rotation
+- [x] Install `node-cron`
+- [x] `src/instrumentation.ts` — calls `initCronJobs()` on server start (with `NEXT_RUNTIME === "nodejs"` guard)
+- [x] `src/lib/cron.ts` — `globalThis` singleton guard to prevent duplicate jobs in dev mode
+- [x] Cron job: generate pending recurring transactions (daily at 02:00)
+- [x] Cron job: SQLite backup with rotation (daily at 03:00)
+- [x] Tests: verify `generatePending` idempotency, backup file creation and rotation
 
 **Done when:** Recurring transactions auto-generate, backups auto-rotate, no duplicate jobs in dev mode.
 
 ---
 
-### Sprint 9: App Shell + Minimal Dashboard
+### Sprint 9: App Shell + Minimal Dashboard ✅
 **Goal:** Navigable layout with a functional dashboard — the first thing you see in the browser.
 
-- [ ] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Recurring)
-- [ ] Responsive: sidebar collapses on mobile
-- [ ] Active route highlighting
-- [ ] Install and configure Tremor
-- [ ] Dashboard: KPI cards (total spend this month, delta vs last month, top category, budget utilization)
-- [ ] Dashboard: spending trend AreaChart (last 6 months)
-- [ ] Dashboard: category breakdown donut chart (current month)
-- [ ] Dashboard: recent transactions list (last 10-20 entries with category badges)
-- [ ] Empty state components for pages not yet built
+- [x] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Recurring)
+- [x] Responsive: sidebar collapses on mobile
+- [x] Active route highlighting
+- [x] Install and configure shadcn/ui charts (Recharts wrapper) — Tremor v3 incompatible with Tailwind v4 OKLCH
+- [x] Dashboard: KPI cards (total spend this month, delta vs last month, top category, budget utilization)
+- [x] Dashboard: spending trend AreaChart (last 6 months)
+- [x] Dashboard: category breakdown donut chart (current month)
+- [x] Dashboard: recent transactions list (last 10-20 entries with category badges)
+- [x] Empty state components for pages not yet built
 
 **Done when:** Dashboard renders with real data, you can navigate the shell, other pages show placeholders.
 

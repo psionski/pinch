@@ -30,6 +30,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "recharts": "^2.15.4",
     "shadcn": "^4.0.8",
     "swagger-ui-dist": "^5.32.1",
     "tailwind-merge": "^3.5.0",
