@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Read(//c/Users/zorov/AppData/Roaming/**)",
+      "Read(//c/Users/zorov/**)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.buildwithmatija.com)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --yes)",
+      "Bash(/c/Users/zorov/AppData/Local/Microsoft/WinGet/Packages/Schniz.fnm_Microsoft.Winget.Source_8wekyb3d8bbwe/fnm.exe env:*)",
+      "Bash(export PATH=\"/c/Users/zorov/AppData/Local/fnm_multishells/2508_1773707765510:$PATH\")",
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(npx create-next-app@latest --help)",
+      "Bash(mv /c/Users/zorov/source/repos/pinch/CLAUDE.md /c/Users/zorov/CLAUDE.md.bak)",
+      "Bash(mv /c/Users/zorov/source/repos/pinch/plan.md /c/Users/zorov/plan.md.bak)"
+    ]
+  }
+}
