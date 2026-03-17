@@ -1,4 +1,4 @@
-# Pinch
+# 🤏🪙 Pinch
 
 AI-powered personal finance tracker. Track spending, scan receipts, manage budgets — with an MCP interface for AI-driven data entry and analysis.
 
