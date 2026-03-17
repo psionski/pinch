@@ -601,61 +601,61 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 1: Project Scaffolding
+### Sprint 1: Project Scaffolding ✅
 **Goal:** Bootable Next.js app with tooling configured. Nothing custom yet — just the skeleton.
 
-- [ ] Initialize Next.js 15 (App Router) with TypeScript strict mode
-- [ ] Install and configure Tailwind CSS 4
-- [ ] Initialize shadcn/ui, add a few base components (Button, Card, Input, Table)
-- [ ] Set up path alias (`@/` → `src/`)
-- [ ] Configure Vitest for testing
-- [ ] Verify: `npm run dev` starts, `npm run build` passes, `npm test` runs
+- [x] Initialize Next.js 15 (App Router) with TypeScript strict mode
+- [x] Install and configure Tailwind CSS 4
+- [x] Initialize shadcn/ui, add a few base components (Button, Card, Input, Table)
+- [x] Set up path alias (`@/` → `src/`)
+- [x] Configure Vitest for testing
+- [x] Verify: `npm run dev` starts, `npm run build` passes, `npm test` runs
 
 **Done when:** App boots to a blank page, all tooling works, tests run green.
 
 ---
 
-### Sprint 2: Database & Schema
+### Sprint 2: Database & Schema ✅
 **Goal:** Drizzle ORM wired to SQLite, full schema defined, migrations running.
 
-- [ ] Install Drizzle ORM + better-sqlite3 + Drizzle Kit
-- [ ] Define all tables in `src/lib/db/schema.ts` (categories, transactions, receipts, budgets, recurring_transactions) — amounts as INTEGER (cents)
-- [ ] Define FTS5 virtual table and sync triggers for transaction text search
-- [ ] Configure `drizzle.config.ts`
-- [ ] DB connection singleton with PRAGMAs (`src/lib/db/index.ts`)
-- [ ] Generate and run initial migration
-- [ ] Seed script: default categories (Groceries, Rent, Utilities, Transport, Entertainment, Dining, Health, Shopping, Subscriptions, Income, Other)
-- [ ] Tests: DB connects, schema creates tables, seed runs, basic insert/select works, FTS search returns results
+- [x] Install Drizzle ORM + better-sqlite3 + Drizzle Kit
+- [x] Define all tables in `src/lib/db/schema.ts` (categories, transactions, receipts, budgets, recurring_transactions) — amounts as INTEGER (cents)
+- [x] Define FTS5 virtual table and sync triggers for transaction text search
+- [x] Configure `drizzle.config.ts`
+- [x] DB connection singleton with PRAGMAs (`src/lib/db/index.ts`)
+- [x] Generate and run initial migration
+- [x] Seed script: default categories (Groceries, Rent, Utilities, Transport, Entertainment, Dining, Health, Shopping, Subscriptions, Income, Other)
+- [x] Tests: DB connects, schema creates tables, seed runs, basic insert/select works, FTS search returns results
 
 **Done when:** `npm run db:migrate` creates the database, `npm run db:seed` populates categories, tests verify round-trip CRUD and full-text search.
 
 ---
 
-### Sprint 3: Validators & Shared Types
+### Sprint 3: Validators & Shared Types ✅
 **Goal:** Shared validation schemas that will be used by API routes, MCP tools, and forms.
 
-- [ ] `src/lib/validators/common.ts` — pagination params, error envelope schema
-- [ ] `src/lib/validators/transactions.ts` — create (amounts in cents), update, list filters (date range, category, amount range, merchant, text search, tags, pagination)
-- [ ] `src/lib/validators/categories.ts` — create, update, recategorize filters, merge params
-- [ ] `src/lib/validators/budgets.ts` — set budget, query params
-- [ ] `src/lib/validators/recurring.ts` — create, update, generation params
-- [ ] Export inferred TypeScript types from each schema
-- [ ] Tests: valid inputs pass, invalid inputs fail with expected errors
+- [x] `src/lib/validators/common.ts` — pagination params, error envelope schema
+- [x] `src/lib/validators/transactions.ts` — create (amounts in cents), update, list filters (date range, category, amount range, merchant, text search, tags, pagination)
+- [x] `src/lib/validators/categories.ts` — create, update, recategorize filters, merge params
+- [x] `src/lib/validators/budgets.ts` — set budget, query params
+- [x] `src/lib/validators/recurring.ts` — create, update, generation params
+- [x] Export inferred TypeScript types from each schema
+- [x] Tests: valid inputs pass, invalid inputs fail with expected errors
 
 **Done when:** All validators defined with full type inference, test coverage on edge cases.
 
 ---
 
-### Sprint 4: Service Layer — Transactions & Categories
+### Sprint 4: Service Layer — Transactions & Categories ✅
 **Goal:** Core business logic for the two primary domains.
 
-- [ ] `TransactionService`: create, createBatch, getById, list (with all filters + FTS text search + pagination), update, delete, deleteBatch
-- [ ] FTS sync on insert/update/delete (service layer keeps `transactions_fts` in sync)
-- [ ] `updated_at` set explicitly on every update call
-- [ ] `CategoryService`: create, getAll (with hierarchy), getById, update, delete, recategorize (bulk move), merge
-- [ ] Tag listing: service method to get all distinct tags across transactions
-- [ ] All services use Drizzle queries, accept validated types, return typed results with pagination envelope
-- [ ] Tests: full CRUD, filter combinations, FTS search, tag filtering via `json_each()`, batch operations, category merge reassigns transactions, recategorize works
+- [x] `TransactionService`: create, createBatch, getById, list (with all filters + FTS text search + pagination), update, delete, deleteBatch
+- [x] FTS sync on insert/update/delete (service layer keeps `transactions_fts` in sync)
+- [x] `updated_at` set explicitly on every update call
+- [x] `CategoryService`: create, getAll (with hierarchy), getById, update, delete, recategorize (bulk move), merge
+- [x] Tag listing: service method to get all distinct tags across transactions
+- [x] All services use Drizzle queries, accept validated types, return typed results with pagination envelope
+- [x] Tests: full CRUD, filter combinations, FTS search, tag filtering via `json_each()`, batch operations, category merge reassigns transactions, recategorize works
 
 **Done when:** Services fully tested against real SQLite. No API routes yet — just the logic layer.
 
