@@ -8,15 +8,11 @@ import type {
   UpdateTransactionInput,
   CreateTransactionsBatchInput,
   ListTransactionsInput,
+  TransactionResponse,
 } from "@/lib/validators/transactions";
 import type { PaginatedResponse } from "@/lib/validators/common";
 
 type Db = BetterSQLite3Database<typeof schema>;
-
-/** Transaction as returned by the service — `tags` is parsed from JSON to a string array. */
-export interface ParsedTransaction extends Omit<Transaction, "tags"> {
-  tags: string[] | null;
-}
 
 function parseTags(raw: string | null): string[] | null {
   if (!raw) return null;
@@ -29,14 +25,18 @@ function parseTags(raw: string | null): string[] | null {
   }
 }
 
-function parseTransaction(row: Transaction): ParsedTransaction {
-  return { ...row, tags: parseTags(row.tags) };
+function parseTransaction(row: Transaction): TransactionResponse {
+  return {
+    ...row,
+    type: row.type as "income" | "expense",
+    tags: parseTags(row.tags),
+  };
 }
 
 export class TransactionService {
   constructor(private db: Db) {}
 
-  create(input: CreateTransactionInput): ParsedTransaction {
+  create(input: CreateTransactionInput): TransactionResponse {
     const [row] = this.db
       .insert(transactions)
       .values({
@@ -56,7 +56,7 @@ export class TransactionService {
     return parseTransaction(row);
   }
 
-  createBatch(input: CreateTransactionsBatchInput): ParsedTransaction[] {
+  createBatch(input: CreateTransactionsBatchInput): TransactionResponse[] {
     const values = input.transactions.map((tx) => ({
       amount: tx.amount,
       type: tx.type,
@@ -72,12 +72,12 @@ export class TransactionService {
     return this.db.insert(transactions).values(values).returning().all().map(parseTransaction);
   }
 
-  getById(id: number): ParsedTransaction | null {
+  getById(id: number): TransactionResponse | null {
     const [row] = this.db.select().from(transactions).where(eq(transactions.id, id)).all();
     return row ? parseTransaction(row) : null;
   }
 
-  list(input: ListTransactionsInput): PaginatedResponse<ParsedTransaction> {
+  list(input: ListTransactionsInput): PaginatedResponse<TransactionResponse> {
     const filters: SQL[] = [];
 
     if (input.dateFrom !== undefined) filters.push(gte(transactions.date, input.dateFrom));
@@ -143,7 +143,7 @@ export class TransactionService {
     };
   }
 
-  update(id: number, input: UpdateTransactionInput): ParsedTransaction | null {
+  update(id: number, input: UpdateTransactionInput): TransactionResponse | null {
     const rows = this.db
       .update(transactions)
       .set({

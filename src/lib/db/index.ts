@@ -1,8 +1,10 @@
 import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { mkdirSync } from "fs";
 import { dirname } from "path";
 import * as schema from "./schema";
+
+export type AppDb = BetterSQLite3Database<typeof schema>;
 
 const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
 
@@ -53,10 +55,10 @@ function initClient(path: string): InstanceType<typeof Database> {
 
 // Singleton for the application DB connection.
 // In tests, use createDb() directly with a separate path/in-memory DB.
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: AppDb | null = null;
 
 /** App-level singleton. Assumes the DB is already migrated. */
-export function getDb(): ReturnType<typeof drizzle> {
+export function getDb(): AppDb {
   if (!_db) {
     const client = initClient(DB_PATH);
     ensureFtsTriggers(client);
@@ -66,7 +68,7 @@ export function getDb(): ReturnType<typeof drizzle> {
 }
 
 /** Create a fresh DB connection — use in tests or for alternate DB paths. */
-export function createDb(path: string): ReturnType<typeof drizzle> {
+export function createDb(path: string): AppDb {
   const client = initClient(path);
   return drizzle({ client, schema });
 }

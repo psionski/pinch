@@ -1,6 +1,31 @@
 import { z } from "zod";
 import { IsoDateSchema, TransactionTypeSchema, FrequencySchema } from "./common";
 
+// ─── Response ────────────────────────────────────────────────────────────────
+
+export const RecurringResponseSchema = z.object({
+  id: z.number().int(),
+  amount: z.number().int(),
+  type: z.enum(["income", "expense"]),
+  description: z.string(),
+  merchant: z.string().nullable(),
+  categoryId: z.number().int().nullable(),
+  frequency: z.enum(["daily", "weekly", "monthly", "yearly"]),
+  dayOfMonth: z.number().int().nullable(),
+  dayOfWeek: z.number().int().nullable(),
+  startDate: z.string(),
+  endDate: z.string().nullable(),
+  lastGenerated: z.string().nullable(),
+  isActive: z.number().int(),
+  notes: z.string().nullable(),
+  tags: z.array(z.string()).nullable(),
+  nextOccurrence: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type RecurringResponse = z.infer<typeof RecurringResponseSchema>;
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export const CreateRecurringSchema = z.object({

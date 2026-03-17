@@ -1,6 +1,17 @@
 import { z } from "zod";
 import { YearMonthSchema } from "./common";
 
+// ─── Response ────────────────────────────────────────────────────────────────
+
+export const BudgetResponseSchema = z.object({
+  id: z.number().int(),
+  categoryId: z.number().int(),
+  month: z.string(),
+  amount: z.number().int(),
+});
+
+export type BudgetResponse = z.infer<typeof BudgetResponseSchema>;
+
 // ─── Set Budget ───────────────────────────────────────────────────────────────
 
 export const SetBudgetSchema = z.object({

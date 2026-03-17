@@ -8,15 +8,10 @@ import type {
   UpdateRecurringInput,
   DeleteRecurringInput,
   GenerateRecurringInput,
+  RecurringResponse,
 } from "@/lib/validators/recurring";
 
 type Db = BetterSQLite3Database<typeof schema>;
-
-export interface ParsedRecurring extends Omit<RecurringTransaction, "tags"> {
-  tags: string[] | null;
-  /** Next occurrence date in YYYY-MM-DD format, or null if the template is inactive or past its end. */
-  nextOccurrence: string | null;
-}
 
 function parseTags(raw: string | null): string[] | null {
   if (!raw) return null;
@@ -134,9 +129,11 @@ function occurrencesBetween(r: RecurringTransaction, fromDate: Date, upToDate: D
   return results;
 }
 
-function parseRecurring(row: RecurringTransaction, afterDate: Date): ParsedRecurring {
+function parseRecurring(row: RecurringTransaction, afterDate: Date): RecurringResponse {
   return {
     ...row,
+    type: row.type as "income" | "expense",
+    frequency: row.frequency as "daily" | "weekly" | "monthly" | "yearly",
     tags: parseTags(row.tags),
     nextOccurrence: computeNextOccurrence(row, afterDate),
   };
@@ -147,7 +144,7 @@ function parseRecurring(row: RecurringTransaction, afterDate: Date): ParsedRecur
 export class RecurringService {
   constructor(private db: Db) {}
 
-  create(input: CreateRecurringInput): ParsedRecurring {
+  create(input: CreateRecurringInput): RecurringResponse {
     const [row] = this.db
       .insert(recurringTransactions)
       .values({
@@ -169,7 +166,7 @@ export class RecurringService {
     return parseRecurring(row, new Date());
   }
 
-  list(): ParsedRecurring[] {
+  list(): RecurringResponse[] {
     const now = new Date();
     return this.db
       .select()
@@ -179,7 +176,7 @@ export class RecurringService {
       .map((r) => parseRecurring(r, now));
   }
 
-  getById(id: number): ParsedRecurring | null {
+  getById(id: number): RecurringResponse | null {
     const [row] = this.db
       .select()
       .from(recurringTransactions)
@@ -188,7 +185,7 @@ export class RecurringService {
     return row ? parseRecurring(row, new Date()) : null;
   }
 
-  update(id: number, input: UpdateRecurringInput): ParsedRecurring | null {
+  update(id: number, input: UpdateRecurringInput): RecurringResponse | null {
     const rows = this.db
       .update(recurringTransactions)
       .set({

@@ -1,6 +1,26 @@
 import { z } from "zod";
 import { IsoDateSchema } from "./common";
 
+// ─── Response ────────────────────────────────────────────────────────────────
+
+export const CategoryResponseSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  parentId: z.number().int().nullable(),
+  icon: z.string().nullable(),
+  color: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type CategoryResponse = z.infer<typeof CategoryResponseSchema>;
+
+export const CategoryWithCountResponseSchema = CategoryResponseSchema.extend({
+  transactionCount: z.number().int(),
+});
+
+export type CategoryWithCountResponse = z.infer<typeof CategoryWithCountResponseSchema>;
+
 // Hex color: #RRGGBB or #RGB
 const HexColorSchema = z
   .string()

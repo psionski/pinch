@@ -6,9 +6,9 @@ import type {
   SetBudgetInput,
   GetBudgetStatusInput,
   CopyBudgetsInput,
+  BudgetResponse,
 } from "@/lib/validators/budgets";
 import type { BudgetStatusItem } from "@/lib/validators/reports";
-import type { Budget } from "@/lib/db/schema";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -20,14 +20,14 @@ export class BudgetService {
    * When `applyToFutureMonths` is true, also upserts the same amount for every
    * existing budget row of the same category that is in a later month.
    */
-  set(input: SetBudgetInput): Budget {
+  set(input: SetBudgetInput): BudgetResponse {
     const existing = this.db
       .select()
       .from(budgets)
       .where(and(eq(budgets.categoryId, input.categoryId), eq(budgets.month, input.month)))
       .all();
 
-    let result: Budget;
+    let result: BudgetResponse;
     if (existing.length > 0) {
       const [row] = this.db
         .update(budgets)
@@ -150,7 +150,7 @@ export class BudgetService {
   }
 
   /** Returns all budget rows for a given category, sorted by month. */
-  listForCategory(categoryId: number): Budget[] {
+  listForCategory(categoryId: number): BudgetResponse[] {
     return this.db
       .select()
       .from(budgets)

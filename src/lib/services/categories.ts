@@ -2,24 +2,21 @@ import { and, eq, gte, lte, like, sql, type SQL } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { categories, transactions, budgets } from "@/lib/db/schema";
-import type { Category } from "@/lib/db/schema";
 import type {
   CreateCategoryInput,
   UpdateCategoryInput,
   RecategorizeInput,
   MergeCategoriesInput,
+  CategoryResponse,
+  CategoryWithCountResponse,
 } from "@/lib/validators/categories";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
-export interface CategoryWithCount extends Category {
-  transactionCount: number;
-}
-
 export class CategoryService {
   constructor(private db: Db) {}
 
-  create(input: CreateCategoryInput): Category {
+  create(input: CreateCategoryInput): CategoryResponse {
     const [row] = this.db
       .insert(categories)
       .values({
@@ -34,7 +31,7 @@ export class CategoryService {
   }
 
   /** Returns all categories with transaction counts. Parent/child hierarchy is represented via `parentId`. */
-  getAll(): CategoryWithCount[] {
+  getAll(): CategoryWithCountResponse[] {
     const allCategories = this.db.select().from(categories).all();
 
     const counts = this.db
@@ -57,12 +54,12 @@ export class CategoryService {
     }));
   }
 
-  getById(id: number): Category | null {
+  getById(id: number): CategoryResponse | null {
     const [row] = this.db.select().from(categories).where(eq(categories.id, id)).all();
     return row ?? null;
   }
 
-  update(id: number, input: UpdateCategoryInput): Category | null {
+  update(id: number, input: UpdateCategoryInput): CategoryResponse | null {
     const rows = this.db
       .update(categories)
       .set({

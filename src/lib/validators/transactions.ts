@@ -1,6 +1,36 @@
 import { z } from "zod";
 import { PaginationSchema, IsoDateSchema, TransactionTypeSchema } from "./common";
 
+// ─── Response ────────────────────────────────────────────────────────────────
+
+export const TransactionResponseSchema = z.object({
+  id: z.number().int(),
+  amount: z.number().int(),
+  type: z.enum(["income", "expense"]),
+  description: z.string(),
+  merchant: z.string().nullable(),
+  categoryId: z.number().int().nullable(),
+  date: z.string(),
+  receiptId: z.number().int().nullable(),
+  recurringId: z.number().int().nullable(),
+  notes: z.string().nullable(),
+  tags: z.array(z.string()).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type TransactionResponse = z.infer<typeof TransactionResponseSchema>;
+
+export const PaginatedTransactionsResponseSchema = z.object({
+  data: z.array(TransactionResponseSchema),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+  hasMore: z.boolean(),
+});
+
+export type PaginatedTransactionsResponse = z.infer<typeof PaginatedTransactionsResponseSchema>;
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export const CreateTransactionSchema = z.object({
