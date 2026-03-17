@@ -664,11 +664,11 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ### Sprint 5: Service Layer — Reports, Budgets, Recurring
 **Goal:** Remaining services that build on top of transactions/categories.
 
-- [ ] `ReportService`: spendingSummary (grouped by category/month/merchant, with period comparison), categoryBreakdown, trends (time series), topMerchants
-- [ ] `BudgetService`: set, getForMonth (all categories with spend vs budget), copyFromPreviousMonth
-- [ ] `RecurringService`: create, list (with next occurrence), update, delete, generatePending (create missing transactions up to a date)
-- [ ] `BackupService`: run SQLite `.backup`, auto-rotate old backups (keep last 7)
-- [ ] Tests: report aggregations return correct numbers, budget status calculates correctly, recurring generation creates expected transactions
+- [x] `ReportService`: spendingSummary (grouped by category/month/merchant, with period comparison), categoryBreakdown, trends (time series), topMerchants
+- [x] `BudgetService`: set, getForMonth (all categories with spend vs budget), copyFromPreviousMonth
+- [x] `RecurringService`: create, list (with next occurrence), update, delete, generatePending (create missing transactions up to a date)
+- [x] `BackupService`: run SQLite `.backup`, auto-rotate old backups (keep last 7)
+- [x] Tests: report aggregations return correct numbers, budget status calculates correctly, recurring generation creates expected transactions
 
 **Done when:** All five services complete and tested. The entire backend logic works without any HTTP layer.
 
