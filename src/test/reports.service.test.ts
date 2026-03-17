@@ -118,6 +118,41 @@ describe("spendingSummary", () => {
     expect(result.comparePeriod?.total).toBe(1000);
   });
 
+  it("includes compareTotal when grouped by month", () => {
+    const result = reports.spendingSummary(
+      SpendingSummarySchema.parse({
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-31",
+        groupBy: "month",
+        compareDateFrom: "2026-02-01",
+        compareDateTo: "2026-02-28",
+      })
+    );
+    const march = result.groups.find((g) => g.key === "2026-03");
+    // No March data in compare period, so compareTotal should be 0
+    expect(march?.compareTotal).toBe(0);
+    // Compare period should have Feb data
+    expect(result.comparePeriod?.total).toBe(1000);
+  });
+
+  it("includes compareTotal when grouped by merchant", () => {
+    const result = reports.spendingSummary(
+      SpendingSummarySchema.parse({
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-31",
+        groupBy: "merchant",
+        compareDateFrom: "2026-02-01",
+        compareDateTo: "2026-02-28",
+      })
+    );
+    const aldi = result.groups.find((g) => g.key === "ALDI");
+    // ALDI had 1000 in Feb
+    expect(aldi?.compareTotal).toBe(1000);
+    // Lidl had nothing in Feb
+    const lidl = result.groups.find((g) => g.key === "Lidl");
+    expect(lidl?.compareTotal).toBe(0);
+  });
+
   it("respects type filter (income vs expense)", () => {
     txService.create(
       tx({ amount: 5000, type: "income", date: "2026-03-20", description: "Salary" })
