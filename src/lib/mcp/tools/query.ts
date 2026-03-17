@@ -15,6 +15,25 @@ function isReadOnly(sqlStr: string): boolean {
 
 export function registerQueryTool(server: McpServer): void {
   server.registerTool(
+    "get_db_schema",
+    {
+      description:
+        "Return the CREATE TABLE DDL for every user table in the database. " +
+        "Use this before writing a query tool call to get exact column names and types.",
+      inputSchema: z.object({}),
+    },
+    () => {
+      const client = (getDb() as unknown as { $client: InstanceType<typeof Database> }).$client;
+      const rows = client
+        .prepare(
+          "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        )
+        .all() as { name: string; sql: string }[];
+      return ok(rows);
+    }
+  );
+
+  server.registerTool(
     "query",
     {
       description:
