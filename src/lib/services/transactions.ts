@@ -7,6 +7,7 @@ import type {
   CreateTransactionInput,
   UpdateTransactionInput,
   CreateTransactionsBatchInput,
+  UpdateTransactionsBatchInput,
   ListTransactionsInput,
   TransactionResponse,
 } from "@/lib/validators/transactions";
@@ -165,6 +166,15 @@ export class TransactionService {
       .all();
 
     return rows.length > 0 ? parseTransaction(rows[0]) : null;
+  }
+
+  updateBatch(input: UpdateTransactionsBatchInput): TransactionResponse[] {
+    return this.db.transaction(() =>
+      input.updates.flatMap(({ id, ...fields }) => {
+        const result = this.update(id, fields);
+        return result ? [result] : [];
+      })
+    );
   }
 
   delete(id: number): boolean {

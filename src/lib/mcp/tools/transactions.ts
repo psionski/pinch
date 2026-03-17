@@ -4,6 +4,7 @@ import {
   CreateTransactionSchema,
   CreateTransactionsBatchSchema,
   UpdateTransactionSchema,
+  UpdateTransactionsBatchSchema,
   ListTransactionsSchema,
 } from "@/lib/validators/transactions";
 import { getTransactionService } from "@/lib/api/services";
@@ -86,6 +87,17 @@ export function registerTransactionTools(server: McpServer): void {
       inputSchema: ListTransactionsSchema,
     },
     (input) => ok(getTransactionService().list(input))
+  );
+
+  server.registerTool(
+    "batch_update_transactions",
+    {
+      description:
+        "Update multiple transactions in one call. Each entry must have an id plus any fields to change. " +
+        "Silently skips IDs that don't exist. Returns the updated transactions.",
+      inputSchema: UpdateTransactionsBatchSchema,
+    },
+    (input) => ok(getTransactionService().updateBatch(input))
   );
 
   server.registerTool(

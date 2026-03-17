@@ -95,6 +95,17 @@ export const ListTransactionsSchema = PaginationSchema.extend({
 
 export type ListTransactionsInput = z.infer<typeof ListTransactionsSchema>;
 
+// ─── Batch Update ─────────────────────────────────────────────────────────────
+
+export const UpdateTransactionsBatchSchema = z.object({
+  updates: z
+    .array(z.object({ id: z.number().int().positive(), ...UpdateTransactionSchema.shape }))
+    .min(1, "At least one update required")
+    .max(100),
+});
+
+export type UpdateTransactionsBatchInput = z.infer<typeof UpdateTransactionsBatchSchema>;
+
 // ─── Delete Batch ─────────────────────────────────────────────────────────────
 
 export const DeleteTransactionsBatchSchema = z.object({

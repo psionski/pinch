@@ -355,6 +355,59 @@ describe("deleteBatch", () => {
   });
 });
 
+// ─── updateBatch ──────────────────────────────────────────────────────────────
+
+describe("updateBatch", () => {
+  it("updates multiple transactions in one call", () => {
+    const [cat] = db.insert(categories).values({ name: "Food" }).returning().all();
+    const a = service.create(tx({ description: "A" }));
+    const b = service.create(tx({ description: "B" }));
+
+    const results = service.updateBatch({
+      updates: [
+        { id: a.id, categoryId: cat.id },
+        { id: b.id, description: "B updated" },
+      ],
+    });
+
+    expect(results).toHaveLength(2);
+    expect(results.find((r) => r.id === a.id)?.categoryId).toBe(cat.id);
+    expect(results.find((r) => r.id === b.id)?.description).toBe("B updated");
+  });
+
+  it("silently skips non-existent ids and returns only updated rows", () => {
+    const a = service.create(tx({ description: "A" }));
+
+    const results = service.updateBatch({
+      updates: [
+        { id: a.id, description: "A updated" },
+        { id: 9999, description: "Ghost" },
+      ],
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].description).toBe("A updated");
+  });
+
+  it("is atomic — all updates succeed or none do", () => {
+    const a = service.create(tx({ description: "A" }));
+    const b = service.create(tx({ description: "B" }));
+
+    expect(() =>
+      service.updateBatch({
+        updates: [
+          { id: a.id, categoryId: 9999 }, // invalid FK — will throw
+          { id: b.id, description: "B updated" },
+        ],
+      })
+    ).toThrow();
+
+    // neither row should be changed
+    expect(service.getById(a.id)?.categoryId).toBeNull();
+    expect(service.getById(b.id)?.description).toBe("B");
+  });
+});
+
 // ─── listTags ─────────────────────────────────────────────────────────────────
 
 describe("listTags", () => {
