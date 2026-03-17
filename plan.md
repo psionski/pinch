@@ -222,7 +222,7 @@ PRAGMA busy_timeout = 5000;
 | Tool | Description |
 |------|-------------|
 | `add_transaction` | Add a single transaction (amount, description, category, date, merchant, notes, tags) |
-| `add_transactions` | Batch add (for receipts — array of items + shared receipt metadata: merchant, date, total, image_path) |
+| `add_transactions` | Batch add — array of transactions in one call. Optionally link to an uploaded receipt via `receipt_id`. |
 | `update_transaction` | Update fields on an existing transaction by ID |
 | `delete_transaction` | Delete by ID (or array of IDs for bulk delete) |
 | `list_transactions` | List with filters: date range, category, amount range, merchant, text search, tags, type. Pagination via limit+offset. |
