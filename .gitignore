@@ -12,8 +12,6 @@ dist/
 src/data/
 data/
 
-# Drizzle
-drizzle/meta/
 
 # Environment
 .env
