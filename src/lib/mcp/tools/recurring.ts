@@ -27,6 +27,19 @@ export function registerRecurringTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "get_recurring",
+    {
+      description: "Get a single recurring transaction template by ID with next occurrence date.",
+      inputSchema: z.object({ id: z.number().int().positive() }),
+    },
+    ({ id }) => {
+      const result = getRecurringService().getById(id);
+      if (!result) throw new Error(`Recurring template ${id} not found`);
+      return ok(result);
+    }
+  );
+
+  server.registerTool(
     "list_recurring",
     {
       description: "List all recurring transaction templates with next occurrence date and status.",

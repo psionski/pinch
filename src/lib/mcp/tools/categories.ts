@@ -24,6 +24,19 @@ export function registerCategoryTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "get_category",
+    {
+      description: "Get a single category by ID with hierarchy info and metadata.",
+      inputSchema: z.object({ id: z.number().int().positive() }),
+    },
+    ({ id }) => {
+      const result = getCategoryService().getById(id);
+      if (!result) throw new Error(`Category ${id} not found`);
+      return ok(result);
+    }
+  );
+
+  server.registerTool(
     "create_category",
     {
       description: "Create a new category. Optionally set a parent_id for subcategories.",
@@ -42,6 +55,20 @@ export function registerCategoryTools(server: McpServer): void {
       const result = getCategoryService().update(id, updates);
       if (!result) throw new Error(`Category ${id} not found`);
       return ok(result);
+    }
+  );
+
+  server.registerTool(
+    "delete_category",
+    {
+      description:
+        "Delete a category. Transactions in this category will become uncategorized (categoryId set to NULL).",
+      inputSchema: z.object({ id: z.number().int().positive() }),
+    },
+    ({ id }) => {
+      const deleted = getCategoryService().delete(id);
+      if (!deleted) throw new Error(`Category ${id} not found`);
+      return ok({ deleted: true });
     }
   );
 

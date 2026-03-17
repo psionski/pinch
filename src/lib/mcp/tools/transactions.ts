@@ -78,6 +78,19 @@ export function registerTransactionTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "get_transaction",
+    {
+      description: "Get a single transaction by ID with all fields.",
+      inputSchema: z.object({ id: z.number().int().positive() }),
+    },
+    ({ id }) => {
+      const result = getTransactionService().getById(id);
+      if (!result) throw new Error(`Transaction ${id} not found`);
+      return ok(result);
+    }
+  );
+
+  server.registerTool(
     "list_transactions",
     {
       description:
