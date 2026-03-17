@@ -80,7 +80,7 @@ export type CreateTransactionsBatchInput = z.infer<typeof CreateTransactionsBatc
 export const ListTransactionsSchema = PaginationSchema.extend({
   dateFrom: IsoDateSchema.optional(),
   dateTo: IsoDateSchema.optional(),
-  categoryId: z.number().int().positive().optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
   amountMin: z.number().int().min(0).optional(),
   amountMax: z.number().int().min(0).optional(),
   merchant: z.string().max(255).optional(),

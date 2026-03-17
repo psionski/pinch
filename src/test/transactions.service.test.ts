@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestDb } from "./helpers";
 import { TransactionService } from "@/lib/services/transactions";
 import { CreateTransactionSchema, ListTransactionsSchema } from "@/lib/validators/transactions";
-import { receipts } from "@/lib/db/schema";
+import { receipts, categories } from "@/lib/db/schema";
 
 type TestDb = ReturnType<typeof makeTestDb>;
 
@@ -191,6 +191,30 @@ describe("list", () => {
     const result = service.list(listInput());
     const dates = result.data.map((r) => r.date);
     expect(dates).toEqual([...dates].sort().reverse());
+  });
+});
+
+// ─── list — categoryId filter ─────────────────────────────────────────────────
+
+describe("list — categoryId filter", () => {
+  it("filters for uncategorized transactions when categoryId is null", () => {
+    const [cat] = db.insert(categories).values({ name: "Food" }).returning().all();
+    service.create(tx({ description: "Categorized", categoryId: cat.id }));
+    service.create(tx({ description: "Uncategorized" }));
+
+    const result = service.list(listInput({ categoryId: null }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].description).toBe("Uncategorized");
+  });
+
+  it("filters by a specific categoryId", () => {
+    const [cat] = db.insert(categories).values({ name: "Transport" }).returning().all();
+    service.create(tx({ description: "Bus", categoryId: cat.id }));
+    service.create(tx({ description: "Groceries" }));
+
+    const result = service.list(listInput({ categoryId: cat.id }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].description).toBe("Bus");
   });
 });
 

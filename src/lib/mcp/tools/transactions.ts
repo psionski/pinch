@@ -81,7 +81,8 @@ export function registerTransactionTools(server: McpServer): void {
     {
       description:
         "List transactions with optional filters: date range, category, amount range, " +
-        "merchant, full-text search, tags, type. Sorted by date desc by default.",
+        "merchant, full-text search, tags, type. Sorted by date desc by default. " +
+        "Pass categoryId: null to filter for uncategorized transactions only.",
       inputSchema: ListTransactionsSchema,
     },
     (input) => ok(getTransactionService().list(input))

@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, like, inArray, desc, asc, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, lte, like, inArray, isNull, desc, asc, or, sql, type SQL } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { transactions } from "@/lib/db/schema";
@@ -82,7 +82,8 @@ export class TransactionService {
 
     if (input.dateFrom !== undefined) filters.push(gte(transactions.date, input.dateFrom));
     if (input.dateTo !== undefined) filters.push(lte(transactions.date, input.dateTo));
-    if (input.categoryId !== undefined) filters.push(eq(transactions.categoryId, input.categoryId));
+    if (input.categoryId !== undefined)
+      filters.push(input.categoryId === null ? isNull(transactions.categoryId) : eq(transactions.categoryId, input.categoryId));
     if (input.amountMin !== undefined) filters.push(gte(transactions.amount, input.amountMin));
     if (input.amountMax !== undefined) filters.push(lte(transactions.amount, input.amountMax));
     if (input.merchant !== undefined)
