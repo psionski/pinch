@@ -68,23 +68,29 @@ Open [http://localhost:4000](http://localhost:4000).
 
 ## MCP Integration
 
-Pinch exposes an MCP endpoint at `/api/mcp` for AI assistants. Connect any MCP-compatible client (e.g. Claude Desktop, [OpenClaw](https://github.com/openclaw/openclaw)) to this URL.
+Pinch exposes an MCP endpoint at `/api/mcp`. The transport is [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) (stateless).
 
-**Available MCP tools:**
+**MCP endpoint:** `http://<host>:4000/api/mcp`
 
-- **Transactions:** `add_transaction`, `add_transactions`, `update_transaction`, `delete_transaction`, `list_transactions`
-- **Categories:** `list_categories`, `create_category`, `update_category`, `recategorize`, `merge_categories`
-- **Reporting:** `spending_summary`, `category_breakdown`, `trends`, `top_merchants`
-- **Budgets:** `set_budget`, `get_budget_status`
-- **Recurring:** `create_recurring`, `list_recurring`, `update_recurring`, `delete_recurring`, `generate_recurring`
-- **Escape hatch:** `query` — read-only SQL for ad-hoc analysis
+#### Claude Desktop (`claude_desktop_config.json`)
 
-**Receipt upload flow:**
-1. `POST /api/receipts/upload` — multipart/form-data with `image` field (+ optional `merchant`, `date`, `total`, `raw_text`)
-2. Returns `{ receipt_id }`
-3. Pass `receipt_id` to `add_transactions` to link line items to the receipt
+```json
+{
+  "mcpServers": {
+    "pinch": {
+      "url": "http://localhost:4000/api/mcp"
+    }
+  }
+}
+```
 
-All monetary amounts are integers in cents (e.g. `1210` = €12.10).
+#### Other MCP clients
+
+Use transport type `streamable-http` pointing at `http://<host>:4000/api/mcp`. Tool schemas and the receipt upload flow are advertised by the server on connect.
+
+## REST API
+
+The full REST API is documented with Swagger UI at `http://<host>:4000/api-docs`. The raw OpenAPI spec (JSON) is available at `http://<host>:4000/api/openapi`.
 
 ## Access & Security
 

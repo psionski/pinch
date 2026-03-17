@@ -693,20 +693,20 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 7: MCP Server
+### Sprint 7: MCP Server ✅
 **Goal:** MCP endpoint with all tools, calling the same service layer as API routes.
 
-- [ ] MCP server setup with @modelcontextprotocol/sdk (`src/lib/mcp/server.ts`)
-- [ ] Mount as stateless Streamable HTTP endpoint at `/api/mcp` (see MCP Integration Details section)
-- [ ] Server `instructions` field: advertise companion REST endpoint for receipt image uploads (see Receipt Flow section)
-- [ ] Resolve Request/Response compatibility (evaluate `mcp-handler` vs thin conversion layer)
-- [ ] Transaction tools: add_transaction, add_transactions (batch + optional receipt_id), update_transaction, delete_transaction, list_transactions
-- [ ] Category tools: list_categories, create_category, update_category, recategorize, merge_categories
-- [ ] Report tools: spending_summary, category_breakdown, trends, top_merchants
-- [ ] Budget tools: set_budget, get_budget_status
-- [ ] Recurring tools: create_recurring, list_recurring, update_recurring, delete_recurring, generate_recurring
-- [ ] Escape hatch: query (read-only SQL)
-- [ ] Tests: tool registration works, tools call correct services, stateless request lifecycle works
+- [x] MCP server setup with @modelcontextprotocol/sdk (`src/lib/mcp/server.ts`)
+- [x] Mount as stateless Streamable HTTP endpoint at `/api/mcp` (see MCP Integration Details section)
+- [x] Server `instructions` field: advertise companion REST endpoint for receipt image uploads (see Receipt Flow section)
+- [x] Resolve Request/Response compatibility — used `WebStandardStreamableHTTPServerTransport` (Web standard APIs, no Node.js shim needed)
+- [x] Transaction tools: add_transaction, add_transactions (batch + optional receipt_id), update_transaction, delete_transaction, list_transactions
+- [x] Category tools: list_categories, create_category, update_category, recategorize, merge_categories
+- [x] Report tools: spending_summary, category_breakdown, trends, top_merchants
+- [x] Budget tools: set_budget, get_budget_status
+- [x] Recurring tools: create_recurring, list_recurring, update_recurring, delete_recurring, generate_recurring
+- [x] Escape hatch: query (read-only SQL)
+- [x] Tests: tool registration works, tools call correct services, stateless request lifecycle works
 
 **Done when:** MCP endpoint responds to tool calls, all tools wired to services. Verified with a real MCP client.
 
