@@ -1,12 +1,18 @@
-import { ArrowLeftRight } from "lucide-react";
-import { EmptyState } from "@/components/empty-state";
+import { getTransactionService, getCategoryService } from "@/lib/api/services";
+import { TransactionsClient } from "@/components/transactions/transactions-client";
 
 export default function TransactionsPage(): React.ReactElement {
-  return (
-    <EmptyState
-      icon={<ArrowLeftRight />}
-      title="Transactions"
-      description="Transaction management coming soon."
-    />
-  );
+  const transactionService = getTransactionService();
+  const categoryService = getCategoryService();
+
+  const initialData = transactionService.list({
+    limit: 50,
+    offset: 0,
+    sortBy: "date",
+    sortOrder: "desc",
+  });
+
+  const categories = categoryService.getAll();
+
+  return <TransactionsClient initialData={initialData} categories={categories} />;
 }

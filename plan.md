@@ -743,16 +743,16 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 10: Transactions Page
+### Sprint 10: Transactions Page ✅
 **Goal:** Full transaction management UI — the most-used page.
 
-- [ ] Transaction list with sortable columns (date, amount, category, merchant)
-- [ ] Filter bar: date range picker, category dropdown, amount range, text search, type toggle (income/expense/all)
-- [ ] Pagination
-- [ ] Add transaction form (manual entry — amounts entered as decimals, converted to cents)
-- [ ] Inline edit (click to modify)
-- [ ] Bulk select → recategorize / delete
-- [ ] Receipt indicator badge, recurring indicator badge
+- [x] Transaction list with sortable columns (date, amount, category, merchant)
+- [x] Filter bar: date range picker, category dropdown, amount range, text search, type toggle (income/expense/all)
+- [x] Pagination
+- [x] Add transaction form (manual entry — amounts entered as decimals, converted to cents)
+- [x] Inline edit (click to modify)
+- [x] Bulk select → recategorize / delete
+- [x] Receipt indicator badge, recurring indicator badge
 
 **Done when:** Can create, view, filter, edit, bulk-manage, and delete transactions through the UI.
 

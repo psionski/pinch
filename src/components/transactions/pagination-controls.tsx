@@ -1,0 +1,84 @@
+"use client";
+
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface PaginationControlsProps {
+  total: number;
+  limit: number;
+  offset: number;
+  onPageChange: (offset: number) => void;
+  onLimitChange: (limit: number) => void;
+}
+
+const PAGE_SIZES = [25, 50, 100];
+
+export function PaginationControls({
+  total,
+  limit,
+  offset,
+  onPageChange,
+  onLimitChange,
+}: PaginationControlsProps): React.ReactElement {
+  const currentPage = Math.floor(offset / limit) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(offset + limit, total);
+
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <div className="text-muted-foreground">
+        {total === 0 ? "No results" : `${start}–${end} of ${total}`}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Rows:</span>
+          <Select value={String(limit)} onValueChange={(v) => onLimitChange(Number(v))}>
+            <SelectTrigger className="h-7 w-[70px]" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="icon-xs"
+            disabled={offset === 0}
+            onClick={() => onPageChange(Math.max(0, offset - limit))}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="size-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-xs"
+            disabled={offset + limit >= total}
+            onClick={() => onPageChange(offset + limit)}
+            aria-label="Next page"
+          >
+            <ChevronRight className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

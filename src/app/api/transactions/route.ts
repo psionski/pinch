@@ -5,6 +5,7 @@ import {
   CreateTransactionSchema,
   UpdateTransactionsBatchSchema,
   ListTransactionsSchema,
+  DeleteTransactionsBatchSchema,
 } from "@/lib/validators/transactions";
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -35,6 +36,19 @@ export async function PATCH(req: Request): Promise<NextResponse> {
     if (message.includes("FOREIGN KEY")) {
       return errorResponse("Referenced category not found", "NOT_FOUND", 404);
     }
+    return errorResponse(message, "INTERNAL_ERROR", 500);
+  }
+}
+
+export async function DELETE(req: Request): Promise<NextResponse> {
+  const input = await parseBody(req, DeleteTransactionsBatchSchema);
+  if (isErrorResponse(input)) return input;
+
+  try {
+    const deleted = getTransactionService().deleteBatch(input.ids);
+    return NextResponse.json({ deleted });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal error";
     return errorResponse(message, "INTERNAL_ERROR", 500);
   }
 }
