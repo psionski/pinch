@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  ArrowLeftRight,
-  Tags,
-  BarChart3,
-  Wallet,
-  Repeat,
-} from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, Tags, BarChart3, Wallet, Repeat } from "lucide-react";
 
 import {
   Sidebar,

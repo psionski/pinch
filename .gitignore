@@ -9,9 +9,7 @@ out/
 dist/
 
 # Runtime data
-src/data/
 data/
-
 
 # Environment
 .env
