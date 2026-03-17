@@ -11,7 +11,7 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 | Actor | What it is | How it interacts with Pinch |
 |-------|-----------|----------------------------|
 | **User** | The human (app owner). | Browses the web UI from any device. Sends receipts/commands to the AI assistant via Telegram. |
-| **AI** | An AI assistant (e.g. built on [OpenClaw](https://github.com/openclaw/openclaw)) running on the same VPS as Pinch. | Connects to Pinch's MCP endpoint on localhost. Uses MCP tools to add transactions, scan receipts, query reports, manage categories/budgets — acts as the AI-powered data entry and analysis layer. |
+| **AI** | An AI assistant (e.g. built on [OpenClaw](https://github.com/openclaw/openclaw)). May run on the same host or a different machine. | Connects to Pinch's MCP endpoint over HTTP. Uses MCP tools for structured operations (transactions, categories, reports, budgets). Uses companion REST endpoint for binary uploads (receipt images). Discovery: MCP server `instructions` field tells clients about the REST upload endpoint. |
 
 ## Tech Stack
 
@@ -40,6 +40,8 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 │  │  (Tremor    │  │  /api/transactions    │   │
 │  │   charts,   │  │  /api/categories      │   │
 │  │   shadcn)   │  │  /api/reports         │   │
+│  │             │  │  /api/receipts/upload  │   │
+│  │             │  │  /api/receipts/[id]/…  │   │
 │  └──────┬──────┘  └──────────┬───────────┘   │
 │         │                    │                │
 │         │         ┌──────────┴───────────┐   │
@@ -320,12 +322,24 @@ The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint a
 - **JSON responses:** `enableJsonResponse: true` — returns plain JSON instead of SSE. Simpler to debug, no streaming needed for our tool calls.
 - **Request/Response compatibility:** Next.js App Router uses Web `Request`/`Response`, but the MCP SDK's `NodeStreamableHTTPServerTransport.handleRequest()` expects Node.js `IncomingMessage`/`ServerResponse`. Options: (a) use `mcp-handler` (Vercel's adapter library) which abstracts this, or (b) write a thin conversion layer. Evaluate both during Sprint 7; prefer fewer dependencies.
 - **Tool registration:** Factor tool registration into a shared `registerTools(server)` function so the per-request server setup is minimal.
+- **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt image uploads. This is how unknown AI clients discover that binary uploads go through REST, not MCP. Tool descriptions on `add_transactions` reference `receipt_id` and point to the instructions for the upload flow.
 
 ```typescript
 // Simplified pattern for /api/mcp/route.ts
 export async function POST(req: Request): Promise<Response> {
   const body = await req.json();
-  const server = new McpServer({ name: "pinch", version: "1.0.0" });
+  const server = new McpServer({
+    name: "pinch",
+    version: "1.0.0",
+    instructions: [
+      "Personal finance tracker.",
+      "Receipt images: upload via POST /api/receipts/upload",
+      "(multipart/form-data, field: 'image', optional fields: 'merchant', 'date', 'total', 'raw_text')",
+      "→ returns { receipt_id }.",
+      "Then pass receipt_id to add_transactions to link line items to the receipt.",
+      "All monetary amounts are integers in cents (e.g. 1210 = €12.10).",
+    ].join(" "),
+  });
   registerTools(server);
   const transport = new NodeStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -384,17 +398,40 @@ export async function POST(req: Request): Promise<Response> {
 
 ## Receipt Flow
 
-1. User sends photo to the AI assistant via Telegram
-2. AI assistant uses vision model to extract: merchant name, date, line items (description + amount per item), total
-3. AI assistant calls `add_transactions` with:
-   - Array of items (each becomes a transaction with its own category)
-   - Receipt metadata: merchant, date, total, image stored to `data/receipts/`
-4. Receipt record created in `receipts` table with `image_path` and `raw_text`
-5. Each transaction linked via `receipt_id` — a single receipt can span multiple categories (e.g. eggs → Groceries, cigarettes → Tobacco on the same Kaufland receipt)
-6. AI assistant confirms: "Added 7 items from Kaufland (€43.20) — 5× Groceries, 1× Tobacco, 1× Household"
-7. In the web UI: receipt icon on transactions → click to see full receipt, all items, original image
+### Image upload design
 
-**Category assignment:** The AI assistant uses item descriptions (per line item) and merchant name to assign categories. Each item on a receipt is categorized independently. If a merchant/item pattern has been seen before, reuse the previous category. If ambiguous, ask. Over time, category assignment gets smarter via accumulated history.
+Receipt images are binary data. MCP tools accept JSON parameters — no native binary upload. Rather than bloating MCP payloads with base64-encoded images, receipt uploads go through a **companion REST endpoint**:
+
+- `POST /api/receipts/upload` — multipart/form-data. Accepts `image` file field + optional metadata fields (`merchant`, `date`, `total`, `raw_text`). Saves image to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, creates a `receipts` row, returns `{ receipt_id }`.
+- MCP `add_transactions` then accepts `receipt_id` to link line items to the uploaded receipt.
+
+**Discovery:** AI clients learn about this REST endpoint via the MCP server's `instructions` field (see MCP Integration Details). Any MCP-compatible agent that reads server instructions on connect will know the upload flow. Tool descriptions on `add_transactions` also reference `receipt_id`.
+
+### From an AI client (e.g., via Telegram)
+
+1. User sends receipt photo to the AI assistant via Telegram
+2. AI uses vision model to extract: merchant name, date, line items (description + amount per item), total
+3. AI uploads the image via `POST /api/receipts/upload` (multipart) → gets `{ receipt_id }`
+4. AI calls MCP `add_transactions` with line items + `receipt_id`
+5. Each transaction linked via `receipt_id` — a single receipt can span multiple categories (e.g. eggs → Groceries, cigarettes → Tobacco on the same Kaufland receipt)
+6. AI confirms: "Added 7 items from Kaufland (€43.20) — 5× Groceries, 1× Tobacco, 1× Household"
+
+### From the web UI
+
+1. User clicks "Add Receipt" → file picker or drag-and-drop
+2. Frontend uploads to `POST /api/receipts/upload` → gets `{ receipt_id }`
+3. Manual entry form for line items, pre-filled with receipt metadata
+4. Submit → `POST /api/transactions` with items + `receipt_id`
+
+### Image serving
+
+- Web UI renders `<img src="/api/receipts/{id}/image" />`
+- `GET /api/receipts/[id]/image` reads `image_path` from DB, streams file with correct `Content-Type`
+- Receipt icon on transactions → click to see full receipt, all items, original image
+
+### Category assignment
+
+The AI assistant uses item descriptions (per line item) and merchant name to assign categories. Each item on a receipt is categorized independently. If a merchant/item pattern has been seen before, reuse the previous category. If ambiguous, ask. Over time, category assignment gets smarter via accumulated history.
 
 ## Currency
 
@@ -442,12 +479,14 @@ Tags are stored as a JSON text array on transactions and recurring templates (e.
 - **List all tags:** Dedicated service method that scans distinct tags across all transactions (for autocomplete in UI and MCP).
 - No separate tags table — kept simple. If tagging gets complex (e.g., tag colors, descriptions), promote to a table later.
 
-### Receipt image serving
+### Receipt image upload & serving
 
-Receipt images stored in `data/receipts/` are not in the `public/` directory, so Next.js static serving won't reach them. Serve via a dedicated API route:
+Receipt images are uploaded via a **companion REST endpoint** (not MCP — see Receipt Flow section for rationale):
 
+- `POST /api/receipts/upload` — multipart/form-data. Accepts `image` file + optional `merchant`, `date`, `total`, `raw_text` fields. Saves to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, creates a `receipts` DB row, returns `{ receipt_id }`. Used by both AI clients and the web UI.
 - `GET /api/receipts/[id]/image` — looks up the receipt by ID, reads `image_path`, streams the file with appropriate `Content-Type`.
-- Protected by the same access controls as other API routes.
+- Both protected by the same access controls as other API routes.
+- AI clients discover the upload endpoint via MCP server `instructions` (see MCP Integration Details).
 
 ## Data Storage
 
@@ -495,9 +534,11 @@ pinch/
 │   │       ├── recurring/
 │   │       │   └── route.ts
 │   │       └── receipts/
+│   │           ├── upload/
+│   │           │   └── route.ts      # POST multipart receipt image upload → { receipt_id }
 │   │           └── [id]/
 │   │               └── image/
-│   │                   └── route.ts  # Serve receipt images
+│   │                   └── route.ts  # GET serve receipt image by ID
 │   ├── components/
 │   │   ├── ui/                  # shadcn/ui components
 │   │   ├── charts/              # Tremor chart wrappers
@@ -517,6 +558,7 @@ pinch/
 │   │   │   ├── reports.ts       # Aggregations, trends, comparisons
 │   │   │   ├── budgets.ts       # Set/get/compare
 │   │   │   ├── recurring.ts     # Template CRUD + generation engine
+│   │   │   ├── receipts.ts     # Upload, store, retrieve receipt images
 │   │   │   └── backup.ts        # SQLite backup logic
 │   │   ├── mcp/
 │   │   │   ├── server.ts        # MCP server init + tool registration
@@ -656,8 +698,9 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 - [ ] MCP server setup with @modelcontextprotocol/sdk (`src/lib/mcp/server.ts`)
 - [ ] Mount as stateless Streamable HTTP endpoint at `/api/mcp` (see MCP Integration Details section)
+- [ ] Server `instructions` field: advertise companion REST endpoint for receipt image uploads (see Receipt Flow section)
 - [ ] Resolve Request/Response compatibility (evaluate `mcp-handler` vs thin conversion layer)
-- [ ] Transaction tools: add_transaction, add_transactions (batch), update_transaction, delete_transaction, list_transactions
+- [ ] Transaction tools: add_transaction, add_transactions (batch + optional receipt_id), update_transaction, delete_transaction, list_transactions
 - [ ] Category tools: list_categories, create_category, update_category, recategorize, merge_categories
 - [ ] Report tools: spending_summary, category_breakdown, trends, top_merchants
 - [ ] Budget tools: set_budget, get_budget_status
@@ -781,14 +824,16 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ---
 
 ### Sprint 15: Receipts Flow
-**Goal:** Receipt scanning support for MCP + display in UI.
+**Goal:** Receipt upload via REST + linking via MCP + display in UI.
 
-- [ ] Receipt image storage (`data/receipts/YYYY-MM/receipt-{id}.{ext}`)
-- [ ] `add_transactions` MCP tool: batch add with receipt metadata (merchant, date, total, image_path, raw_text)
-- [ ] Receipt record creation in DB, linked to transactions via `receipt_id`
-- [ ] UI: receipt icon on transactions → click to see full receipt, all items, original image (served via `/api/receipts/[id]/image`)
+- [ ] `ReceiptService`: upload (save image, create DB record), getById, getImage
+- [ ] `POST /api/receipts/upload` — multipart form-data endpoint (image file + optional metadata). Saves to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, returns `{ receipt_id }`
+- [ ] `GET /api/receipts/[id]/image` — serve stored receipt images with correct Content-Type
+- [ ] MCP `add_transactions` tool: accepts optional `receipt_id` to link batch items to an uploaded receipt
+- [ ] UI: receipt icon on transactions → click to see full receipt, all items, original image
+- [ ] UI: "Add Receipt" button with file picker / drag-and-drop upload
 
-**Done when:** MCP can create receipts with linked transactions, UI displays receipt details.
+**Done when:** AI clients can upload receipt images via REST (discovered through MCP instructions), link transactions via MCP, and the web UI displays receipt details.
 
 ---
 
