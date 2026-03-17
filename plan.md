@@ -862,6 +862,150 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
+---
+
+### Sprint 18: Accounts & Savings
+**Goal:** First-class account model. Existing transactions map to a default checking account. Savings accounts can be created, and transfers between accounts are recorded atomically.
+
+#### Schema additions
+
+```sql
+accounts (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,          -- "Main Checking", "Emergency Fund", etc.
+  type        TEXT NOT NULL,          -- 'checking' | 'savings'
+  currency    TEXT NOT NULL DEFAULT 'EUR',
+  notes       TEXT,
+  is_default  INTEGER NOT NULL DEFAULT 0,  -- only one account can be default
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+)
+
+-- transactions gets a nullable FK; NULL means "default account" for backwards compat
+-- (add account_id to the transactions table definition in schema.ts; Drizzle Kit generates the migration)
+
+transfers (
+  id                   INTEGER PRIMARY KEY,
+  from_account_id      INTEGER NOT NULL REFERENCES accounts(id),
+  from_transaction_id  INTEGER NOT NULL REFERENCES transactions(id),
+  to_account_id        INTEGER NOT NULL REFERENCES accounts(id),
+  to_transaction_id    INTEGER NOT NULL REFERENCES transactions(id),
+  amount               INTEGER NOT NULL,  -- cents, always positive
+  date                 TEXT NOT NULL,
+  notes                TEXT,
+  created_at           TEXT NOT NULL
+)
+```
+
+A transfer creates two transactions (one `expense` on the source, one `income` on the destination) inside a DB transaction, then records the link in `transfers`. Deleting a transfer deletes both child transactions.
+
+#### Service layer
+
+- `AccountService`: `create`, `list`, `getById`, `update`, `delete`, `getBalance` (sum of all transactions on the account, or default account if null)
+- `TransferService`: `create` (atomic — two txns + transfer record), `list`, `getById`, `delete` (atomic)
+- `TransactionService.list`: extend `accountId` filter (null = default account, a number = specific account)
+
+#### MCP tools
+
+| Tool | Description |
+|------|-------------|
+| `list_accounts` | All accounts with current balance |
+| `create_account` | Create a savings account |
+| `get_account_balance` | Balance for a specific account |
+| `create_transfer` | Move money between accounts — e.g. "deposited 1000 EUR to savings" → debit checking, credit savings |
+| `list_transfers` | Recent transfers, optionally filtered by account |
+
+#### API routes
+
+- `GET/POST /api/accounts`
+- `GET/PATCH/DELETE /api/accounts/[id]`
+- `GET /api/accounts/[id]/balance`
+- `GET/POST /api/transfers`
+- `GET/DELETE /api/transfers/[id]`
+
+#### UI
+
+- Dashboard: account balance cards (one per account) above the KPI row
+- Transfers page or modal: select from/to account, amount, date, optional note
+- Transaction list: account column + account filter dropdown
+
+**Done when:** You can tell the AI "move 500 EUR to savings" and it creates a transfer. Both account balances update correctly. The web UI shows per-account balances.
+
+---
+
+### Sprint 19: Investment Accounts & Portfolio Tracking
+**Goal:** Track stock/ETF/crypto purchases. Buying an asset debits the funding account and records a holding. A prices table provides current values for P&L calculation.
+
+#### Schema additions
+
+```sql
+-- accounts.type gains 'investment' (extends Sprint 18 enum)
+
+holdings (
+  id               INTEGER PRIMARY KEY,
+  account_id       INTEGER NOT NULL REFERENCES accounts(id),
+  ticker           TEXT NOT NULL,   -- "SPX", "AAPL", "BTC", etc.
+  name             TEXT,            -- "S&P 500 ETF", optional display name
+  quantity         REAL NOT NULL,   -- supports fractional shares
+  cost_basis_cents INTEGER NOT NULL, -- total paid, in cents
+  currency         TEXT NOT NULL DEFAULT 'EUR',
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
+  UNIQUE (account_id, ticker)
+)
+
+asset_prices (
+  id           INTEGER PRIMARY KEY,
+  ticker       TEXT NOT NULL,
+  price_cents  INTEGER NOT NULL,
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  recorded_at  TEXT NOT NULL        -- ISO datetime
+)
+-- only the latest price per ticker matters for P&L; history is kept for charting
+```
+
+#### Business logic
+
+- **Buy:** debit funding account (new `expense` transaction linked to holding), upsert holding (add quantity, add to cost basis). All in one DB transaction.
+- **Sell:** credit funding account (new `income` transaction), reduce holding quantity/cost basis proportionally (FIFO average cost). If quantity reaches 0, holding remains at zero (not deleted) for history.
+- **P&L:** `(current_price × quantity) − cost_basis`. Requires a price record. If no price recorded, P&L is `null`.
+- **Price updates:** stored in `asset_prices`. The AI can record a price any time ("SPX is now 5800 USD"). Latest record per ticker is used for valuations.
+
+#### Service layer
+
+- `InvestmentService`: `buy` (atomic), `sell` (atomic), `listHoldings`, `getHolding`, `getPortfolioPnL` (all holdings + latest prices)
+- `PriceService`: `record` (insert price), `getLatest` (latest price per ticker), `getHistory` (time series for charting)
+
+#### MCP tools
+
+| Tool | Description |
+|------|-------------|
+| `buy_asset` | Record a purchase: ticker, quantity, total cost in cents, funding account, date. Creates expense + updates holding. |
+| `sell_asset` | Record a sale: ticker, quantity, total proceeds in cents, destination account, date. Creates income + reduces holding. |
+| `record_price` | Update current price for a ticker. Use after checking a quote. |
+| `list_holdings` | All holdings with quantity, cost basis, current value, and P&L (null if no price recorded). |
+| `get_portfolio_pnl` | Aggregate portfolio: total cost basis, total current value, total P&L, P&L %. |
+
+#### API routes
+
+- `GET/POST /api/investments/holdings`
+- `GET /api/investments/holdings/[id]`
+- `POST /api/investments/buy`
+- `POST /api/investments/sell`
+- `GET/POST /api/investments/prices` — record + history
+- `GET /api/investments/pnl`
+
+#### UI
+
+- Investment account detail page: holdings table (ticker, quantity, cost basis, current price, current value, P&L, P&L %)
+- "Update price" inline action per row (quick form → calls `record_price`)
+- Portfolio summary card on dashboard: total invested, current value, total P&L with colour coding
+- Price history sparkline per holding
+
+**Done when:** "Bought 10 SPX for 3456.32 EUR" via MCP creates the expense on the checking account and records the holding. Telling the AI the current price shows accurate P&L in the UI.
+
+---
+
 ## Future Considerations (not in scope now, but design should accommodate)
 
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
