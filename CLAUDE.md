@@ -70,6 +70,8 @@ Workflow:
 
 Run all three before considering any task finished. Do not move on if any fails.
 
+Documentation and unit tests are part of the deliverable (read the relevant sections for details).
+
 ## Testing
 
 - **Write tests for all service layer logic.** Services are the core of the app — they must be tested.
@@ -93,9 +95,8 @@ Run all three before considering any task finished. Do not move on if any fails.
 This is intended to be a public open-source project. Maintain documentation accordingly:
 
 - **README.md** — project overview, screenshots, features, setup/install instructions, usage guide, tech stack, contributing guidelines. Keep it up to date as features land.
-- **LICENSE** — pick and include an open-source license.
-- **CONTRIBUTING.md** — how to set up the dev environment, run tests, submit PRs, coding standards.
-- **API docs** — document REST API endpoints and MCP tools (can live in README or a dedicated `docs/` folder).
+- **plan.md** — the project plan and sprint tracker.
+- **API docs** — document REST API endpoints (Swagger, from [openapi.ts](src\lib\api\openapi.ts)) and MCP tools (in their tool descriptions).
 - Keep docs concise and practical. Don't write walls of text — developers should be able to get running in under 5 minutes.
 - Update docs when adding or changing user-facing features. Don't let docs drift from reality.
 
