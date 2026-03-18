@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { Pie, PieChart, Cell } from "recharts";
-import { ChevronRight } from "lucide-react";
+import { Pie, PieChart, Cell, Label } from "recharts";
+import { ArrowUp } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -127,68 +125,82 @@ export function CategoryDonutChart({
     [chartData]
   );
 
-  function handleBreadcrumbClick(index: number): void {
-    setBreadcrumb((prev) => prev.slice(0, index + 1));
+  const isDrilledIn = breadcrumb.length > 1;
+  const currentName = breadcrumb[breadcrumb.length - 1].name;
+
+  function handleGoUp(): void {
+    setBreadcrumb((prev) => prev.slice(0, -1));
   }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Spending by Category &mdash; {monthLabel}</CardTitle>
-        {breadcrumb.length > 1 && (
-          <nav className="text-muted-foreground flex items-center gap-0.5 text-sm">
-            {breadcrumb.map((entry, i) => (
-              <span key={entry.id ?? "root"} className="flex items-center gap-0.5">
-                {i > 0 && <ChevronRight className="size-3" />}
-                <button
-                  onClick={() => handleBreadcrumbClick(i)}
-                  className={
-                    i === breadcrumb.length - 1
-                      ? "text-foreground font-medium"
-                      : "hover:text-foreground underline-offset-2 hover:underline"
-                  }
-                >
-                  {entry.name}
-                </button>
-              </span>
-            ))}
-          </nav>
-        )}
       </CardHeader>
       <CardContent>
         {chartData.length > 0 ? (
-          <ChartContainer config={chartConfig} className="mx-auto min-h-[250px] w-full max-w-xs">
-            <PieChart accessibilityLayer>
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    formatter={(value) =>
-                      `€${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
-                    }
+          <div className="mx-auto w-full max-w-xs">
+            <ChartContainer config={chartConfig} className="h-[200px] w-full">
+              <PieChart accessibilityLayer key={currentParentId ?? "root"}>
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) =>
+                        `€${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
+                      }
+                    />
+                  }
+                />
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={60}
+                  outerRadius={90}
+                  strokeWidth={2}
+                  onClick={handleClick}
+                >
+                  {chartData.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={entry.color}
+                      style={{ cursor: entry.hasChildren ? "pointer" : "default" }}
+                    />
+                  ))}
+                  <Label
+                    content={() => (
+                      <g>
+                        {isDrilledIn ? (
+                          <foreignObject x="50%" y="50%" width={1} height={1} overflow="visible">
+                            <button
+                              onClick={handleGoUp}
+                              className="text-muted-foreground hover:text-foreground flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-0.5 transition-colors"
+                            >
+                              <ArrowUp className="size-4" />
+                              <span className="max-w-[80px] truncate text-xs font-medium">
+                                {currentName}
+                              </span>
+                            </button>
+                          </foreignObject>
+                        ) : null}
+                      </g>
+                    )}
                   />
-                }
-              />
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={60}
-                outerRadius={90}
-                strokeWidth={2}
-                onClick={handleClick}
-                style={{ cursor: "pointer" }}
-              >
-                {chartData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.color}
-                    style={{ cursor: entry.hasChildren ? "pointer" : "default" }}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 pt-2 text-xs">
+              {chartData.map((entry) => (
+                <div key={entry.name} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: entry.color }}
                   />
-                ))}
-              </Pie>
-              <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-            </PieChart>
-          </ChartContainer>
+                  <span className="text-muted-foreground">{entry.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <p className="text-muted-foreground py-10 text-center text-sm">No category data yet.</p>
         )}
