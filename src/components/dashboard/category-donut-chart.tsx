@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Pie, PieChart, Cell, Label } from "recharts";
-import { ArrowUp } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -126,7 +126,6 @@ export function CategoryDonutChart({
   );
 
   const isDrilledIn = breadcrumb.length > 1;
-  const currentName = breadcrumb[breadcrumb.length - 1].name;
 
   function handleGoUp(): void {
     setBreadcrumb((prev) => prev.slice(0, -1));
@@ -159,6 +158,7 @@ export function CategoryDonutChart({
                   outerRadius={90}
                   strokeWidth={2}
                   onClick={handleClick}
+                  animationDuration={500}
                 >
                   {chartData.map((entry, i) => (
                     <Cell
@@ -174,12 +174,9 @@ export function CategoryDonutChart({
                           <foreignObject x="50%" y="50%" width={1} height={1} overflow="visible">
                             <button
                               onClick={handleGoUp}
-                              className="text-muted-foreground hover:text-foreground flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-0.5 transition-colors"
+                              className="bg-muted hover:bg-accent text-muted-foreground hover:text-foreground flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full p-2.5 transition-colors"
                             >
-                              <ArrowUp className="size-4" />
-                              <span className="max-w-[80px] truncate text-xs font-medium">
-                                {currentName}
-                              </span>
+                              <ArrowLeft className="size-6" />
                             </button>
                           </foreignObject>
                         ) : null}
