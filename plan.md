@@ -789,7 +789,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 12: Budgets Page
+### Sprint 12: Budgets Page ✅
 **Goal:** Budget management and tracking UI.
 
 - [x] Set monthly budgets per category (form with amount input in decimal, stored as cents)
