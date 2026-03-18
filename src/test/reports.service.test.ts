@@ -248,6 +248,74 @@ describe("trends", () => {
   });
 });
 
+// ─── netBalance ──────────────────────────────────────────────────────────────
+
+describe("netBalance", () => {
+  it("returns zero when no transactions exist", () => {
+    const result = reports.netBalance({});
+    expect(result.totalIncome).toBe(0);
+    expect(result.totalExpenses).toBe(0);
+    expect(result.netBalance).toBe(0);
+    expect(result.transactionCount).toBe(0);
+  });
+
+  it("calculates income minus expenses", () => {
+    txService.create(
+      tx({ amount: 5000, type: "income", date: "2026-03-01", description: "Salary" })
+    );
+    txService.create(tx({ amount: 1200, type: "expense", date: "2026-03-05" }));
+    txService.create(tx({ amount: 800, type: "expense", date: "2026-03-10" }));
+
+    const result = reports.netBalance({});
+    expect(result.totalIncome).toBe(5000);
+    expect(result.totalExpenses).toBe(2000);
+    expect(result.netBalance).toBe(3000);
+    expect(result.transactionCount).toBe(3);
+  });
+
+  it("filters by date range", () => {
+    txService.create(
+      tx({ amount: 5000, type: "income", date: "2026-03-01", description: "Salary" })
+    );
+    txService.create(tx({ amount: 1000, type: "expense", date: "2026-03-15" }));
+    txService.create(tx({ amount: 2000, type: "expense", date: "2026-04-01" }));
+
+    const result = reports.netBalance({ dateFrom: "2026-03-01", dateTo: "2026-03-31" });
+    expect(result.totalIncome).toBe(5000);
+    expect(result.totalExpenses).toBe(1000);
+    expect(result.netBalance).toBe(4000);
+    expect(result.transactionCount).toBe(2);
+  });
+
+  it("works with only dateFrom", () => {
+    txService.create(tx({ amount: 500, type: "expense", date: "2026-02-15" }));
+    txService.create(tx({ amount: 300, type: "expense", date: "2026-03-15" }));
+
+    const result = reports.netBalance({ dateFrom: "2026-03-01" });
+    expect(result.totalExpenses).toBe(300);
+    expect(result.transactionCount).toBe(1);
+  });
+
+  it("works with only dateTo", () => {
+    txService.create(tx({ amount: 500, type: "expense", date: "2026-02-15" }));
+    txService.create(tx({ amount: 300, type: "expense", date: "2026-03-15" }));
+
+    const result = reports.netBalance({ dateTo: "2026-02-28" });
+    expect(result.totalExpenses).toBe(500);
+    expect(result.transactionCount).toBe(1);
+  });
+
+  it("returns negative balance when expenses exceed income", () => {
+    txService.create(
+      tx({ amount: 1000, type: "income", date: "2026-03-01", description: "Salary" })
+    );
+    txService.create(tx({ amount: 3000, type: "expense", date: "2026-03-05" }));
+
+    const result = reports.netBalance({});
+    expect(result.netBalance).toBe(-2000);
+  });
+});
+
 // ─── topMerchants ─────────────────────────────────────────────────────────────
 
 describe("topMerchants", () => {

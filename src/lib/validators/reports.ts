@@ -47,6 +47,24 @@ export const TopMerchantsSchema = z.object({
 
 export type TopMerchantsInput = z.infer<typeof TopMerchantsSchema>;
 
+// ─── Net Balance ─────────────────────────────────────────────────────────
+
+export const NetBalanceSchema = z.object({
+  dateFrom: IsoDateSchema.optional(),
+  dateTo: IsoDateSchema.optional(),
+});
+
+export type NetBalanceInput = z.infer<typeof NetBalanceSchema>;
+
+export const NetBalanceResultSchema = z.object({
+  totalIncome: z.number().int(),
+  totalExpenses: z.number().int(),
+  netBalance: z.number().int(),
+  transactionCount: z.number().int(),
+});
+
+export type NetBalanceResult = z.infer<typeof NetBalanceResultSchema>;
+
 // ─── Return types ─────────────────────────────────────────────────────────────
 
 export const SpendingGroupSchema = z.object({

@@ -4,6 +4,7 @@ import {
   CategoryBreakdownSchema,
   TrendsSchema,
   TopMerchantsSchema,
+  NetBalanceSchema,
 } from "@/lib/validators/reports";
 import { getReportService } from "@/lib/api/services";
 
@@ -42,6 +43,17 @@ export function registerReportTools(server: McpServer): void {
       inputSchema: TrendsSchema,
     },
     (input) => ok(getReportService().trends(input))
+  );
+
+  server.registerTool(
+    "get_net_balance",
+    {
+      description:
+        "Returns total income minus total expenses (net balance) in cents. " +
+        "Optionally filter by date range. Without dates, returns the all-time balance.",
+      inputSchema: NetBalanceSchema,
+    },
+    (input) => ok(getReportService().netBalance(input))
   );
 
   server.registerTool(

@@ -761,7 +761,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ### Sprint 10.5: Common MCP Read Operations
 **Goal:** Implement dedicated MCP tools for high-frequency analytical queries (like net balance) so the AI doesn't need to write custom SQL.
 
-- [ ] `get_net_balance` tool: Returns total income minus total expenses, optionally filtered by a date range.
+- [x] `get_net_balance` tool: Returns total income minus total expenses, optionally filtered by a date range.
 - [x] `get_transaction`, `get_category`, `get_recurring`: Simple read tools for fetching single records to save context window tokens when modifying them.
 
 **--- MVP milestone ---**

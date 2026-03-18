@@ -7,11 +7,13 @@ import type {
   CategoryBreakdownInput,
   TrendsInput,
   TopMerchantsInput,
+  NetBalanceInput,
   SpendingGroup,
   CategoryBreakdownItem,
   TrendPoint,
   TopMerchant,
   SpendingSummaryResult,
+  NetBalanceResult,
 } from "@/lib/validators/reports";
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -247,6 +249,39 @@ export class ReportService {
       total: Number(r.total),
       count: Number(r.count),
     }));
+  }
+
+  netBalance(input: NetBalanceInput): NetBalanceResult {
+    const filters: SQL[] = [];
+    if (input.dateFrom) filters.push(gte(transactions.date, input.dateFrom));
+    if (input.dateTo) filters.push(lte(transactions.date, input.dateTo));
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const [row] = this.db
+      .select({
+        totalIncome:
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`.mapWith(
+            Number
+          ),
+        totalExpenses:
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
+            Number
+          ),
+        count: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(transactions)
+      .where(where)
+      .all();
+
+    const income = row?.totalIncome ?? 0;
+    const expenses = row?.totalExpenses ?? 0;
+
+    return {
+      totalIncome: income,
+      totalExpenses: expenses,
+      netBalance: income - expenses,
+      transactionCount: row?.count ?? 0,
+    };
   }
 
   topMerchants(input: TopMerchantsInput): TopMerchant[] {
