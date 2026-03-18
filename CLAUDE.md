@@ -10,14 +10,14 @@ See `plan.md` for full architecture, schema, and roadmap.
 
 - **Framework:** Next.js 16 (App Router) — full-stack React + API routes + MCP endpoint
 - **Language:** TypeScript (strict mode) — end-to-end type safety
-- **Styling:** Tailwind CSS 4 + shadcn/ui + Tremor (charts)
+- **Styling:** Tailwind CSS 4 + shadcn/ui + Recharts (via shadcn/ui charts)
 - **Database:** SQLite via better-sqlite3, Drizzle ORM, Drizzle Kit migrations
 - **Validation:** Zod — shared schemas across API, MCP, and forms
 - **MCP:** @modelcontextprotocol/sdk (Streamable HTTP transport)
 
 ## Documentation Lookup
 
-**Always use Context7 MCP to look up library documentation before writing code that depends on a library.** Do not guess or rely on potentially outdated training data for API surfaces. This applies to all dependencies — Next.js, Drizzle, shadcn/ui, Tremor, Zod, MCP SDK, Tailwind, etc.
+**Always use Context7 MCP to look up library documentation before writing code that depends on a library.** Do not guess or rely on potentially outdated training data for API surfaces. This applies to all dependencies — Next.js, Drizzle, shadcn/ui, Recharts, Zod, MCP SDK, Tailwind, etc.
 
 Workflow:
 
@@ -39,7 +39,9 @@ Workflow:
 - **Service layer is the single source of truth for business logic.** API routes and MCP tools are thin wrappers that validate input (Zod), call services, and format output. No business logic in routes or tool handlers.
 - **No logic duplication.** If both an API route and an MCP tool need the same operation, it lives in the service layer.
 - Keep modules focused and small. One service per domain (transactions, categories, reports, budgets, recurring).
+- **Service instances:** Use factory functions from `src/lib/api/services.ts` (e.g. `getBudgetService()`). Don't construct services directly outside tests.
 - Shared validators in `src/lib/validators/` — used by API routes, MCP tools, and frontend forms.
+- **API route helpers:** Use `parseBody`, `parseSearchParams`, `isErrorResponse`, `errorResponse` from `src/lib/api/helpers.ts`. Don't write manual JSON parsing or error responses in routes.
 
 ### Database
 
@@ -56,9 +58,11 @@ Workflow:
 ### Components & UI
 
 - Use shadcn/ui components as the base. Don't reinvent accessible primitives.
-- Tremor for charts and dashboard widgets.
+- Recharts (via shadcn/ui chart primitives) for charts and dashboard widgets.
 - Components should be composable and focused. No god-components.
 - Server Components by default; only use `"use client"` when you need interactivity or browser APIs.
+- **Page pattern:** Server component fetches initial data via service layer, passes to a `"use client"` wrapper (e.g. `BudgetsClient`) as `initialData` props. Client component owns state, mutations, and dialogs.
+- **Domain components** go in `src/components/{domain}/` (e.g. `src/components/budgets/`). Dashboard widgets go in `src/components/dashboard/`.
 
 ## Definition of Done
 
@@ -74,9 +78,12 @@ Documentation and unit tests are part of the deliverable (read the relevant sect
 
 ## Testing
 
+- **All tests live in `src/test/`** — not colocated with source. Never create `__tests__/` directories next to source files.
+- **Naming:** `{domain}.service.test.ts` for service tests, `{domain}.test.ts` for other tests.
+- **DB helper:** Use `makeTestDb()` from `src/test/helpers.ts` for in-memory SQLite setup. Never create your own DB setup in tests.
 - **Write tests for all service layer logic.** Services are the core of the app — they must be tested.
-- **Test with a real SQLite database** (in-memory or temp file), not mocks. The ORM and DB behavior are part of what we're validating.
-- Use Vitest as the test runner.
+- **Test with a real SQLite database** (in-memory via `makeTestDb()`), not mocks. The ORM and DB behavior are part of what we're validating.
+- Use Vitest as the test runner. Service tests use `// @vitest-environment node` at the top.
 - Test the contract: given these inputs, expect these outputs/side effects. Don't test implementation details.
 - API routes: test via integration tests that hit the route handlers with real requests.
 - MCP tools: test via their service layer calls (tools are thin wrappers, so testing services covers the logic).
@@ -97,6 +104,7 @@ This is intended to be a public open-source project. Maintain documentation acco
 - **README.md** — project overview, screenshots, features, setup/install instructions, usage guide, tech stack, contributing guidelines. Keep it up to date as features land.
 - **plan.md** — the project plan and sprint tracker.
 - **API docs** — document REST API endpoints (Swagger, from [openapi.ts](src\lib\api\openapi.ts)) and MCP tools (in their tool descriptions).
+- **When adding a new API endpoint**, also: add it to OpenAPI spec (`src/lib/api/openapi.ts`), add a corresponding MCP tool if the AI should be able to call it (`src/lib/mcp/tools/`), and add/update validators (`src/lib/validators/`).
 - Keep docs concise and practical. Don't write walls of text — developers should be able to get running in under 5 minutes.
 - Update docs when adding or changing user-facing features. Don't let docs drift from reality.
 
