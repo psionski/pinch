@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CategorySelectItems } from "@/components/categories/category-select-items";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 export interface TransactionFilters {
@@ -97,12 +98,7 @@ export function TransactionFilterBar({
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
             <SelectItem value="uncategorized">Uncategorized</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={String(cat.id)}>
-                {cat.icon ? `${cat.icon} ` : ""}
-                {cat.name}
-              </SelectItem>
-            ))}
+            <CategorySelectItems categories={categories} />
           </SelectContent>
         </Select>
 

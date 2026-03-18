@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CategorySelectItems } from "@/components/categories/category-select-items";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
@@ -164,11 +165,7 @@ export function TransactionTable({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No category</SelectItem>
-                {categoryList.map((cat) => (
-                  <SelectItem key={cat.id} value={String(cat.id)}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
+                <CategorySelectItems categories={categoryList} />
               </SelectContent>
             </Select>
             <Button

@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { transactions } from "@/lib/db/schema";
+import { transactions, categories } from "@/lib/db/schema";
 import type { Transaction } from "@/lib/db/schema";
 import type {
   CreateTransactionInput,
@@ -96,12 +96,16 @@ export class TransactionService {
 
     if (input.dateFrom !== undefined) filters.push(gte(transactions.date, input.dateFrom));
     if (input.dateTo !== undefined) filters.push(lte(transactions.date, input.dateTo));
-    if (input.categoryId !== undefined)
-      filters.push(
-        input.categoryId === null
-          ? isNull(transactions.categoryId)
-          : eq(transactions.categoryId, input.categoryId)
-      );
+    if (input.categoryId !== undefined) {
+      if (input.categoryId === null) {
+        filters.push(isNull(transactions.categoryId));
+      } else {
+        // Include the category itself and all descendants
+        const descendantIds = this.getDescendantIds(input.categoryId);
+        const allIds = [input.categoryId, ...descendantIds];
+        filters.push(inArray(transactions.categoryId, allIds));
+      }
+    }
     if (input.amountMin !== undefined) filters.push(gte(transactions.amount, input.amountMin));
     if (input.amountMax !== undefined) filters.push(lte(transactions.amount, input.amountMax));
     if (input.merchant !== undefined)
@@ -202,6 +206,33 @@ export class TransactionService {
   deleteBatch(ids: number[]): number {
     return this.db.delete(transactions).where(inArray(transactions.id, ids)).returning().all()
       .length;
+  }
+
+  /** Returns all descendant category IDs for a given category (children, grandchildren, etc). */
+  private getDescendantIds(categoryId: number): number[] {
+    const allCats = this.db
+      .select({ id: categories.id, parentId: categories.parentId })
+      .from(categories)
+      .all();
+
+    const childrenMap = new Map<number, number[]>();
+    for (const cat of allCats) {
+      if (cat.parentId !== null) {
+        const siblings = childrenMap.get(cat.parentId) ?? [];
+        siblings.push(cat.id);
+        childrenMap.set(cat.parentId, siblings);
+      }
+    }
+
+    const result: number[] = [];
+    const queue = childrenMap.get(categoryId) ?? [];
+    while (queue.length > 0) {
+      const id = queue.pop()!;
+      result.push(id);
+      const children = childrenMap.get(id);
+      if (children) queue.push(...children);
+    }
+    return result;
   }
 
   /** Returns all distinct tags across all transactions, sorted alphabetically. */

@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CategorySelectItems } from "@/components/categories/category-select-items";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 
@@ -201,12 +202,7 @@ export function TransactionFormDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No category</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={String(cat.id)}>
-                    {cat.icon ? `${cat.icon} ` : ""}
-                    {cat.name}
-                  </SelectItem>
-                ))}
+                <CategorySelectItems categories={categories} />
               </SelectContent>
             </Select>
           </div>

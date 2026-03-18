@@ -66,6 +66,7 @@ function parseWith<T>(data: unknown, schema: ZodType<T>): T | NextResponse<Error
 function coerce(value: string): unknown {
   if (value === "true") return true;
   if (value === "false") return false;
+  if (value === "null") return null;
   const num = Number(value);
   if (!Number.isNaN(num) && value.trim() !== "") return num;
   return value;

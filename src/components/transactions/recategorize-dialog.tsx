@@ -10,13 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CategorySelectItems } from "@/components/categories/category-select-items";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 interface RecategorizeDialogProps {
@@ -55,12 +50,7 @@ export function RecategorizeDialog({
               <SelectValue placeholder="Select target category" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((cat) => (
-                <SelectItem key={cat.id} value={String(cat.id)}>
-                  {cat.icon ? `${cat.icon} ` : ""}
-                  {cat.name}
-                </SelectItem>
-              ))}
+              <CategorySelectItems categories={categories} />
             </SelectContent>
           </Select>
         </div>
