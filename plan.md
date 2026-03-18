@@ -1013,6 +1013,13 @@ asset_prices (
 **Done when:** "Bought 10 SPX for 3456.32 EUR" via MCP creates the expense on the checking account and records the holding. Telling the AI the current price shows accurate P&L in the UI.
 
 ---
+### Sprint 20: Packaging & Onboarding
+**Goal:** Make Pinch trivial to deploy and auto-update for anyone (human or AI agent).
+
+- [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
+- [ ] Build an auto-updater mechanism for easy rolling releases
+- [ ] Add a clean, welcoming Home page for first-time setup
+- [ ] Write definitive Quick Start installation instructions specifically targeting an AI agent (how an agent can deploy and configure it for its human)
 
 ## Future Considerations (not in scope now, but design should accommodate)
 
