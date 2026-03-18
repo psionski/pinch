@@ -832,9 +832,10 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ### Sprint 15: Receipts Flow
 **Goal:** Receipt upload via REST + linking via MCP + display in UI.
 
-- [ ] `ReceiptService`: upload (save image, create DB record), getById, getImage
+- [ ] `ReceiptService`: upload (save image, create DB record), getById, getImage, listUnprocessed
 - [ ] `POST /api/receipts/upload` — multipart form-data endpoint (image file + optional metadata). Saves to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, returns `{ receipt_id }`
 - [ ] `GET /api/receipts/[id]/image` — serve stored receipt images with correct Content-Type
+- [ ] **MCP Tools:** `list_unprocessed_receipts`, `get_receipt` (so the AI can proactively read and categorize new uploads)
 - [ ] MCP `add_transactions` tool: accepts optional `receipt_id` to link batch items to an uploaded receipt
 - [ ] UI: receipt icon on transactions → click to see full receipt, all items, original image
 - [ ] UI: "Add Receipt" button with file picker / drag-and-drop upload
