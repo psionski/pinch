@@ -7,6 +7,7 @@ import {
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { SpendingTrendChart } from "@/components/dashboard/spending-trend-chart";
 import { CategoryDonutChart } from "@/components/dashboard/category-donut-chart";
+import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
@@ -83,6 +84,8 @@ export default function DashboardPage(): React.ReactElement {
         <SpendingTrendChart data={trends} />
         <CategoryDonutChart data={breakdown} />
       </div>
+
+      <BudgetAlerts budgetStatus={budgetStatus} />
 
       <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
     </div>

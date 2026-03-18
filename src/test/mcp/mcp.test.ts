@@ -115,6 +115,8 @@ describe("MCP /api/mcp route", () => {
     expect(tools).toContain("list_categories");
     expect(tools).toContain("spending_summary");
     expect(tools).toContain("set_budget");
+    expect(tools).toContain("copy_budgets");
+    expect(tools).toContain("delete_budget");
     expect(tools).toContain("create_recurring");
     expect(tools).toContain("query");
   });
@@ -211,6 +213,54 @@ describe("MCP /api/mcp route", () => {
       budgetAmount: number;
     }[];
     expect(items[0].budgetAmount).toBe(10000);
+  });
+
+  it("copy_budgets copies budgets between months", async () => {
+    const catSvc = new CategoryService(db);
+    const cat = catSvc.create({ name: "Rent" });
+    const budgetSvc = new BudgetService(db);
+    budgetSvc.set({
+      categoryId: cat.id,
+      month: "2025-05",
+      amount: 80000,
+      applyToFutureMonths: false,
+    });
+
+    await POST(initRequest());
+    const res = await POST(
+      toolCallRequest("copy_budgets", { fromMonth: "2025-05", toMonth: "2025-06" })
+    );
+    expect(res.status).toBe(200);
+    const result = await parseResult(res);
+    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
+      copied: number;
+    };
+    expect(body.copied).toBe(1);
+  });
+
+  it("delete_budget removes a budget", async () => {
+    const catSvc = new CategoryService(db);
+    const cat = catSvc.create({ name: "Snacks" });
+    const budgetSvc = new BudgetService(db);
+    budgetSvc.set({
+      categoryId: cat.id,
+      month: "2025-06",
+      amount: 5000,
+      applyToFutureMonths: false,
+    });
+
+    await POST(initRequest());
+    const res = await POST(
+      toolCallRequest("delete_budget", { categoryId: cat.id, month: "2025-06" })
+    );
+    expect(res.status).toBe(200);
+    const result = await parseResult(res);
+    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
+      deleted: boolean;
+    };
+    expect(body.deleted).toBe(true);
+    // Verify it's gone
+    expect(budgetSvc.listForCategory(cat.id)).toHaveLength(0);
   });
 
   it("query tool executes read-only SQL", async () => {

@@ -153,6 +153,39 @@ describe("getForMonth", () => {
     const food = result.find((r) => r.categoryName === "Food");
     expect(food?.spentAmount).toBe(30000);
   });
+
+  it("includes child category spend in parent budget (rollup)", () => {
+    // Create a child category under Food
+    const groceries = catService.create({ name: "Groceries", parentId: foodId });
+    const restaurants = catService.create({ name: "Restaurants", parentId: foodId });
+
+    // Spend on child categories (in addition to the 30000 already on Food from beforeEach)
+    txService.create(
+      tx({ amount: 5000, categoryId: groceries.id, type: "expense", date: "2026-03-12" })
+    );
+    txService.create(
+      tx({ amount: 3000, categoryId: restaurants.id, type: "expense", date: "2026-03-18" })
+    );
+
+    const result = budgetService.getForMonth(GetBudgetStatusSchema.parse({ month: "2026-03" }));
+    const food = result.find((r) => r.categoryName === "Food");
+    // 30000 (direct) + 5000 (groceries) + 3000 (restaurants) = 38000
+    expect(food?.spentAmount).toBe(38000);
+  });
+
+  it("includes deeply nested child spend in rollup", () => {
+    const groceries = catService.create({ name: "Groceries", parentId: foodId });
+    const organic = catService.create({ name: "Organic", parentId: groceries.id });
+
+    txService.create(
+      tx({ amount: 2000, categoryId: organic.id, type: "expense", date: "2026-03-10" })
+    );
+
+    const result = budgetService.getForMonth(GetBudgetStatusSchema.parse({ month: "2026-03" }));
+    const food = result.find((r) => r.categoryName === "Food");
+    // 30000 (direct on Food) + 2000 (grandchild Organic) = 32000
+    expect(food?.spentAmount).toBe(32000);
+  });
 });
 
 // ─── copyFromPreviousMonth ────────────────────────────────────────────────────
@@ -217,5 +250,43 @@ describe("delete", () => {
 
   it("returns false for non-existent budget", () => {
     expect(budgetService.delete(foodId, "2026-03")).toBe(false);
+  });
+});
+
+// ─── listForCategory ─────────────────────────────────────────────────────────
+
+describe("listForCategory", () => {
+  it("returns all budgets for a category sorted by month", () => {
+    budgetService.set(
+      SetBudgetSchema.parse({ categoryId: foodId, month: "2026-03", amount: 50000 })
+    );
+    budgetService.set(
+      SetBudgetSchema.parse({ categoryId: foodId, month: "2026-01", amount: 40000 })
+    );
+    budgetService.set(
+      SetBudgetSchema.parse({ categoryId: foodId, month: "2026-02", amount: 45000 })
+    );
+
+    const budgets = budgetService.listForCategory(foodId);
+    expect(budgets).toHaveLength(3);
+    expect(budgets.map((b) => b.month)).toEqual(["2026-01", "2026-02", "2026-03"]);
+    expect(budgets.map((b) => b.amount)).toEqual([40000, 45000, 50000]);
+  });
+
+  it("returns empty array for category with no budgets", () => {
+    expect(budgetService.listForCategory(foodId)).toHaveLength(0);
+  });
+
+  it("does not return budgets from other categories", () => {
+    budgetService.set(
+      SetBudgetSchema.parse({ categoryId: foodId, month: "2026-03", amount: 50000 })
+    );
+    budgetService.set(
+      SetBudgetSchema.parse({ categoryId: transportId, month: "2026-03", amount: 20000 })
+    );
+
+    const foodBudgets = budgetService.listForCategory(foodId);
+    expect(foodBudgets).toHaveLength(1);
+    expect(foodBudgets[0].amount).toBe(50000);
   });
 });

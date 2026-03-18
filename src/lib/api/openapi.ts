@@ -19,6 +19,9 @@ import {
 import {
   SetBudgetSchema,
   GetBudgetStatusSchema,
+  DeleteBudgetSchema,
+  CopyBudgetsSchema,
+  BudgetHistorySchema,
   BudgetResponseSchema,
 } from "@/lib/validators/budgets";
 import {
@@ -328,6 +331,41 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           tags: ["Budgets"],
           query: GetBudgetStatusSchema,
           response: z.array(BudgetStatus),
+          errors: [400, 500],
+        }),
+        delete: op({
+          id: "deleteBudget",
+          summary: "Delete a budget for a category and month",
+          tags: ["Budgets"],
+          query: DeleteBudgetSchema,
+          response: SuccessSchema,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/budgets/copy": {
+        post: op({
+          id: "copyBudgets",
+          summary: "Copy all budgets from one month to another",
+          tags: ["Budgets"],
+          body: CopyBudgetsSchema,
+          response: z.object({ copied: z.number().int() }),
+          errors: [400, 500],
+        }),
+      },
+      "/api/budgets/history": {
+        get: op({
+          id: "budgetHistory",
+          summary: "Get historical budget vs actual totals across recent months",
+          tags: ["Budgets"],
+          query: BudgetHistorySchema,
+          response: z.array(
+            z.object({
+              month: z.string(),
+              totalBudget: z.number().int(),
+              totalSpent: z.number().int(),
+              percentUsed: z.number(),
+            })
+          ),
           errors: [400, 500],
         }),
       },

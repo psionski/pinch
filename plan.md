@@ -21,7 +21,7 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 | Language | TypeScript (strict) | End-to-end type safety |
 | Styling | Tailwind CSS 4 | Utility-first, fast iteration |
 | UI Components | shadcn/ui | Accessible, composable, Tailwind-native |
-| Charts | Tremor | Dashboard primitives built on Recharts + Tailwind |
+| Charts | Recharts (via shadcn/ui) | Chart primitives built on Recharts + Tailwind |
 | Database | SQLite (via better-sqlite3) | Single file, zero infra, perfect for personal use |
 | ORM | Drizzle ORM | Type-safe, SQL-like query builder, great SQLite support |
 | Migrations | Drizzle Kit | Schema-driven, generates SQL migrations |
@@ -37,7 +37,7 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 │                                               │
 │  ┌─────────────┐  ┌──────────────────────┐   │
 │  │  React UI   │  │    API Routes         │   │
-│  │  (Tremor    │  │  /api/transactions    │   │
+│  │  (Recharts  │  │  /api/transactions    │   │
 │  │   charts,   │  │  /api/categories      │   │
 │  │   shadcn)   │  │  /api/reports         │   │
 │  │             │  │  /api/receipts/upload  │   │
@@ -541,7 +541,7 @@ pinch/
 │   │                   └── route.ts  # GET serve receipt image by ID
 │   ├── components/
 │   │   ├── ui/                  # shadcn/ui components
-│   │   ├── charts/              # Tremor chart wrappers
+│   │   ├── charts/              # Chart components (Recharts via shadcn/ui)
 │   │   ├── transactions/        # Transaction list, form, filters
 │   │   ├── categories/          # Category tree, merge dialog
 │   │   ├── budgets/             # Budget progress bars, form
@@ -789,14 +789,14 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 12: Budgets Page
+### Sprint 12: Budgets Page ✅
 **Goal:** Budget management and tracking UI.
 
-- [ ] Set monthly budgets per category (form with amount input in decimal, stored as cents)
-- [ ] Progress bars: green (<60%) → yellow (60-90%) → red (>90%)
-- [ ] Copy budgets from previous month (one-click)
-- [ ] Dashboard: budget alerts (categories approaching >80% or over budget)
-- [ ] Historical budget adherence chart
+- [x] Set monthly budgets per category (form with amount input in decimal, stored as cents)
+- [x] Progress bars: green (<60%) → yellow (60-90%) → red (>90%)
+- [x] Copy budgets from previous month (one-click)
+- [x] Dashboard: budget alerts (categories approaching >80% or over budget)
+- [x] Historical budget adherence chart
 
 **Done when:** Can set, view, and track budgets. Visual feedback on spending vs budget.
 

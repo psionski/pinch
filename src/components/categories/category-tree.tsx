@@ -146,10 +146,10 @@ function CategoryRow({
             : "—"}
         </td>
 
-        {/* Budget status — use own spend vs budget (rollup doesn't apply to budgets) */}
+        {/* Budget status — use rollup spend vs budget (includes child category spend) */}
         <td className="px-2 py-2">
           {catStats?.budgetAmount ? (
-            <BudgetBar spent={catStats.totalSpend} budget={catStats.budgetAmount} />
+            <BudgetBar spent={catStats.rollupSpend} budget={catStats.budgetAmount} />
           ) : (
             <span className="text-muted-foreground text-sm">—</span>
           )}

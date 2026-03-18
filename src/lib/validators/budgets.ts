@@ -31,6 +31,15 @@ export const GetBudgetStatusSchema = z.object({
 
 export type GetBudgetStatusInput = z.infer<typeof GetBudgetStatusSchema>;
 
+// ─── Delete Budget ───────────────────────────────────────────────────────────
+
+export const DeleteBudgetSchema = z.object({
+  categoryId: z.number().int().positive("Category ID is required"),
+  month: YearMonthSchema,
+});
+
+export type DeleteBudgetInput = z.infer<typeof DeleteBudgetSchema>;
+
 // ─── Copy Budgets ─────────────────────────────────────────────────────────────
 
 export const CopyBudgetsSchema = z.object({
@@ -39,3 +48,18 @@ export const CopyBudgetsSchema = z.object({
 });
 
 export type CopyBudgetsInput = z.infer<typeof CopyBudgetsSchema>;
+
+// ─── Budget History ──────────────────────────────────────────────────────────
+
+export const BudgetHistorySchema = z.object({
+  months: z.number().int().min(1).max(24).default(6),
+});
+
+export type BudgetHistoryInput = z.infer<typeof BudgetHistorySchema>;
+
+export interface BudgetHistoryPoint {
+  month: string;
+  totalBudget: number;
+  totalSpent: number;
+  percentUsed: number;
+}
