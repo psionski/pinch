@@ -1,5 +1,5 @@
 import { getDb } from "./index";
-import { categories, transactions } from "./schema";
+import { budgets, categories, transactions } from "./schema";
 
 // Parent categories (no parentId)
 const PARENT_CATEGORIES = [
@@ -385,6 +385,106 @@ function generateMonth(
   return { txs, balance: bal };
 }
 
+// ─── Budget generation ───────────────────────────────────────────────────────
+
+interface BudgetRow {
+  categoryId: number;
+  month: string;
+  amount: number;
+}
+
+/** Round cents up to the nearest €25. */
+function roundTo25(cents: number): number {
+  const euros = cents / 100;
+  return Math.ceil(euros / 25) * 25 * 100;
+}
+
+/**
+ * Generate realistic budgets based on actual generated spend.
+ *
+ * Budgeted categories (with sub-budgets where natural):
+ * - Food & Drink (parent) + Dining (child) + Coffee (child)
+ * - Entertainment (parent) + Subscriptions (child)
+ * - Shopping
+ */
+function generateBudgets(
+  allTxs: TxInput[],
+  catIds: Record<string, number>,
+  months: Array<{ year: number; month: number }>
+): BudgetRow[] {
+  // Build parent → children map for rollup
+  const childrenOf: Record<string, string[]> = {};
+  for (const child of CHILD_CATEGORIES) {
+    const siblings = childrenOf[child.parentName] ?? [];
+    siblings.push(child.name);
+    childrenOf[child.parentName] = siblings;
+  }
+
+  // Sum expense spend per category name per YYYY-MM
+  const spendByCatMonth = new Map<string, number>();
+  for (const tx of allTxs) {
+    if (tx.type !== "expense") continue;
+    const month = tx.date.slice(0, 7); // YYYY-MM
+    // Find category name from ID
+    const catName = Object.entries(catIds).find(([, id]) => id === tx.categoryId)?.[0];
+    if (!catName) continue;
+    const key = `${catName}|${month}`;
+    spendByCatMonth.set(key, (spendByCatMonth.get(key) ?? 0) + tx.amount);
+  }
+
+  // Compute rollup spend: parent includes own + all children
+  function rollupSpend(catName: string, month: string): number {
+    let total = spendByCatMonth.get(`${catName}|${month}`) ?? 0;
+    const children = childrenOf[catName];
+    if (children) {
+      for (const child of children) {
+        total += spendByCatMonth.get(`${child}|${month}`) ?? 0;
+      }
+    }
+    return total;
+  }
+
+  // Categories that get budgets: [name, isParentRollup]
+  const budgetedCategories: Array<{ name: string; rollup: boolean }> = [
+    { name: "Food & Drink", rollup: true },
+    { name: "Dining", rollup: false },
+    { name: "Coffee", rollup: false },
+    { name: "Entertainment", rollup: true },
+    { name: "Subscriptions", rollup: false },
+    { name: "Shopping", rollup: false },
+  ];
+
+  const rows: BudgetRow[] = [];
+  const monthStrs = months.map((m) => `${m.year}-${String(m.month).padStart(2, "0")}`);
+
+  for (const { name, rollup } of budgetedCategories) {
+    // Compute spend per month
+    const monthlySpend = monthStrs.map((m) =>
+      rollup ? rollupSpend(name, m) : (spendByCatMonth.get(`${name}|${m}`) ?? 0)
+    );
+
+    // Average across all months
+    const avg = monthlySpend.reduce((a, b) => a + b, 0) / monthlySpend.length;
+    const baseBudget = roundTo25(avg);
+
+    for (const monthStr of monthStrs) {
+      // December gets a ~20% uplift for Food & Drink and Entertainment (holiday season)
+      const isDecember = monthStr.endsWith("-12");
+      const isHolidayCategory =
+        name === "Food & Drink" || name === "Dining" || name === "Entertainment";
+      const amount = isDecember && isHolidayCategory ? roundTo25(baseBudget * 1.2) : baseBudget;
+
+      rows.push({
+        categoryId: catIds[name],
+        month: monthStr,
+        amount,
+      });
+    }
+  }
+
+  return rows;
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function seed(): Promise<void> {
@@ -429,16 +529,27 @@ async function seed(): Promise<void> {
   const catIds: Record<string, number> = {};
   for (const c of cats) catIds[c.name] = c.id;
 
-  console.log("Generating 3 months of transactions (Jan–Mar 2026)...");
+  console.log("Generating 4 months of transactions (Dec 2025 – Mar 2026)...");
 
   const months = [
+    { year: 2025, month: 12, lastDay: 31 },
     { year: 2026, month: 1, lastDay: 31 },
     { year: 2026, month: 2, lastDay: 28 },
-    { year: 2026, month: 3, lastDay: 17 }, // up to today
+    { year: 2026, month: 3, lastDay: 18 }, // up to today
   ];
 
-  let balance = 200000; // start with €2 000 (previous month's salary)
+  let balance = 200000; // €2 000 — previous month's salary leftovers
   const allTxs: TxInput[] = [];
+
+  // Opening balance — makes the starting amount visible in the DB
+  allTxs.push({
+    amount: balance,
+    type: "income",
+    description: "Previous month balance",
+    categoryId: catIds.Income,
+    date: "2025-11-30",
+    tags: ["opening-balance"],
+  });
 
   for (const { year, month, lastDay } of months) {
     const result = generateMonth(year, month, lastDay, catIds, balance);
@@ -454,6 +565,14 @@ async function seed(): Promise<void> {
   for (let i = 0; i < rows.length; i += BATCH) {
     await db.insert(transactions).values(rows.slice(i, i + BATCH));
   }
+
+  // ── Budgets ──────────────────────────────────────────────────────────────
+  console.log("Generating budgets...");
+  const budgetRows = generateBudgets(allTxs, catIds, months);
+  for (const row of budgetRows) {
+    await db.insert(budgets).values(row);
+  }
+  console.log(`  ${budgetRows.length} budget entries across ${months.length} months.`);
 
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const expenses = allTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
