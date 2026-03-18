@@ -758,6 +758,12 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
+### Sprint 10.5: Common MCP Read Operations
+**Goal:** Implement dedicated MCP tools for high-frequency analytical queries (like net balance) so the AI doesn't need to write custom SQL.
+
+- [ ] `get_net_balance` tool: Returns total income minus total expenses, optionally filtered by a date range.
+- [ ] `get_transaction_by_id`, `get_category_by_id`, `get_recurring_by_id`: Simple read tools for fetching single records to save context window tokens when modifying them.
+
 **--- MVP milestone ---**
 
 *After Sprint 10, the app is usable daily: the AI assistant can enter transactions via MCP, you can view and manage them in the web UI, recurring transactions auto-generate, and the DB backs up automatically.*
