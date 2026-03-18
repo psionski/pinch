@@ -3,12 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { Pie, PieChart, Cell, Label } from "recharts";
 import { ArrowLeft } from "lucide-react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CategoryStatsItem } from "@/lib/validators/reports";
 
@@ -141,15 +136,6 @@ export function CategoryDonutChart({
           <div className="mx-auto w-full max-w-xs">
             <ChartContainer config={chartConfig} className="h-[200px] w-full">
               <PieChart accessibilityLayer key={currentParentId ?? "root"}>
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value) =>
-                        `€${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
-                      }
-                    />
-                  }
-                />
                 <Pie
                   data={chartData}
                   dataKey="value"
@@ -158,7 +144,9 @@ export function CategoryDonutChart({
                   outerRadius={90}
                   strokeWidth={2}
                   onClick={handleClick}
-                  animationDuration={500}
+                  animationBegin={0}
+                  animationDuration={300}
+                  animationEasing="ease-out"
                 >
                   {chartData.map((entry, i) => (
                     <Cell
