@@ -851,6 +851,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 - [ ] LICENSE file (choose an appropriate open-source license)
 - [ ] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
 - [ ] API documentation — REST endpoints and MCP tools (in README or `docs/`)
+- [ ] Extend MCP `instructions` field: Add explicit behavioral prompts (e.g., "If unsure about categorization, ask the user and remember the decision for next time").
 - [ ] Verify .gitignore, .env.example, and any other dotfiles are in order
 
 **Done when:** A developer can clone the repo, read the README, and get running. Project looks professional on GitHub.
