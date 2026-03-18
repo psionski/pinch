@@ -1019,12 +1019,12 @@ asset_prices (
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
 - [ ] Build an auto-updater mechanism for easy rolling releases
-- [ ] Write definitive Quick Start installation instructions specifically targeting an AI agent (how an agent can deploy and configure it for its human)
 
-### Sprint 21: Project Website & Interactive Tutorial
-**Goal:** Create a public face for the project and a smooth onboarding experience for new users.
+### Sprint 21: Project Website & AI Onboarding
+**Goal:** Create a public face for the project and a frictionless onboarding experience.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
+- [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
 - [ ] Implement an interactive tutorial (either on the website or an in-app wizard) to guide users through their first setup and transactions
 
 ## Future Considerations (not in scope now, but design should accommodate)
