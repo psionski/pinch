@@ -90,8 +90,10 @@ export type MergeCategoriesInput = z.infer<typeof MergeCategoriesSchema>;
 
 export const CategoryStatsSchema = z.object({
   categoryId: z.number().int(),
-  totalSpend: z.number().int(), // cents, sum of expense transactions
-  transactionCount: z.number().int(),
+  totalSpend: z.number().int(), // cents, sum of expense transactions for this category only
+  transactionCount: z.number().int(), // transactions in this category only
+  rollupSpend: z.number().int(), // cents, this category + all descendants
+  rollupTransactionCount: z.number().int(), // this category + all descendants
   budgetAmount: z.number().int().nullable(), // cents, null if no budget set
 });
 

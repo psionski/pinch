@@ -134,17 +134,19 @@ function CategoryRow({
           </div>
         </td>
 
-        {/* Transaction count */}
+        {/* Transaction count — all-time rollup for parents, own count for leaves */}
         <td className="text-muted-foreground px-2 py-2 text-right text-sm tabular-nums">
-          {cat.transactionCount}
+          {catStats?.rollupTransactionCount ?? cat.transactionCount}
         </td>
 
-        {/* Current month spend */}
+        {/* Current month spend — show rollup for parents */}
         <td className="text-muted-foreground px-2 py-2 text-right text-sm tabular-nums">
-          {catStats && catStats.totalSpend > 0 ? `€${formatAmount(catStats.totalSpend)}` : "—"}
+          {catStats && (hasChildren ? catStats.rollupSpend : catStats.totalSpend) > 0
+            ? `€${formatAmount(hasChildren ? catStats.rollupSpend : catStats.totalSpend)}`
+            : "—"}
         </td>
 
-        {/* Budget status */}
+        {/* Budget status — use own spend vs budget (rollup doesn't apply to budgets) */}
         <td className="px-2 py-2">
           {catStats?.budgetAmount ? (
             <BudgetBar spent={catStats.totalSpend} budget={catStats.budgetAmount} />

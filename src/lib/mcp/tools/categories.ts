@@ -77,7 +77,9 @@ export function registerCategoryTools(server: McpServer): void {
     {
       description:
         "Get per-category spending stats for a given month. " +
-        "Returns total expense spend, transaction count, and budget amount for each category.",
+        "Returns totalSpend/transactionCount (this category only), " +
+        "rollupSpend/rollupTransactionCount (this category + all descendants), " +
+        "and budgetAmount for each category.",
       inputSchema: z.object({
         month: z
           .string()

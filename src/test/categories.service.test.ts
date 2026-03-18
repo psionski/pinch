@@ -317,7 +317,15 @@ describe("getStats", () => {
 
     const stats = categoryService.getStats("2026-03");
     expect(stats).toHaveLength(2);
-    expect(stats.every((s) => s.totalSpend === 0 && s.transactionCount === 0)).toBe(true);
+    expect(
+      stats.every(
+        (s) =>
+          s.totalSpend === 0 &&
+          s.transactionCount === 0 &&
+          s.rollupSpend === 0 &&
+          s.rollupTransactionCount === 0
+      )
+    ).toBe(true);
   });
 
   it("computes total spend from expense transactions in the given month", () => {
@@ -376,5 +384,52 @@ describe("getStats", () => {
 
     expect(marchStats.find((s) => s.categoryId === cat.id)?.totalSpend).toBe(100);
     expect(aprilStats.find((s) => s.categoryId === cat.id)?.totalSpend).toBe(200);
+  });
+
+  it("rollup includes parent's own spend plus all children", () => {
+    const parent = categoryService.create({ name: "Food" });
+    const child1 = categoryService.create({ name: "Groceries", parentId: parent.id });
+    const child2 = categoryService.create({ name: "Dining", parentId: parent.id });
+
+    txService.create(tx({ categoryId: parent.id, amount: 100, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: child1.id, amount: 500, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: child2.id, amount: 300, date: "2026-03-01" }));
+
+    const stats = categoryService.getStats("2026-03");
+    const parentStats = stats.find((s) => s.categoryId === parent.id);
+
+    expect(parentStats?.totalSpend).toBe(100);
+    expect(parentStats?.transactionCount).toBe(1);
+    expect(parentStats?.rollupSpend).toBe(900);
+    expect(parentStats?.rollupTransactionCount).toBe(3);
+  });
+
+  it("rollup for leaf categories equals their own spend", () => {
+    const parent = categoryService.create({ name: "Food" });
+    const child = categoryService.create({ name: "Groceries", parentId: parent.id });
+
+    txService.create(tx({ categoryId: child.id, amount: 500, date: "2026-03-01" }));
+
+    const stats = categoryService.getStats("2026-03");
+    const childStats = stats.find((s) => s.categoryId === child.id);
+
+    expect(childStats?.totalSpend).toBe(500);
+    expect(childStats?.rollupSpend).toBe(500);
+  });
+
+  it("rollup works with nested grandchildren", () => {
+    const grandparent = categoryService.create({ name: "Food" });
+    const parent = categoryService.create({ name: "Dining", parentId: grandparent.id });
+    const child = categoryService.create({ name: "Coffee", parentId: parent.id });
+
+    txService.create(tx({ categoryId: grandparent.id, amount: 100, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: parent.id, amount: 200, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: child.id, amount: 300, date: "2026-03-01" }));
+
+    const stats = categoryService.getStats("2026-03");
+
+    expect(stats.find((s) => s.categoryId === grandparent.id)?.rollupSpend).toBe(600);
+    expect(stats.find((s) => s.categoryId === parent.id)?.rollupSpend).toBe(500);
+    expect(stats.find((s) => s.categoryId === child.id)?.rollupSpend).toBe(300);
   });
 });

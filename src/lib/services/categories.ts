@@ -128,8 +128,11 @@ export class CategoryService {
       budgetMap.set(b.categoryId, b.amount);
     }
 
-    // Get all category IDs to include categories with zero spend
-    const allCategories = this.db.select({ id: categories.id }).from(categories).all();
+    // Get all categories with parentId for hierarchy traversal
+    const allCategories = this.db
+      .select({ id: categories.id, parentId: categories.parentId })
+      .from(categories)
+      .all();
 
     const spendMap = new Map<number, { totalSpend: number; transactionCount: number }>();
     for (const row of spendRows) {
@@ -141,12 +144,43 @@ export class CategoryService {
       }
     }
 
-    return allCategories.map((cat) => ({
-      categoryId: cat.id,
-      totalSpend: spendMap.get(cat.id)?.totalSpend ?? 0,
-      transactionCount: spendMap.get(cat.id)?.transactionCount ?? 0,
-      budgetAmount: budgetMap.get(cat.id) ?? null,
-    }));
+    // Build children lookup for rollup computation
+    const childrenMap = new Map<number, number[]>();
+    for (const cat of allCategories) {
+      if (cat.parentId !== null) {
+        const siblings = childrenMap.get(cat.parentId) ?? [];
+        siblings.push(cat.id);
+        childrenMap.set(cat.parentId, siblings);
+      }
+    }
+
+    // Recursively sum spend for a category and all its descendants
+    function computeRollup(id: number): { spend: number; count: number } {
+      const own = spendMap.get(id);
+      let spend = own?.totalSpend ?? 0;
+      let count = own?.transactionCount ?? 0;
+      const children = childrenMap.get(id);
+      if (children) {
+        for (const childId of children) {
+          const child = computeRollup(childId);
+          spend += child.spend;
+          count += child.count;
+        }
+      }
+      return { spend, count };
+    }
+
+    return allCategories.map((cat) => {
+      const rollup = computeRollup(cat.id);
+      return {
+        categoryId: cat.id,
+        totalSpend: spendMap.get(cat.id)?.totalSpend ?? 0,
+        transactionCount: spendMap.get(cat.id)?.transactionCount ?? 0,
+        rollupSpend: rollup.spend,
+        rollupTransactionCount: rollup.count,
+        budgetAmount: budgetMap.get(cat.id) ?? null,
+      };
+    });
   }
 
   /**
