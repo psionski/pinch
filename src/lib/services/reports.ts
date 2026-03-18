@@ -358,7 +358,7 @@ export class ReportService {
       item.percentage = grandTotal > 0 ? Math.round((item.total / grandTotal) * 10000) / 100 : 0;
     }
 
-    items.sort((a, b) => b.total - a.total);
+    items.sort((a, b) => b.rollupTotal - a.rollupTotal);
     return items;
   }
 

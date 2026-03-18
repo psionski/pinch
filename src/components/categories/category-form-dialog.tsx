@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
+import { CategorySelectItems } from "./category-select-items";
 
 interface CategoryFormProps {
   open: boolean;
@@ -151,11 +152,7 @@ export function CategoryFormDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">None (top-level)</SelectItem>
-                {parentOptions.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.icon ? `${c.icon} ${c.name}` : c.name}
-                  </SelectItem>
-                ))}
+                <CategorySelectItems categories={parentOptions} />
               </SelectContent>
             </Select>
           </div>

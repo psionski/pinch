@@ -93,6 +93,7 @@ export function CategoryDonutChart({
 
     return entries
       .filter((e) => e.rawValue > 0)
+      .sort((a, b) => b.rawValue - a.rawValue)
       .map((entry) => ({
         name: entry.name,
         value: entry.rawValue / 100,
