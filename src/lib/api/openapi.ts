@@ -14,6 +14,7 @@ import {
   MergeCategoriesSchema,
   CategoryResponseSchema,
   CategoryWithCountResponseSchema,
+  CategoryStatsSchema,
 } from "@/lib/validators/categories";
 import {
   SetBudgetSchema,
@@ -57,6 +58,7 @@ const SummaryResult = SpendingSummaryResultSchema.meta({ id: "SpendingSummaryRes
 const BreakdownItem = CategoryBreakdownItemSchema.meta({ id: "CategoryBreakdownItem" });
 const Trend = TrendPointSchema.meta({ id: "TrendPoint" });
 const Merchant = TopMerchantSchema.meta({ id: "TopMerchant" });
+const CategoryStatsItem = CategoryStatsSchema.meta({ id: "CategoryStats" });
 
 // ─── Operation builder ──────────────────────────────────────────────────────
 
@@ -257,6 +259,16 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           tags: ["Categories"],
           body: MergeCategoriesSchema,
           response: SuccessSchema,
+          errors: [400, 500],
+        }),
+      },
+      "/api/categories/stats": {
+        get: op({
+          id: "getCategoryStats",
+          summary: "Get per-category spend, transaction count, and budget for a month",
+          tags: ["Categories"],
+          query: z.object({ month: z.string().meta({ description: "Month in YYYY-MM format" }) }),
+          response: z.array(CategoryStatsItem),
           errors: [400, 500],
         }),
       },

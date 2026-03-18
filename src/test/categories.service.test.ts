@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestDb } from "./helpers";
 import { CategoryService } from "@/lib/services/categories";
 import { TransactionService } from "@/lib/services/transactions";
+import { BudgetService } from "@/lib/services/budgets";
 import { CreateTransactionSchema } from "@/lib/validators/transactions";
 
 type TestDb = ReturnType<typeof makeTestDb>;
@@ -10,11 +11,13 @@ type TestDb = ReturnType<typeof makeTestDb>;
 let db: TestDb;
 let categoryService: CategoryService;
 let txService: TransactionService;
+let budgetService: BudgetService;
 
 beforeEach(() => {
   db = makeTestDb();
   categoryService = new CategoryService(db);
   txService = new TransactionService(db);
+  budgetService = new BudgetService(db);
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -302,5 +305,76 @@ describe("merge", () => {
       sortOrder: "desc",
     });
     expect(sourceTxs.total).toBe(0);
+  });
+});
+
+// ─── getStats ────────────────────────────────────────────────────────────────
+
+describe("getStats", () => {
+  it("returns stats for all categories even with zero spend", () => {
+    categoryService.create({ name: "A" });
+    categoryService.create({ name: "B" });
+
+    const stats = categoryService.getStats("2026-03");
+    expect(stats).toHaveLength(2);
+    expect(stats.every((s) => s.totalSpend === 0 && s.transactionCount === 0)).toBe(true);
+  });
+
+  it("computes total spend from expense transactions in the given month", () => {
+    const cat = categoryService.create({ name: "Food" });
+    txService.create(tx({ categoryId: cat.id, amount: 500, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: cat.id, amount: 300, date: "2026-03-15" }));
+    // Different month — should not count
+    txService.create(tx({ categoryId: cat.id, amount: 999, date: "2026-02-28" }));
+
+    const stats = categoryService.getStats("2026-03");
+    const catStats = stats.find((s) => s.categoryId === cat.id);
+    expect(catStats?.totalSpend).toBe(800);
+    expect(catStats?.transactionCount).toBe(2);
+  });
+
+  it("excludes income transactions from spend total", () => {
+    const cat = categoryService.create({ name: "Salary" });
+    txService.create(tx({ categoryId: cat.id, amount: 5000, type: "income", date: "2026-03-01" }));
+    txService.create(tx({ categoryId: cat.id, amount: 200, date: "2026-03-01" })); // expense
+
+    const stats = categoryService.getStats("2026-03");
+    const catStats = stats.find((s) => s.categoryId === cat.id);
+    expect(catStats?.totalSpend).toBe(200);
+    expect(catStats?.transactionCount).toBe(1);
+  });
+
+  it("includes budget amount when a budget exists for the month", () => {
+    const cat = categoryService.create({ name: "Food" });
+    budgetService.set({
+      categoryId: cat.id,
+      month: "2026-03",
+      amount: 50000,
+      applyToFutureMonths: false,
+    });
+
+    const stats = categoryService.getStats("2026-03");
+    const catStats = stats.find((s) => s.categoryId === cat.id);
+    expect(catStats?.budgetAmount).toBe(50000);
+  });
+
+  it("returns null budgetAmount when no budget is set", () => {
+    const cat = categoryService.create({ name: "Food" });
+
+    const stats = categoryService.getStats("2026-03");
+    const catStats = stats.find((s) => s.categoryId === cat.id);
+    expect(catStats?.budgetAmount).toBeNull();
+  });
+
+  it("scopes stats to the requested month only", () => {
+    const cat = categoryService.create({ name: "Food" });
+    txService.create(tx({ categoryId: cat.id, amount: 100, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: cat.id, amount: 200, date: "2026-04-01" }));
+
+    const marchStats = categoryService.getStats("2026-03");
+    const aprilStats = categoryService.getStats("2026-04");
+
+    expect(marchStats.find((s) => s.categoryId === cat.id)?.totalSpend).toBe(100);
+    expect(aprilStats.find((s) => s.categoryId === cat.id)?.totalSpend).toBe(200);
   });
 });

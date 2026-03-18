@@ -776,14 +776,14 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 11: Categories Page
+### Sprint 11: Categories Page ✅
 **Goal:** Category management with hierarchy and merge.
 
-- [ ] Tree view showing parent → children hierarchy
-- [ ] Per-category stats: total spend (current month), transaction count, budget status
-- [ ] Create / rename / reparent / change icon & color
-- [ ] Merge UI: select source → target, preview affected transactions, confirm
-- [ ] Click-through to filtered transaction list
+- [x] Tree view showing parent → children hierarchy
+- [x] Per-category stats: total spend (current month), transaction count, budget status
+- [x] Create / rename / reparent / change icon & color
+- [x] Merge UI: select source → target, preview affected transactions, confirm
+- [x] Click-through to filtered transaction list
 
 **Done when:** Full category CRUD and merge working in the UI.
 

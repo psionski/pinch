@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Trash2, FolderInput } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,8 +65,15 @@ export function TransactionsClient({
   initialData,
   categories,
 }: TransactionsClientProps): React.ReactElement {
+  const searchParams = useSearchParams();
+  const initialFilters = useMemo((): TransactionFilters => {
+    const categoryId = searchParams.get("categoryId");
+    if (!categoryId) return EMPTY_FILTERS;
+    return { ...EMPTY_FILTERS, categoryId };
+  }, [searchParams]);
+
   const [data, setData] = useState<PaginatedTransactionsResponse>(initialData);
-  const [filters, setFilters] = useState<TransactionFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<TransactionFilters>(initialFilters);
   const [sortBy, setSortBy] = useState<SortField>("date");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [limit, setLimit] = useState(50);

@@ -9,6 +9,7 @@ import type {
   MergeCategoriesInput,
   CategoryResponse,
   CategoryWithCountResponse,
+  CategoryStats,
 } from "@/lib/validators/categories";
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -79,6 +80,73 @@ export class CategoryService {
   delete(id: number): boolean {
     const result = this.db.delete(categories).where(eq(categories.id, id)).returning().all();
     return result.length > 0;
+  }
+
+  /**
+   * Returns per-category stats for the given month (YYYY-MM).
+   * Includes total expense spend, transaction count, and budget amount.
+   */
+  getStats(month: string): CategoryStats[] {
+    const monthStart = `${month}-01`;
+    const nextMonth = (() => {
+      const [y, m] = month.split("-").map(Number);
+      const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+      return `${next}-01`;
+    })();
+
+    // Aggregate expense transactions per category for the month
+    const spendRows = this.db
+      .select({
+        categoryId: transactions.categoryId,
+        totalSpend: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+        transactionCount: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.type, "expense"),
+          gte(transactions.date, monthStart),
+          lte(transactions.date, sql`date(${nextMonth}, '-1 day')`),
+          sql`${transactions.categoryId} IS NOT NULL`
+        )
+      )
+      .groupBy(transactions.categoryId)
+      .all();
+
+    // Get budgets for the month
+    const budgetRows = this.db
+      .select({
+        categoryId: budgets.categoryId,
+        amount: budgets.amount,
+      })
+      .from(budgets)
+      .where(eq(budgets.month, month))
+      .all();
+
+    const budgetMap = new Map<number, number>();
+    for (const b of budgetRows) {
+      budgetMap.set(b.categoryId, b.amount);
+    }
+
+    // Get all category IDs to include categories with zero spend
+    const allCategories = this.db.select({ id: categories.id }).from(categories).all();
+
+    const spendMap = new Map<number, { totalSpend: number; transactionCount: number }>();
+    for (const row of spendRows) {
+      if (row.categoryId !== null) {
+        spendMap.set(row.categoryId, {
+          totalSpend: row.totalSpend,
+          transactionCount: row.transactionCount,
+        });
+      }
+    }
+
+    return allCategories.map((cat) => ({
+      categoryId: cat.id,
+      totalSpend: spendMap.get(cat.id)?.totalSpend ?? 0,
+      transactionCount: spendMap.get(cat.id)?.transactionCount ?? 0,
+      budgetAmount: budgetMap.get(cat.id) ?? null,
+    }));
   }
 
   /**

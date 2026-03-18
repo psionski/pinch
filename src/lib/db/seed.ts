@@ -1,18 +1,26 @@
 import { getDb } from "./index";
 import { categories, transactions } from "./schema";
 
-const DEFAULT_CATEGORIES = [
-  { name: "Groceries", icon: "🛒", color: "#4ade80" },
-  { name: "Rent", icon: "🏠", color: "#60a5fa" },
-  { name: "Utilities", icon: "💡", color: "#facc15" },
+// Parent categories (no parentId)
+const PARENT_CATEGORIES = [
+  { name: "Food & Drink", icon: "🍴", color: "#fb7185" },
+  { name: "Housing", icon: "🏠", color: "#60a5fa" },
   { name: "Transport", icon: "🚗", color: "#f97316" },
   { name: "Entertainment", icon: "🎬", color: "#a78bfa" },
-  { name: "Dining", icon: "🍽️", color: "#fb7185" },
   { name: "Health", icon: "❤️", color: "#f43f5e" },
   { name: "Shopping", icon: "🛍️", color: "#e879f9" },
-  { name: "Subscriptions", icon: "📱", color: "#38bdf8" },
   { name: "Income", icon: "💰", color: "#34d399" },
   { name: "Other", icon: "📦", color: "#94a3b8" },
+];
+
+// Child categories — parentName is used to look up the parent ID after insert
+const CHILD_CATEGORIES: Array<{ name: string; icon: string; color: string; parentName: string }> = [
+  { name: "Groceries", icon: "🛒", color: "#4ade80", parentName: "Food & Drink" },
+  { name: "Dining", icon: "🍽️", color: "#fb923c", parentName: "Food & Drink" },
+  { name: "Coffee", icon: "☕", color: "#a16207", parentName: "Food & Drink" },
+  { name: "Rent", icon: "🔑", color: "#3b82f6", parentName: "Housing" },
+  { name: "Utilities", icon: "💡", color: "#facc15", parentName: "Housing" },
+  { name: "Subscriptions", icon: "📱", color: "#38bdf8", parentName: "Entertainment" },
 ];
 
 // ─── Seeded PRNG (mulberry32) — consistent data across runs ──────────────────
@@ -280,7 +288,7 @@ function generateMonth(
         type: "expense",
         description: pick(COFFEE_ORDERS),
         merchant: pick(COFFEE_SHOPS),
-        categoryId: catIds.Dining,
+        categoryId: catIds.Coffee,
         date,
         tags: ["coffee"],
       });
@@ -382,18 +390,44 @@ function generateMonth(
 async function seed(): Promise<void> {
   const db = getDb();
 
+  // Abort if database already has data
+  const existingCategories = await db.select().from(categories);
+  const existingTransactions = await db.select({ id: transactions.id }).from(transactions).limit(1);
+  if (existingCategories.length > 0 || existingTransactions.length > 0) {
+    console.error(
+      "Error: Database is not empty. Delete the database file and run migrations before seeding.\n" +
+        "  rm data/pinch.db && npm run db:migrate && npx tsx src/lib/db/seed.ts"
+    );
+    process.exit(1);
+  }
+
   console.log("Seeding categories...");
-  for (const cat of DEFAULT_CATEGORIES) {
+
+  // Insert parents first
+  for (const cat of PARENT_CATEGORIES) {
     await db.insert(categories).values(cat).onConflictDoNothing();
   }
-  console.log(`  ${DEFAULT_CATEGORIES.length} categories ready.`);
+
+  // Build parent name → id map
+  const parentRows = await db.select().from(categories);
+  const parentIdMap: Record<string, number> = {};
+  for (const c of parentRows) parentIdMap[c.name] = c.id;
+
+  // Insert children with parentId
+  for (const child of CHILD_CATEGORIES) {
+    const parentId = parentIdMap[child.parentName];
+    await db
+      .insert(categories)
+      .values({ name: child.name, icon: child.icon, color: child.color, parentId })
+      .onConflictDoNothing();
+  }
+
+  const totalCats = PARENT_CATEGORIES.length + CHILD_CATEGORIES.length;
+  console.log(`  ${totalCats} categories ready (${CHILD_CATEGORIES.length} nested).`);
 
   const cats = await db.select().from(categories);
   const catIds: Record<string, number> = {};
   for (const c of cats) catIds[c.name] = c.id;
-
-  console.log("Clearing existing transactions...");
-  await db.delete(transactions);
 
   console.log("Generating 3 months of transactions (Jan–Mar 2026)...");
 
