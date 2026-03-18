@@ -851,6 +851,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 - [ ] LICENSE file (choose an appropriate open-source license)
 - [ ] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
 - [ ] API documentation — REST endpoints and MCP tools (in README or `docs/`)
+- [ ] Extend MCP `instructions` field: Add explicit behavioral prompts (e.g., "If unsure about categorization, ask the user and remember the decision for next time").
 - [ ] Verify .gitignore, .env.example, and any other dotfiles are in order
 
 **Done when:** A developer can clone the repo, read the README, and get running. Project looks professional on GitHub.
@@ -866,6 +867,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
 - [ ] Performance: check query efficiency, add missing indices if needed
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
@@ -1012,6 +1014,18 @@ asset_prices (
 **Done when:** "Bought 10 SPX for 3456.32 EUR" via MCP creates the expense on the checking account and records the holding. Telling the AI the current price shows accurate P&L in the UI.
 
 ---
+### Sprint 20: Packaging & Auto-Updates
+**Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
+
+- [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
+- [ ] Build an auto-updater mechanism for easy rolling releases
+
+### Sprint 21: Project Website & AI Onboarding
+**Goal:** Create a public face for the project and a frictionless onboarding experience.
+
+- [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
+- [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
+- [ ] Implement an interactive tutorial (either on the website or an in-app wizard) to guide users through their first setup and transactions
 
 ## Future Considerations (not in scope now, but design should accommodate)
 
