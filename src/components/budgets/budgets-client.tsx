@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { BudgetTable } from "./budget-table";
 import { BudgetFormDialog } from "./budget-form-dialog";
 import { DeleteBudgetDialog } from "./delete-budget-dialog";
-import { BudgetAdherenceChart } from "./budget-adherence-chart";
 import { formatMonth } from "@/lib/format";
 import type { BudgetStatusItem } from "@/lib/validators/reports";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
@@ -150,9 +149,6 @@ export function BudgetsClient({
           onDelete={setDeletingBudget}
         />
       </div>
-
-      {/* Adherence chart */}
-      <BudgetAdherenceChart />
 
       {/* Create dialog */}
       <BudgetFormDialog
