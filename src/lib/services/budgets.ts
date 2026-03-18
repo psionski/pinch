@@ -1,7 +1,7 @@
 import { and, eq, gte, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { budgets, categories } from "@/lib/db/schema";
+import { budgets } from "@/lib/db/schema";
 import type {
   SetBudgetInput,
   GetBudgetStatusInput,
@@ -9,6 +9,7 @@ import type {
   BudgetResponse,
 } from "@/lib/validators/budgets";
 import type { BudgetStatusItem } from "@/lib/validators/reports";
+import { getCategoryStatsForMonth } from "./category-stats";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -64,53 +65,33 @@ export class BudgetService {
 
   /**
    * Returns budget status for every category that has a budget in the given month,
-   * enriched with actual spend from transactions.
+   * enriched with actual spend from transactions (including child category rollup).
    */
   getForMonth(input: GetBudgetStatusInput): BudgetStatusItem[] {
-    const monthFrom = `${input.month}-01`;
-    // Compute last day of the month in JS (avoids a standalone SQL select)
-    const [year, month] = input.month.split("-").map(Number);
-    const lastDay = new Date(Date.UTC(year, month, 0)); // day 0 of next month = last day of this month
-    const monthTo = `${lastDay.getUTCFullYear()}-${String(lastDay.getUTCMonth() + 1).padStart(2, "0")}-${String(lastDay.getUTCDate()).padStart(2, "0")}`;
+    const stats = getCategoryStatsForMonth(this.db, input.month);
 
-    const rows = this.db
-      .select({
-        categoryId: budgets.categoryId,
-        categoryName: categories.name,
-        budgetAmount: budgets.amount,
-        spentAmount: sql<number>`coalesce((
-            SELECT sum(t.amount)
-            FROM transactions t
-            WHERE t.category_id = ${budgets.categoryId}
-              AND t.type = 'expense'
-              AND t.date >= ${monthFrom}
-              AND t.date <= ${monthTo}
-          ), 0)`.mapWith(Number),
-      })
-      .from(budgets)
-      .innerJoin(categories, eq(budgets.categoryId, categories.id))
-      .where(eq(budgets.month, input.month))
-      .orderBy(categories.name)
-      .all();
-
-    return rows.map((r) => {
-      const remaining = r.budgetAmount - r.spentAmount;
-      const percentUsed =
-        r.budgetAmount > 0
-          ? Math.round((r.spentAmount / r.budgetAmount) * 10000) / 100
-          : r.spentAmount > 0
-            ? Infinity
-            : 0;
-      return {
-        categoryId: r.categoryId,
-        categoryName: r.categoryName,
-        budgetAmount: r.budgetAmount,
-        spentAmount: r.spentAmount,
-        remainingAmount: remaining,
-        percentUsed,
-        isOver: r.spentAmount > r.budgetAmount,
-      };
-    });
+    return stats
+      .filter((s) => s.budgetAmount !== null)
+      .map((s) => {
+        const budgetAmount = s.budgetAmount!;
+        const spentAmount = s.rollupSpend;
+        const remaining = budgetAmount - spentAmount;
+        const percentUsed =
+          budgetAmount > 0
+            ? Math.round((spentAmount / budgetAmount) * 10000) / 100
+            : spentAmount > 0
+              ? Infinity
+              : 0;
+        return {
+          categoryId: s.categoryId,
+          categoryName: s.categoryName,
+          budgetAmount,
+          spentAmount,
+          remainingAmount: remaining,
+          percentUsed,
+          isOver: spentAmount > budgetAmount,
+        };
+      });
   }
 
   /**

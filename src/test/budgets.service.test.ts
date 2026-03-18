@@ -153,6 +153,39 @@ describe("getForMonth", () => {
     const food = result.find((r) => r.categoryName === "Food");
     expect(food?.spentAmount).toBe(30000);
   });
+
+  it("includes child category spend in parent budget (rollup)", () => {
+    // Create a child category under Food
+    const groceries = catService.create({ name: "Groceries", parentId: foodId });
+    const restaurants = catService.create({ name: "Restaurants", parentId: foodId });
+
+    // Spend on child categories (in addition to the 30000 already on Food from beforeEach)
+    txService.create(
+      tx({ amount: 5000, categoryId: groceries.id, type: "expense", date: "2026-03-12" })
+    );
+    txService.create(
+      tx({ amount: 3000, categoryId: restaurants.id, type: "expense", date: "2026-03-18" })
+    );
+
+    const result = budgetService.getForMonth(GetBudgetStatusSchema.parse({ month: "2026-03" }));
+    const food = result.find((r) => r.categoryName === "Food");
+    // 30000 (direct) + 5000 (groceries) + 3000 (restaurants) = 38000
+    expect(food?.spentAmount).toBe(38000);
+  });
+
+  it("includes deeply nested child spend in rollup", () => {
+    const groceries = catService.create({ name: "Groceries", parentId: foodId });
+    const organic = catService.create({ name: "Organic", parentId: groceries.id });
+
+    txService.create(
+      tx({ amount: 2000, categoryId: organic.id, type: "expense", date: "2026-03-10" })
+    );
+
+    const result = budgetService.getForMonth(GetBudgetStatusSchema.parse({ month: "2026-03" }));
+    const food = result.find((r) => r.categoryName === "Food");
+    // 30000 (direct on Food) + 2000 (grandchild Organic) = 32000
+    expect(food?.spentAmount).toBe(32000);
+  });
 });
 
 // ─── copyFromPreviousMonth ────────────────────────────────────────────────────
