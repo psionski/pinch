@@ -84,18 +84,3 @@ export const MergeCategoriesSchema = z.object({
 });
 
 export type MergeCategoriesInput = z.infer<typeof MergeCategoriesSchema>;
-
-// ─── Stats ───────────────────────────────────────────────────────────────────
-// Per-category stats for a given month
-
-export const CategoryStatsSchema = z.object({
-  categoryId: z.number().int(),
-  categoryName: z.string(),
-  totalSpend: z.number().int(), // cents, sum of expense transactions for this category only
-  transactionCount: z.number().int(), // transactions in this category only
-  rollupSpend: z.number().int(), // cents, this category + all descendants
-  rollupTransactionCount: z.number().int(), // this category + all descendants
-  budgetAmount: z.number().int().nullable(), // cents, null if no budget set
-});
-
-export type CategoryStats = z.infer<typeof CategoryStatsSchema>;

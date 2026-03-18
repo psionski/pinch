@@ -9,9 +9,7 @@ import type {
   MergeCategoriesInput,
   CategoryResponse,
   CategoryWithCountResponse,
-  CategoryStats,
 } from "@/lib/validators/categories";
-import { getCategoryStatsForMonth } from "./category-stats";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -81,14 +79,6 @@ export class CategoryService {
   delete(id: number): boolean {
     const result = this.db.delete(categories).where(eq(categories.id, id)).returning().all();
     return result.length > 0;
-  }
-
-  /**
-   * Returns per-category stats for the given month (YYYY-MM).
-   * Includes total expense spend, transaction count, and budget amount.
-   */
-  getStats(month: string): CategoryStats[] {
-    return getCategoryStatsForMonth(this.db, month);
   }
 
   /**

@@ -4,6 +4,7 @@ import { makeTestDb } from "./helpers";
 import { BudgetService } from "@/lib/services/budgets";
 import { CategoryService } from "@/lib/services/categories";
 import { TransactionService } from "@/lib/services/transactions";
+import { ReportService } from "@/lib/services/reports";
 import {
   SetBudgetSchema,
   GetBudgetStatusSchema,
@@ -23,7 +24,7 @@ let transportId: number;
 
 beforeEach(() => {
   db = makeTestDb();
-  budgetService = new BudgetService(db);
+  budgetService = new BudgetService(db, new ReportService(db));
   catService = new CategoryService(db);
   txService = new TransactionService(db);
 

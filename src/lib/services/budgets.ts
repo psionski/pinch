@@ -9,12 +9,15 @@ import type {
   BudgetResponse,
 } from "@/lib/validators/budgets";
 import type { BudgetStatusItem } from "@/lib/validators/reports";
-import { getCategoryStatsForMonth } from "./category-stats";
+import type { ReportService } from "./reports";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
 export class BudgetService {
-  constructor(private db: Db) {}
+  constructor(
+    private db: Db,
+    private reportService: ReportService
+  ) {}
 
   /**
    * Upsert a budget for a category + month.
@@ -68,13 +71,18 @@ export class BudgetService {
    * enriched with actual spend from transactions (including child category rollup).
    */
   getForMonth(input: GetBudgetStatusInput): BudgetStatusItem[] {
-    const stats = getCategoryStatsForMonth(this.db, input.month);
+    const stats = this.reportService.getCategoryStats({
+      month: input.month,
+      type: "expense",
+      includeZeroSpend: true,
+      includeUncategorized: false,
+    });
 
     return stats
       .filter((s) => s.budgetAmount !== null)
       .map((s) => {
         const budgetAmount = s.budgetAmount!;
-        const spentAmount = s.rollupSpend;
+        const spentAmount = s.rollupTotal;
         const remaining = budgetAmount - spentAmount;
         const percentUsed =
           budgetAmount > 0
@@ -83,8 +91,8 @@ export class BudgetService {
               ? Infinity
               : 0;
         return {
-          categoryId: s.categoryId,
-          categoryName: s.categoryName,
+          categoryId: s.categoryId!,
+          categoryName: s.categoryName!,
           budgetAmount,
           spentAmount,
           remainingAmount: remaining,

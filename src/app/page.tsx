@@ -52,10 +52,12 @@ export default function DashboardPage(): React.ReactElement {
     compareDateTo: prevMonthEnd,
   });
 
-  const breakdown = reportService.categoryBreakdown({
+  const breakdown = reportService.getCategoryStats({
     dateFrom: monthStart,
     dateTo: monthEnd,
     type: "expense",
+    includeZeroSpend: false,
+    includeUncategorized: true,
   });
 
   const trends = reportService.trends({ months: 6, type: "expense" });

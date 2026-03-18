@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   SpendingSummarySchema,
-  CategoryBreakdownSchema,
+  CategoryStatsSchema,
   TrendsSchema,
   TopMerchantsSchema,
   NetBalanceSchema,
@@ -25,13 +25,16 @@ export function registerReportTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "category_breakdown",
+    "category_stats",
     {
       description:
-        "Per-category amounts and percentages for a period — suitable for pie/donut chart data.",
-      inputSchema: CategoryBreakdownSchema,
+        "Per-category spending stats. Returns amounts, percentages, hierarchy rollups, " +
+        "budget amounts, and category color/icon. Provide 'month' (YYYY-MM) or " +
+        "'dateFrom'+'dateTo' (YYYY-MM-DD). Set includeZeroSpend=false to omit categories " +
+        "with no transactions.",
+      inputSchema: CategoryStatsSchema,
     },
-    (input) => ok(getReportService().categoryBreakdown(input))
+    (input) => ok(getReportService().getCategoryStats(input))
   );
 
   server.registerTool(

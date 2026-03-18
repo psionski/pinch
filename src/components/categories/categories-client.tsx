@@ -7,11 +7,12 @@ import { CategoryTree } from "./category-tree";
 import { CategoryFormDialog, type CategoryFormData } from "./category-form-dialog";
 import { MergeCategoryDialog } from "./merge-category-dialog";
 import { DeleteCategoryDialog } from "./delete-category-dialog";
-import type { CategoryWithCountResponse, CategoryStats } from "@/lib/validators/categories";
+import type { CategoryWithCountResponse } from "@/lib/validators/categories";
+import type { CategoryStatsItem } from "@/lib/validators/reports";
 
 interface CategoriesClientProps {
   initialCategories: CategoryWithCountResponse[];
-  initialStats: CategoryStats[];
+  initialStats: CategoryStatsItem[];
 }
 
 function getCurrentMonth(): string {
@@ -39,10 +40,10 @@ export function CategoriesClient({
     try {
       const [catRes, statsRes] = await Promise.all([
         fetch("/api/categories"),
-        fetch(`/api/categories/stats?month=${getCurrentMonth()}`),
+        fetch(`/api/reports/category-stats?month=${getCurrentMonth()}`),
       ]);
       if (catRes.ok) setCategories((await catRes.json()) as CategoryWithCountResponse[]);
-      if (statsRes.ok) setStats((await statsRes.json()) as CategoryStats[]);
+      if (statsRes.ok) setStats((await statsRes.json()) as CategoryStatsItem[]);
     } finally {
       setLoading(false);
     }

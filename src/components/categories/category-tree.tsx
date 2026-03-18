@@ -10,11 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CategoryWithCountResponse, CategoryStats } from "@/lib/validators/categories";
+import type { CategoryWithCountResponse } from "@/lib/validators/categories";
+import type { CategoryStatsItem } from "@/lib/validators/reports";
 
 interface CategoryTreeProps {
   categories: CategoryWithCountResponse[];
-  stats: CategoryStats[];
+  stats: CategoryStatsItem[];
   onEdit: (category: CategoryWithCountResponse) => void;
   onMerge: (category: CategoryWithCountResponse) => void;
   onDelete: (category: CategoryWithCountResponse) => void;
@@ -85,7 +86,7 @@ function CategoryRow({
 }: {
   node: TreeNode;
   depth: number;
-  stats: Map<number, CategoryStats>;
+  stats: Map<number, CategoryStatsItem>;
   expanded: Set<number>;
   onToggle: (id: number) => void;
   onEdit: (category: CategoryWithCountResponse) => void;
@@ -136,20 +137,20 @@ function CategoryRow({
 
         {/* Transaction count — all-time rollup for parents, own count for leaves */}
         <td className="text-muted-foreground px-2 py-2 text-right text-sm tabular-nums">
-          {catStats?.rollupTransactionCount ?? cat.transactionCount}
+          {catStats?.rollupCount ?? cat.transactionCount}
         </td>
 
         {/* Current month spend — show rollup for parents */}
         <td className="text-muted-foreground px-2 py-2 text-right text-sm tabular-nums">
-          {catStats && (hasChildren ? catStats.rollupSpend : catStats.totalSpend) > 0
-            ? `€${formatAmount(hasChildren ? catStats.rollupSpend : catStats.totalSpend)}`
+          {catStats && (hasChildren ? catStats.rollupTotal : catStats.total) > 0
+            ? `€${formatAmount(hasChildren ? catStats.rollupTotal : catStats.total)}`
             : "—"}
         </td>
 
         {/* Budget status — use rollup spend vs budget (includes child category spend) */}
         <td className="px-2 py-2">
           {catStats?.budgetAmount ? (
-            <BudgetBar spent={catStats.rollupSpend} budget={catStats.budgetAmount} />
+            <BudgetBar spent={catStats.rollupTotal} budget={catStats.budgetAmount} />
           ) : (
             <span className="text-muted-foreground text-sm">—</span>
           )}
@@ -213,7 +214,9 @@ export function CategoryTree({
 }: CategoryTreeProps): React.ReactElement {
   const router = useRouter();
   const tree = buildTree(categories);
-  const statsMap = new Map(stats.map((s) => [s.categoryId, s]));
+  const statsMap = new Map(
+    stats.filter((s) => s.categoryId !== null).map((s) => [s.categoryId!, s])
+  );
 
   // Start with all parent categories expanded
   const [expanded, setExpanded] = useState<Set<number>>(() => {

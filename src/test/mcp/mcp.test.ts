@@ -69,7 +69,7 @@ beforeEach(() => {
     getTransactionService: () => new TransactionService(db),
     getCategoryService: () => new CategoryService(db),
     getReportService: () => new ReportService(db),
-    getBudgetService: () => new BudgetService(db),
+    getBudgetService: () => new BudgetService(db, new ReportService(db)),
     getRecurringService: () => new RecurringService(db),
   }));
 
@@ -218,7 +218,7 @@ describe("MCP /api/mcp route", () => {
   it("copy_budgets copies budgets between months", async () => {
     const catSvc = new CategoryService(db);
     const cat = catSvc.create({ name: "Rent" });
-    const budgetSvc = new BudgetService(db);
+    const budgetSvc = new BudgetService(db, new ReportService(db));
     budgetSvc.set({
       categoryId: cat.id,
       month: "2025-05",
@@ -241,7 +241,7 @@ describe("MCP /api/mcp route", () => {
   it("delete_budget removes a budget", async () => {
     const catSvc = new CategoryService(db);
     const cat = catSvc.create({ name: "Snacks" });
-    const budgetSvc = new BudgetService(db);
+    const budgetSvc = new BudgetService(db, new ReportService(db));
     budgetSvc.set({
       categoryId: cat.id,
       month: "2025-06",
@@ -464,7 +464,7 @@ describe("MCP /api/mcp route", () => {
 
   // ─── Report tools ───────────────────────────────────────────────────────────
 
-  it("category_breakdown returns per-category amounts", async () => {
+  it("category_stats returns per-category amounts", async () => {
     const catSvc = new CategoryService(db);
     const cat = catSvc.create({ name: "Food" });
     const txSvc = new TransactionService(db);
@@ -478,17 +478,18 @@ describe("MCP /api/mcp route", () => {
 
     await POST(initRequest());
     const res = await POST(
-      toolCallRequest("category_breakdown", {
+      toolCallRequest("category_stats", {
         dateFrom: "2025-06-01",
         dateTo: "2025-06-30",
+        includeZeroSpend: false,
       })
     );
     expect(res.status).toBe(200);
     const result = await parseResult(res);
-    const breakdown = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
+    const stats = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
       categoryName: string;
     }[];
-    expect(breakdown.some((b) => b.categoryName === "Food")).toBe(true);
+    expect(stats.some((s) => s.categoryName === "Food")).toBe(true);
   });
 
   it("trends returns monthly time series", async () => {

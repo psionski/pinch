@@ -10,9 +10,9 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CategoryBreakdownItem } from "@/lib/validators/reports";
+import type { CategoryStatsItem } from "@/lib/validators/reports";
 
-const COLORS = [
+const FALLBACK_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
@@ -21,22 +21,27 @@ const COLORS = [
 ];
 
 interface CategoryDonutChartProps {
-  data: CategoryBreakdownItem[];
+  data: CategoryStatsItem[];
 }
 
 export function CategoryDonutChart({ data }: CategoryDonutChartProps): React.ReactElement {
-  const chartData = data.map((item) => ({
-    name: item.categoryName ?? "Uncategorized",
-    value: item.total / 100,
-    percentage: item.percentage,
-  }));
+  let fallbackIndex = 0;
+  const chartData = data.map((item) => {
+    const color = item.color ?? FALLBACK_COLORS[fallbackIndex++ % FALLBACK_COLORS.length];
+    return {
+      name: item.categoryName ?? "Uncategorized",
+      value: item.total / 100,
+      percentage: item.percentage,
+      color,
+    };
+  });
 
   const chartConfig = Object.fromEntries(
-    chartData.map((item, i) => [
+    chartData.map((item) => [
       item.name,
       {
         label: item.name,
-        color: COLORS[i % COLORS.length],
+        color: item.color,
       },
     ])
   ) satisfies ChartConfig;
@@ -67,8 +72,8 @@ export function CategoryDonutChart({ data }: CategoryDonutChartProps): React.Rea
                 outerRadius={90}
                 strokeWidth={2}
               >
-                {chartData.map((_, i) => (
-                  <Cell key={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} />
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
               <ChartLegend content={<ChartLegendContent nameKey="name" />} />

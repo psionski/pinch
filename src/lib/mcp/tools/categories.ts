@@ -73,24 +73,6 @@ export function registerCategoryTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "get_category_stats",
-    {
-      description:
-        "Get per-category spending stats for a given month. " +
-        "Returns totalSpend/transactionCount (this category only), " +
-        "rollupSpend/rollupTransactionCount (this category + all descendants), " +
-        "and budgetAmount for each category.",
-      inputSchema: z.object({
-        month: z
-          .string()
-          .regex(/^\d{4}-\d{2}$/, "Must be YYYY-MM format")
-          .describe("Month to get stats for (e.g. 2026-03)"),
-      }),
-    },
-    ({ month }) => ok(getCategoryService().getStats(month))
-  );
-
-  server.registerTool(
     "recategorize",
     {
       description:
