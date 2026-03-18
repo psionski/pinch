@@ -11,7 +11,12 @@ import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
-function getCurrentMonth(): { monthStart: string; monthEnd: string; currentMonth: string } {
+function getCurrentMonth(): {
+  monthStart: string;
+  monthEnd: string;
+  currentMonth: string;
+  monthLabel: string;
+} {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -19,7 +24,11 @@ function getCurrentMonth(): { monthStart: string; monthEnd: string; currentMonth
   const monthStart = `${currentMonth}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
-  return { monthStart, monthEnd, currentMonth };
+  const monthLabel = new Date(year, month - 1).toLocaleString("en", {
+    month: "long",
+    year: "numeric",
+  });
+  return { monthStart, monthEnd, currentMonth, monthLabel };
 }
 
 function getPreviousMonth(currentMonth: string): { prevMonthStart: string; prevMonthEnd: string } {
@@ -40,7 +49,7 @@ export default function DashboardPage(): React.ReactElement {
   const transactionService = getTransactionService();
   const categoryService = getCategoryService();
 
-  const { monthStart, monthEnd, currentMonth } = getCurrentMonth();
+  const { monthStart, monthEnd, currentMonth, monthLabel } = getCurrentMonth();
   const { prevMonthStart, prevMonthEnd } = getPreviousMonth(currentMonth);
 
   const summary = reportService.spendingSummary({
@@ -84,7 +93,7 @@ export default function DashboardPage(): React.ReactElement {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <SpendingTrendChart data={trends} />
-        <CategoryDonutChart data={breakdown} />
+        <CategoryDonutChart data={breakdown} monthLabel={monthLabel} />
       </div>
 
       <BudgetAlerts budgetStatus={budgetStatus} />
