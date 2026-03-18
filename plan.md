@@ -866,6 +866,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
 - [ ] Performance: check query efficiency, add missing indices if needed
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
