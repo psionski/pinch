@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import { getTransactionService, getCategoryService } from "@/lib/api/services";
 import { TransactionsClient } from "@/components/transactions/transactions-client";
 
-export default function TransactionsPage(): React.ReactElement {
+function TransactionsContent(): React.ReactElement {
   const transactionService = getTransactionService();
   const categoryService = getCategoryService();
 
@@ -15,4 +16,12 @@ export default function TransactionsPage(): React.ReactElement {
   const categories = categoryService.getAll();
 
   return <TransactionsClient initialData={initialData} categories={categories} />;
+}
+
+export default function TransactionsPage(): React.ReactElement {
+  return (
+    <Suspense>
+      <TransactionsContent />
+    </Suspense>
+  );
 }
