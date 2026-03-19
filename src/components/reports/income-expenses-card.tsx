@@ -1,0 +1,139 @@
+"use client";
+
+import { useMemo } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency, formatMonth } from "@/lib/format";
+import type { TrendPoint, NetBalanceResult } from "@/lib/validators/reports";
+
+const chartConfig = {
+  income: { label: "Income", color: "var(--chart-2)" },
+  expenses: { label: "Expenses", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+interface IncomeExpensesCardProps {
+  balance: NetBalanceResult;
+  incomeTrend: TrendPoint[];
+  expenseTrend: TrendPoint[];
+}
+
+interface MergedPoint {
+  month: string;
+  income: number;
+  expenses: number;
+}
+
+export function IncomeExpensesCard({
+  balance,
+  incomeTrend,
+  expenseTrend,
+}: IncomeExpensesCardProps): React.ReactElement {
+  const chartData = useMemo((): MergedPoint[] => {
+    const map = new Map<string, MergedPoint>();
+    for (const p of incomeTrend) {
+      map.set(p.month, { month: p.month, income: p.total / 100, expenses: 0 });
+    }
+    for (const p of expenseTrend) {
+      const existing = map.get(p.month);
+      if (existing) {
+        existing.expenses = p.total / 100;
+      } else {
+        map.set(p.month, { month: p.month, income: 0, expenses: p.total / 100 });
+      }
+    }
+    return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
+  }, [incomeTrend, expenseTrend]);
+
+  const netIsPositive = balance.netBalance >= 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Income vs Expenses</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* KPI row */}
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-muted-foreground text-xs">Income</p>
+            <p className="text-lg font-semibold text-green-600">
+              {formatCurrency(balance.totalIncome)}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground text-xs">Expenses</p>
+            <p className="text-lg font-semibold text-red-600">
+              {formatCurrency(balance.totalExpenses)}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground text-xs">Net Balance</p>
+            <p
+              className={`text-lg font-semibold ${netIsPositive ? "text-green-600" : "text-red-600"}`}
+            >
+              {netIsPositive ? "+" : ""}
+              {formatCurrency(balance.netBalance)}
+            </p>
+          </div>
+        </div>
+
+        {/* Dual area chart */}
+        {chartData.length > 0 ? (
+          <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+            <AreaChart data={chartData} accessibilityLayer>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="month"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tickFormatter={formatMonth}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value: number) => `€${value}`}
+              />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    formatter={(value) =>
+                      `€${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
+                    }
+                    labelFormatter={formatMonth}
+                  />
+                }
+              />
+              <Area
+                dataKey="income"
+                type="monotone"
+                fill="var(--color-income)"
+                fillOpacity={0.15}
+                stroke="var(--color-income)"
+                strokeWidth={2}
+              />
+              <Area
+                dataKey="expenses"
+                type="monotone"
+                fill="var(--color-expenses)"
+                fillOpacity={0.15}
+                stroke="var(--color-expenses)"
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ChartContainer>
+        ) : (
+          <p className="text-muted-foreground py-10 text-center text-sm">
+            No data for this period.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

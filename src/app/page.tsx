@@ -5,8 +5,8 @@ import {
   getCategoryService,
 } from "@/lib/api/services";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
-import { SpendingTrendChart } from "@/components/dashboard/spending-trend-chart";
-import { CategoryDonutChart } from "@/components/dashboard/category-donut-chart";
+import { SpendingTrendChart } from "@/components/charts/spending-trend-chart";
+import { CategoryDonutChart } from "@/components/charts/category-donut-chart";
 import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
