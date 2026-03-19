@@ -58,6 +58,8 @@ function buildQueryString(
     params.set("amountMax", String(Math.round(parseFloat(filters.amountMax) * 100)));
   }
 
+  if (filters.recurringId) params.set("recurringId", filters.recurringId);
+
   return params.toString();
 }
 
@@ -68,12 +70,16 @@ export function TransactionsClient({
   const searchParams = useSearchParams();
   const initialFilters = useMemo((): TransactionFilters => {
     const categoryId = searchParams.get("categoryId");
-    if (!categoryId) return EMPTY_FILTERS;
-    return { ...EMPTY_FILTERS, categoryId };
+    const recurringId = searchParams.get("recurringId");
+    const overrides: Partial<TransactionFilters> = {};
+    if (categoryId) overrides.categoryId = categoryId;
+    if (recurringId) overrides.recurringId = recurringId;
+    return { ...EMPTY_FILTERS, ...overrides };
   }, [searchParams]);
 
   const [data, setData] = useState<PaginatedTransactionsResponse>(initialData);
   const [filters, setFilters] = useState<TransactionFilters>(initialFilters);
+  const [recurringName, setRecurringName] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortField>("date");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [limit, setLimit] = useState(50);
@@ -116,6 +122,22 @@ export function TransactionsClient({
   useEffect(() => {
     void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
   }, [filters, sortBy, sortOrder, limit, offset, fetchTransactions]);
+
+  // Fetch recurring template name when recurringId filter is active
+  useEffect(() => {
+    if (!filters.recurringId) {
+      setRecurringName("");
+      return;
+    }
+    fetch(`/api/recurring/${filters.recurringId}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const json = (await res.json()) as { description: string };
+          setRecurringName(json.description);
+        }
+      })
+      .catch(() => setRecurringName(""));
+  }, [filters.recurringId]);
 
   function handleSortChange(field: SortField): void {
     if (field === sortBy) {
@@ -268,6 +290,7 @@ export function TransactionsClient({
         filters={filters}
         categories={categories}
         onFiltersChange={handleFiltersChange}
+        recurringName={recurringName}
       />
 
       {/* Bulk actions */}

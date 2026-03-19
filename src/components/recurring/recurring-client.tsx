@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { RecurringTable } from "./recurring-table";
 import { RecurringFormDialog } from "./recurring-form-dialog";
 import { DeleteRecurringDialog } from "./delete-recurring-dialog";
-import { GeneratedTransactionsDialog } from "./generated-transactions-dialog";
 import type { RecurringResponse } from "@/lib/validators/recurring";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
@@ -28,7 +27,6 @@ export function RecurringClient({
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<RecurringResponse | null>(null);
   const [deletingItem, setDeletingItem] = useState<RecurringResponse | null>(null);
-  const [viewingItem, setViewingItem] = useState<RecurringResponse | null>(null);
 
   const categoryMap = new Map<number, CategoryWithCountResponse>(categories.map((c) => [c.id, c]));
 
@@ -124,7 +122,6 @@ export function RecurringClient({
           onEdit={setEditingItem}
           onDelete={setDeletingItem}
           onToggleActive={(item) => void handleToggleActive(item)}
-          onViewTransactions={setViewingItem}
         />
       </div>
 
@@ -159,15 +156,6 @@ export function RecurringClient({
         item={deletingItem}
         onConfirm={() => void handleDelete()}
         loading={formLoading}
-      />
-
-      {/* Generated transactions dialog */}
-      <GeneratedTransactionsDialog
-        open={!!viewingItem}
-        onOpenChange={(open) => {
-          if (!open) setViewingItem(null);
-        }}
-        item={viewingItem}
       />
     </div>
   );

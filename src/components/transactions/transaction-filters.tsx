@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search, X } from "lucide-react";
+import { Repeat, Search, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ export interface TransactionFilters {
   type: string; // "" = all, "income", "expense"
   amountMin: string;
   amountMax: string;
+  recurringId: string; // "" = all, number string = specific
 }
 
 const EMPTY_FILTERS: TransactionFilters = {
@@ -32,18 +34,21 @@ const EMPTY_FILTERS: TransactionFilters = {
   type: "",
   amountMin: "",
   amountMax: "",
+  recurringId: "",
 };
 
 interface TransactionFilterBarProps {
   filters: TransactionFilters;
   categories: CategoryWithCountResponse[];
   onFiltersChange: (filters: TransactionFilters) => void;
+  recurringName?: string;
 }
 
 export function TransactionFilterBar({
   filters,
   categories,
   onFiltersChange,
+  recurringName,
 }: TransactionFilterBarProps): React.ReactElement {
   const [searchInput, setSearchInput] = useState(filters.search);
 
@@ -156,6 +161,23 @@ export function TransactionFilterBar({
           step="0.01"
         />
       </div>
+
+      {/* Active filter badges */}
+      {filters.recurringId && recurringName && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="gap-1 py-1">
+            <Repeat className="size-3" />
+            Recurring: {recurringName}
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground ml-1"
+              onClick={() => onFiltersChange({ ...filters, recurringId: "" })}
+            >
+              <X className="size-3" />
+            </button>
+          </Badge>
+        </div>
+      )}
     </div>
   );
 }

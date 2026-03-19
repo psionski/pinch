@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { MoreHorizontal, Pencil, Trash2, List, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +28,6 @@ interface RecurringTableProps {
   onEdit: (item: RecurringResponse) => void;
   onDelete: (item: RecurringResponse) => void;
   onToggleActive: (item: RecurringResponse) => void;
-  onViewTransactions: (item: RecurringResponse) => void;
 }
 
 function statusBadge(item: RecurringResponse): React.ReactElement {
@@ -46,7 +46,6 @@ export function RecurringTable({
   onEdit,
   onDelete,
   onToggleActive,
-  onViewTransactions,
 }: RecurringTableProps): React.ReactElement {
   if (items.length === 0) {
     return (
@@ -118,9 +117,11 @@ export function RecurringTable({
                       <Pencil className="mr-2 size-4" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onViewTransactions(item)}>
-                      <List className="mr-2 size-4" />
-                      View Transactions
+                    <DropdownMenuItem asChild>
+                      <Link href={`/transactions?recurringId=${item.id}`}>
+                        <List className="mr-2 size-4" />
+                        View Transactions
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onToggleActive(item)}>
                       {item.isActive ? (
