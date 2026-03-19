@@ -10,7 +10,7 @@ export default function CategoriesPage(): React.ReactElement {
   const categoryService = getCategoryService();
   const reportService = getReportService();
   const categories = categoryService.getAll();
-  const stats = reportService.getCategoryStats({
+  const stats = reportService.getBudgetStats({
     month: getCurrentMonth(),
     type: "expense",
     includeZeroSpend: true,

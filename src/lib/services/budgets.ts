@@ -71,7 +71,7 @@ export class BudgetService {
    * enriched with actual spend from transactions (including child category rollup).
    */
   getForMonth(input: GetBudgetStatusInput): BudgetStatusItem[] {
-    const stats = this.reportService.getCategoryStats({
+    const stats = this.reportService.getBudgetStats({
       month: input.month,
       type: "expense",
       includeZeroSpend: true,

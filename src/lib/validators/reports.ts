@@ -32,6 +32,17 @@ export const CategoryStatsSchema = z
 
 export type CategoryStatsInput = z.infer<typeof CategoryStatsSchema>;
 
+// ─── Budget Stats ───────────────────────────────────────────────────────────
+
+export const BudgetStatsSchema = z.object({
+  month: YearMonthSchema,
+  type: z.enum(["income", "expense", "all"]).default("expense"),
+  includeZeroSpend: z.boolean().default(true),
+  includeUncategorized: z.boolean().default(false),
+});
+
+export type BudgetStatsInput = z.infer<typeof BudgetStatsSchema>;
+
 // ─── Trends ───────────────────────────────────────────────────────────────────
 
 export const TrendsSchema = z.object({
@@ -84,7 +95,7 @@ export const SpendingGroupSchema = z.object({
 
 export type SpendingGroup = z.infer<typeof SpendingGroupSchema>;
 
-export const CategoryStatsItemSchema = z.object({
+export const CategorySpendingItemSchema = z.object({
   categoryId: z.number().int().nullable(),
   categoryName: z.string().nullable(),
   color: z.string().nullable(),
@@ -94,11 +105,16 @@ export const CategoryStatsItemSchema = z.object({
   count: z.number().int(), // direct transaction count
   rollupTotal: z.number().int(), // this + descendants
   rollupCount: z.number().int(), // this + descendants
-  budgetAmount: z.number().int().nullable(), // cents, null if no budget
   percentage: z.number(), // 0–100, share of grand total
 });
 
-export type CategoryStatsItem = z.infer<typeof CategoryStatsItemSchema>;
+export type CategorySpendingItem = z.infer<typeof CategorySpendingItemSchema>;
+
+export const BudgetStatsItemSchema = CategorySpendingItemSchema.extend({
+  budgetAmount: z.number().int().nullable(), // cents, null if no budget
+});
+
+export type BudgetStatsItem = z.infer<typeof BudgetStatsItemSchema>;
 
 export const TrendPointSchema = z.object({
   month: z.string(), // YYYY-MM

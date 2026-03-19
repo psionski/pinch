@@ -11,11 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
-import type { CategoryStatsItem } from "@/lib/validators/reports";
+import type { BudgetStatsItem } from "@/lib/validators/reports";
 
 interface CategoryTreeProps {
   categories: CategoryWithCountResponse[];
-  stats: CategoryStatsItem[];
+  stats: BudgetStatsItem[];
   onEdit: (category: CategoryWithCountResponse) => void;
   onMerge: (category: CategoryWithCountResponse) => void;
   onDelete: (category: CategoryWithCountResponse) => void;
@@ -86,7 +86,7 @@ function CategoryRow({
 }: {
   node: TreeNode;
   depth: number;
-  stats: Map<number, CategoryStatsItem>;
+  stats: Map<number, BudgetStatsItem>;
   expanded: Set<number>;
   onToggle: (id: number) => void;
   onEdit: (category: CategoryWithCountResponse) => void;

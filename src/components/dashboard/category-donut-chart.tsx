@@ -5,7 +5,7 @@ import { Pie, PieChart, Cell, Label } from "recharts";
 import { ArrowLeft } from "lucide-react";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CategoryStatsItem } from "@/lib/validators/reports";
+import type { CategorySpendingItem } from "@/lib/validators/reports";
 
 const FALLBACK_COLORS = [
   "var(--chart-1)",
@@ -21,7 +21,7 @@ interface BreadcrumbEntry {
 }
 
 interface CategoryDonutChartProps {
-  data: CategoryStatsItem[];
+  data: CategorySpendingItem[];
   monthLabel: string;
 }
 

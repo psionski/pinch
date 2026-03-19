@@ -33,10 +33,12 @@ import {
 import {
   SpendingSummarySchema,
   CategoryStatsSchema,
+  BudgetStatsSchema,
   TrendsSchema,
   TopMerchantsSchema,
   SpendingSummaryResultSchema,
-  CategoryStatsItemSchema,
+  CategorySpendingItemSchema,
+  BudgetStatsItemSchema,
   TrendPointSchema,
   TopMerchantSchema,
   BudgetStatusItemSchema,
@@ -57,7 +59,8 @@ const Budget = BudgetResponseSchema.meta({ id: "Budget" });
 const BudgetStatus = BudgetStatusItemSchema.meta({ id: "BudgetStatusItem" });
 const Recurring = RecurringResponseSchema.meta({ id: "RecurringTemplate" });
 const SummaryResult = SpendingSummaryResultSchema.meta({ id: "SpendingSummaryResult" });
-const CategoryStatsItem = CategoryStatsItemSchema.meta({ id: "CategoryStatsItem" });
+const CategorySpendingItem = CategorySpendingItemSchema.meta({ id: "CategorySpendingItem" });
+const BudgetStatsItem = BudgetStatsItemSchema.meta({ id: "BudgetStatsItem" });
 const Trend = TrendPointSchema.meta({ id: "TrendPoint" });
 const Merchant = TopMerchantSchema.meta({ id: "TopMerchant" });
 
@@ -276,10 +279,20 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       "/api/reports/category-stats": {
         get: op({
           id: "getCategoryStats",
-          summary: "Per-category spending stats with rollups, budgets, and category metadata",
+          summary: "Per-category spending stats with rollups and category metadata",
           tags: ["Reports"],
           query: CategoryStatsSchema,
-          response: z.array(CategoryStatsItem),
+          response: z.array(CategorySpendingItem),
+          errors: [400, 500],
+        }),
+      },
+      "/api/reports/budget-stats": {
+        get: op({
+          id: "getBudgetStats",
+          summary: "Per-category spending stats augmented with budget amounts for a month",
+          tags: ["Reports"],
+          query: BudgetStatsSchema,
+          response: z.array(BudgetStatsItem),
           errors: [400, 500],
         }),
       },

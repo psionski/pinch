@@ -5,11 +5,13 @@ import { transactions, categories, budgets } from "@/lib/db/schema";
 import {
   type SpendingSummaryInput,
   type CategoryStatsInput,
+  type BudgetStatsInput,
   type TrendsInput,
   type TopMerchantsInput,
   type NetBalanceInput,
   type SpendingGroup,
-  type CategoryStatsItem,
+  type CategorySpendingItem,
+  type BudgetStatsItem,
   type TrendPoint,
   type TopMerchant,
   type SpendingSummaryResult,
@@ -228,14 +230,12 @@ export class ReportService {
     };
   }
 
-  getCategoryStats(input: CategoryStatsInput): CategoryStatsItem[] {
+  getCategoryStats(input: CategoryStatsInput): CategorySpendingItem[] {
     // Normalize date range
     let dateFrom: string;
     let dateTo: string;
-    let month: string | undefined;
 
     if (input.month) {
-      month = input.month;
       const [y, m] = input.month.split("-").map(Number);
       dateFrom = `${input.month}-01`;
       const lastDay = new Date(y, m, 0).getDate();
@@ -289,21 +289,8 @@ export class ReportService {
       }
     }
 
-    // Query budgets if we have a single month
-    const budgetMap = new Map<number, number>();
-    if (month) {
-      const budgetRows = this.db
-        .select({ categoryId: budgets.categoryId, amount: budgets.amount })
-        .from(budgets)
-        .where(eq(budgets.month, month))
-        .all();
-      for (const b of budgetRows) {
-        budgetMap.set(b.categoryId, b.amount);
-      }
-    }
-
     // Build result rows
-    const items: CategoryStatsItem[] = [];
+    const items: CategorySpendingItem[] = [];
 
     // Category rows
     for (const cat of allCategories) {
@@ -327,7 +314,6 @@ export class ReportService {
         count,
         rollupTotal: rollup.spend,
         rollupCount: rollup.count,
-        budgetAmount: budgetMap.get(cat.id) ?? null,
         percentage: 0, // computed below
       });
     }
@@ -346,7 +332,6 @@ export class ReportService {
           count: uncategorized.count,
           rollupTotal: uncategorized.total,
           rollupCount: uncategorized.count,
-          budgetAmount: null,
           percentage: 0,
         });
       }
@@ -360,6 +345,31 @@ export class ReportService {
 
     items.sort((a, b) => b.rollupTotal - a.rollupTotal);
     return items;
+  }
+
+  getBudgetStats(input: BudgetStatsInput): BudgetStatsItem[] {
+    const stats = this.getCategoryStats({
+      month: input.month,
+      type: input.type,
+      includeZeroSpend: input.includeZeroSpend,
+      includeUncategorized: input.includeUncategorized,
+    });
+
+    // Query budgets for this month
+    const budgetRows = this.db
+      .select({ categoryId: budgets.categoryId, amount: budgets.amount })
+      .from(budgets)
+      .where(eq(budgets.month, input.month))
+      .all();
+    const budgetMap = new Map<number, number>();
+    for (const b of budgetRows) {
+      budgetMap.set(b.categoryId, b.amount);
+    }
+
+    return stats.map((s) => ({
+      ...s,
+      budgetAmount: s.categoryId !== null ? (budgetMap.get(s.categoryId) ?? null) : null,
+    }));
   }
 
   trends(input: TrendsInput): TrendPoint[] {

@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   SpendingSummarySchema,
   CategoryStatsSchema,
+  BudgetStatsSchema,
   TrendsSchema,
   TopMerchantsSchema,
   NetBalanceSchema,
@@ -29,12 +30,24 @@ export function registerReportTools(server: McpServer): void {
     {
       description:
         "Per-category spending stats. Returns amounts, percentages, hierarchy rollups, " +
-        "budget amounts, and category color/icon. Provide 'month' (YYYY-MM) or " +
+        "and category color/icon. Provide 'month' (YYYY-MM) or " +
         "'dateFrom'+'dateTo' (YYYY-MM-DD). Set includeZeroSpend=false to omit categories " +
-        "with no transactions.",
+        "with no transactions. Use budget_stats for budget amounts.",
       inputSchema: CategoryStatsSchema,
     },
     (input) => ok(getReportService().getCategoryStats(input))
+  );
+
+  server.registerTool(
+    "budget_stats",
+    {
+      description:
+        "Per-category spending stats augmented with budget amounts for a given month. " +
+        "Returns everything category_stats returns, plus budgetAmount per category. " +
+        "Requires 'month' (YYYY-MM).",
+      inputSchema: BudgetStatsSchema,
+    },
+    (input) => ok(getReportService().getBudgetStats(input))
   );
 
   server.registerTool(
