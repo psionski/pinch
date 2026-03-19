@@ -25,7 +25,16 @@ export const PRESET_LABELS: Record<Preset, string> = {
 };
 
 function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Parse YYYY-MM-DD without timezone issues (avoids UTC parsing of Date constructor). */
+function parseIsoDate(s: string): { year: number; month: number } {
+  const [y, m] = s.split("-").map(Number);
+  return { year: y, month: m - 1 }; // month is 0-indexed like Date
 }
 
 export function computePresetRange(preset: Exclude<Preset, "custom">): DateRange {
@@ -67,15 +76,17 @@ export function computePresetRange(preset: Exclude<Preset, "custom">): DateRange
   }
 }
 
-/** Compute the previous period of the same length for comparison. */
+/** Compute the previous period of the same length (month-aligned) for comparison. */
 export function computeCompareRange(range: DateRange): ComputedRange {
-  const from = new Date(range.dateFrom);
-  const to = new Date(range.dateTo);
-  const durationMs = to.getTime() - from.getTime();
-  const compareEnd = new Date(from.getTime() - 1);
-  const compareStart = new Date(compareEnd.getTime() - durationMs);
+  const from = parseIsoDate(range.dateFrom);
+  const to = parseIsoDate(range.dateTo);
 
-  const months = Math.max(1, Math.round(durationMs / (30.44 * 24 * 60 * 60 * 1000)));
+  // Count months in range (first-of-month to last-of-month)
+  const months = Math.max(1, (to.year - from.year) * 12 + (to.month - from.month) + 1);
+
+  // Previous period: shift back by that many months, aligned to month boundaries
+  const compareStart = new Date(from.year, from.month - months, 1);
+  const compareEnd = new Date(from.year, from.month, 0); // last day before dateFrom's month
 
   return {
     ...range,
