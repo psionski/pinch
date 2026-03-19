@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
 import { getRecurringService } from "@/lib/api/services";
-import { parseBody, isErrorResponse, errorResponse } from "@/lib/api/helpers";
-import { GenerateRecurringSchema } from "@/lib/validators/recurring";
+import { errorResponse } from "@/lib/api/helpers";
 
-export async function POST(req: Request): Promise<NextResponse> {
-  const input = await parseBody(req, GenerateRecurringSchema);
-  if (isErrorResponse(input)) return input;
-
+export async function POST(): Promise<NextResponse> {
   try {
-    const created = getRecurringService().generatePending(input);
+    const created = getRecurringService().generatePending();
     return NextResponse.json({ created });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal error";

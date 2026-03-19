@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { recurringTransactions, transactions } from "@/lib/db/schema";
@@ -6,8 +6,6 @@ import type { RecurringTransaction } from "@/lib/db/schema";
 import type {
   CreateRecurringInput,
   UpdateRecurringInput,
-  DeleteRecurringInput,
-  GenerateRecurringInput,
   RecurringResponse,
 } from "@/lib/validators/recurring";
 
@@ -213,31 +211,23 @@ export class RecurringService {
     return rows.length > 0 ? parseRecurring(rows[0], new Date()) : null;
   }
 
-  delete(id: number, options: DeleteRecurringInput): boolean {
-    return this.db.transaction((tx) => {
-      if (options.deleteFutureTransactions) {
-        const today = formatDate(new Date());
-        tx.delete(transactions)
-          .where(and(eq(transactions.recurringId, id), gte(transactions.date, today)))
-          .run();
-      }
-      const result = tx
-        .delete(recurringTransactions)
-        .where(eq(recurringTransactions.id, id))
-        .returning()
-        .all();
-      return result.length > 0;
-    });
+  delete(id: number): boolean {
+    const result = this.db
+      .delete(recurringTransactions)
+      .where(eq(recurringTransactions.id, id))
+      .returning()
+      .all();
+    return result.length > 0;
   }
 
   /**
-   * Generate all pending transactions for active recurring templates up to `upToDate`.
+   * Generate all pending transactions for active recurring templates up to today.
    * For each template, creates transactions for dates after `lastGenerated` (or `startDate`)
-   * up to and including `upToDate`.
+   * up to and including today.
    * Returns the total number of transactions created.
    */
-  generatePending(input: GenerateRecurringInput): number {
-    const upToDate = parseDate(input.upToDate);
+  generatePending(upTo?: Date): number {
+    const upToDate = upTo ?? new Date();
     const active = this.db
       .select()
       .from(recurringTransactions)

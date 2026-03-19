@@ -61,8 +61,8 @@ describe("runRecurringJob", () => {
     vi.clearAllMocks();
   });
 
-  it("calls generatePending with today's date", async () => {
-    const { runRecurringJob, todayString } = await import("@/lib/cron");
+  it("calls generatePending with no arguments", async () => {
+    const { runRecurringJob } = await import("@/lib/cron");
     const { getRecurringService } = await import("@/lib/api/services");
 
     const mockGeneratePending = vi.fn().mockReturnValue(3);
@@ -73,7 +73,7 @@ describe("runRecurringJob", () => {
     runRecurringJob();
 
     expect(getRecurringService).toHaveBeenCalled();
-    expect(mockGeneratePending).toHaveBeenCalledWith({ upToDate: todayString() });
+    expect(mockGeneratePending).toHaveBeenCalledWith();
   });
 
   it("logs when transactions are generated", async () => {

@@ -1,11 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import {
-  CreateRecurringSchema,
-  UpdateRecurringSchema,
-  DeleteRecurringSchema,
-  GenerateRecurringSchema,
-} from "@/lib/validators/recurring";
+import { CreateRecurringSchema, UpdateRecurringSchema } from "@/lib/validators/recurring";
 import { getRecurringService } from "@/lib/api/services";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
@@ -66,12 +61,11 @@ export function registerRecurringTools(server: McpServer): void {
     {
       description:
         "Delete a recurring template. " +
-        "Set deleteFutureTransactions to true to also delete generated transactions " +
-        "whose date is after today.",
-      inputSchema: z.object({ id: z.number().int().positive(), ...DeleteRecurringSchema.shape }),
+        "Already-generated transactions are kept as normal transaction history.",
+      inputSchema: z.object({ id: z.number().int().positive() }),
     },
-    ({ id, ...options }) => {
-      const deleted = getRecurringService().delete(id, options);
+    ({ id }) => {
+      const deleted = getRecurringService().delete(id);
       if (!deleted) throw new Error(`Recurring template ${id} not found`);
       return ok({ deleted: true });
     }
@@ -81,12 +75,13 @@ export function registerRecurringTools(server: McpServer): void {
     "generate_recurring",
     {
       description:
-        "Manually trigger generation of pending recurring transactions up to a given date. " +
-        "Returns the number of transactions created.",
-      inputSchema: GenerateRecurringSchema,
+        "Manually trigger generation of pending recurring transactions up to today. " +
+        "Useful if the server was offline and missed the daily cron job. " +
+        "Idempotent — will not create duplicates. Returns the number of transactions created.",
+      inputSchema: z.object({}),
     },
-    (input) => {
-      const count = getRecurringService().generatePending(input);
+    () => {
+      const count = getRecurringService().generatePending();
       return ok({ generated: count });
     }
   );

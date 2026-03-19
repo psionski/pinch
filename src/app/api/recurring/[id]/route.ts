@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRecurringService } from "@/lib/api/services";
 import { parseBody, isErrorResponse, errorResponse, parseId } from "@/lib/api/helpers";
-import { UpdateRecurringSchema, DeleteRecurringSchema } from "@/lib/validators/recurring";
+import { UpdateRecurringSchema } from "@/lib/validators/recurring";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -28,20 +28,11 @@ export async function PATCH(req: Request, ctx: RouteContext): Promise<NextRespon
   return NextResponse.json(recurring);
 }
 
-export async function DELETE(req: Request, ctx: RouteContext): Promise<NextResponse> {
+export async function DELETE(_req: Request, ctx: RouteContext): Promise<NextResponse> {
   const id = parseId(await ctx.params);
   if (isErrorResponse(id)) return id;
 
-  let options = { deleteFutureTransactions: false };
-  try {
-    const body = await req.json();
-    const parsed = DeleteRecurringSchema.safeParse(body);
-    if (parsed.success) options = parsed.data;
-  } catch {
-    // No body is fine — use defaults
-  }
-
-  const deleted = getRecurringService().delete(id, options);
+  const deleted = getRecurringService().delete(id);
   if (!deleted) return errorResponse("Recurring template not found", "NOT_FOUND", 404);
   return NextResponse.json({ success: true });
 }

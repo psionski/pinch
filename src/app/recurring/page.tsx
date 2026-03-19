@@ -1,12 +1,9 @@
-import { Repeat } from "lucide-react";
-import { EmptyState } from "@/components/empty-state";
+import { getRecurringService, getCategoryService } from "@/lib/api/services";
+import { RecurringClient } from "@/components/recurring/recurring-client";
 
 export default function RecurringPage(): React.ReactElement {
-  return (
-    <EmptyState
-      icon={<Repeat />}
-      title="Recurring"
-      description="Recurring transaction management coming soon."
-    />
-  );
+  const recurring = getRecurringService().list();
+  const categories = getCategoryService().getAll();
+
+  return <RecurringClient initialRecurring={recurring} initialCategories={categories} />;
 }

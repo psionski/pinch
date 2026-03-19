@@ -16,7 +16,7 @@ export function todayString(): string {
 export function runRecurringJob(): void {
   try {
     const service = getRecurringService();
-    const created = service.generatePending({ upToDate: todayString() });
+    const created = service.generatePending();
     if (created > 0) {
       console.log(`[cron] Generated ${created} recurring transaction(s)`);
     }

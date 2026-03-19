@@ -66,19 +66,3 @@ export const UpdateRecurringSchema = z.object({
 });
 
 export type UpdateRecurringInput = z.infer<typeof UpdateRecurringSchema>;
-
-// ─── Generate Pending ─────────────────────────────────────────────────────────
-
-export const GenerateRecurringSchema = z.object({
-  upToDate: IsoDateSchema,
-});
-
-export type GenerateRecurringInput = z.infer<typeof GenerateRecurringSchema>;
-
-// ─── Delete Options ───────────────────────────────────────────────────────────
-
-export const DeleteRecurringSchema = z.object({
-  deleteFutureTransactions: z.boolean().default(false),
-});
-
-export type DeleteRecurringInput = z.infer<typeof DeleteRecurringSchema>;

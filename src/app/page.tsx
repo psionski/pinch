@@ -3,12 +3,14 @@ import {
   getBudgetService,
   getTransactionService,
   getCategoryService,
+  getRecurringService,
 } from "@/lib/api/services";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { SpendingTrendChart } from "@/components/charts/spending-trend-chart";
 import { CategoryDonutChart } from "@/components/charts/category-donut-chart";
 import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
+import { UpcomingRecurring } from "@/components/dashboard/upcoming-recurring";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 function getCurrentMonth(): {
@@ -85,6 +87,12 @@ export default function DashboardPage(): React.ReactElement {
     allCategories.map((c) => [c.id, c])
   );
 
+  const allRecurring = getRecurringService().list();
+  const upcomingRecurring = allRecurring
+    .filter((r) => r.isActive === 1 && r.nextOccurrence !== null)
+    .sort((a, b) => a.nextOccurrence!.localeCompare(b.nextOccurrence!))
+    .slice(0, 5);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
@@ -97,6 +105,8 @@ export default function DashboardPage(): React.ReactElement {
       </div>
 
       <BudgetAlerts budgetStatus={budgetStatus} />
+
+      <UpcomingRecurring items={upcomingRecurring} />
 
       <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
     </div>

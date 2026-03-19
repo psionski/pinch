@@ -26,8 +26,6 @@ import {
 import {
   CreateRecurringSchema,
   UpdateRecurringSchema,
-  GenerateRecurringSchema,
-  DeleteRecurringSchema,
   RecurringResponseSchema,
 } from "@/lib/validators/recurring";
 import {
@@ -411,19 +409,17 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           summary: "Delete a recurring template",
           tags: ["Recurring"],
           pathId: "Recurring template ID",
-          body: DeleteRecurringSchema,
           response: SuccessSchema,
-          errors: [400, 404, 500],
+          errors: [404, 500],
         }),
       },
       "/api/recurring/generate": {
         post: op({
           id: "generateRecurring",
-          summary: "Generate pending recurring transactions up to a date",
+          summary: "Generate pending recurring transactions up to today",
           tags: ["Recurring"],
-          body: GenerateRecurringSchema,
           response: z.object({ created: z.number().int() }),
-          errors: [400, 500],
+          errors: [500],
         }),
       },
       "/api/receipts/{id}/image": {

@@ -825,28 +825,28 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 13: Recurring Transactions Page
+### Sprint 13: Recurring Transactions Page ✅
 **Goal:** Recurring template management UI.
 
-- [ ] List: description, amount, frequency, next occurrence, status (active/paused)
-- [ ] Create/edit form: amount, description, merchant, category, frequency, schedule, start/end date
-- [ ] Toggle active/inactive
-- [ ] View generated transactions for a template
-- [ ] Dashboard: upcoming recurring (next 5 due)
+- [x] List: description, amount, frequency, next occurrence, status (active/paused)
+- [x] Create/edit form: amount, description, merchant, category, frequency, schedule, start/end date
+- [x] Toggle active/inactive
+- [x] View generated transactions for a template
+- [x] Dashboard: upcoming recurring (next 5 due)
 
 **Done when:** Full recurring transaction management through the UI.
 
 ---
 
-### Sprint 14: Reports Page
+### Sprint 14: Reports Page ✅
 **Goal:** Rich reporting with configurable date ranges and visualizations.
 
-- [ ] Date range picker with presets (this month, last month, last 3/6/12 months, YTD, custom)
-- [ ] Spending by category: horizontal bar chart
-- [ ] Trends: multi-line chart (total + selected categories over time)
-- [ ] Merchant breakdown: table with merchant, total spend, count, avg transaction
-- [ ] Budget vs actual: grouped bar chart
-- [ ] Income vs expenses: summary card + trend chart
+- [x] Date range picker with presets (this month, last month, last 3/6/12 months, YTD, custom)
+- [x] Spending by category: horizontal bar chart
+- [x] Trends: multi-line chart (total + selected categories over time)
+- [x] Merchant breakdown: table with merchant, total spend, count, avg transaction
+- [x] Budget vs actual: grouped bar chart
+- [x] Income vs expenses: summary card + trend chart
 
 **Done when:** All report types render with real data, date range filtering works.
 

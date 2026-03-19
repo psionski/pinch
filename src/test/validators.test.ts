@@ -18,12 +18,7 @@ import {
   GetBudgetStatusSchema,
   CopyBudgetsSchema,
 } from "@/lib/validators/budgets";
-import {
-  CreateRecurringSchema,
-  UpdateRecurringSchema,
-  GenerateRecurringSchema,
-  DeleteRecurringSchema,
-} from "@/lib/validators/recurring";
+import { CreateRecurringSchema, UpdateRecurringSchema } from "@/lib/validators/recurring";
 
 // ─── Common ───────────────────────────────────────────────────────────────────
 
@@ -403,28 +398,5 @@ describe("UpdateRecurringSchema", () => {
   it("accepts null categoryId to clear", () => {
     const result = UpdateRecurringSchema.parse({ categoryId: null });
     expect(result.categoryId).toBeNull();
-  });
-});
-
-describe("GenerateRecurringSchema", () => {
-  it("parses valid upToDate", () => {
-    const result = GenerateRecurringSchema.parse({ upToDate: "2026-03-31" });
-    expect(result.upToDate).toBe("2026-03-31");
-  });
-
-  it("rejects invalid date", () => {
-    expect(() => GenerateRecurringSchema.parse({ upToDate: "not-a-date" })).toThrow();
-  });
-});
-
-describe("DeleteRecurringSchema", () => {
-  it("defaults deleteFutureTransactions to false", () => {
-    const result = DeleteRecurringSchema.parse({});
-    expect(result.deleteFutureTransactions).toBe(false);
-  });
-
-  it("accepts deleteFutureTransactions = true", () => {
-    const result = DeleteRecurringSchema.parse({ deleteFutureTransactions: true });
-    expect(result.deleteFutureTransactions).toBe(true);
   });
 });
