@@ -522,6 +522,8 @@ pinch/
 │   │   │   ├── page.tsx
 │   │   │   └── [id]/
 │   │   │       └── page.tsx
+│   │   ├── portfolio/
+│   │   │   └── page.tsx
 │   │   ├── recurring/
 │   │   │   └── page.tsx
 │   │   └── api/
@@ -750,7 +752,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ### Sprint 9: App Shell + Minimal Dashboard ✅
 **Goal:** Navigable layout with a functional dashboard — the first thing you see in the browser.
 
-- [x] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Assets, Recurring)
+- [x] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Assets, Portfolio, Recurring)
 - [x] Responsive: sidebar collapses on mobile
 - [x] Active route highlighting
 - [x] Install and configure shadcn/ui charts (Recharts wrapper) — Tremor v3 incompatible with Tailwind v4 OKLCH
@@ -1060,13 +1062,137 @@ src/
 **Done when:** "Bought 10 SPX for €3,456.32" via MCP creates a transfer transaction (cash balance drops by €3,456.32, excluded from spending) + an asset lot (10 units at €345.63). "SPX is now €360" records a price → P&L shows +€143.70. "Deposited €1,000 to savings" creates a transfer + deposit lot. Dashboard shows net worth across cash + all assets. Savings rate stays clean.
 
 ---
-### Sprint 19: Packaging & Auto-Updates
+
+### Sprint 19: Portfolio & Asset Reports — Backend
+**Goal:** Service layer, API routes, and MCP tools for common portfolio/asset analytics. All computed from lots + prices — no snapshots.
+
+#### Reports
+
+| Report | What it answers | How it's computed |
+|--------|----------------|-------------------|
+| **Net worth over time** | "How has my total wealth changed?" | For each date point: sum of transactions up to that date (cash) + sum of lot quantities up to that date × nearest recorded price. Configurable window (3/6/12 months, YTD, all time). |
+| **Asset performance** | "How is each asset doing?" | Per asset: cost basis (from lots), current value (quantity × latest price), P&L (absolute + %), annualized return. Sortable by P&L, value, return %. |
+| **Portfolio allocation** | "Where is my money?" | Percentage breakdown: cash vs each asset, optionally grouped by asset type (deposits/investments/crypto). Current + historical (allocation at month boundaries). |
+| **Asset history** | "What happened with this specific asset?" | Per asset: lot timeline (buys/sells with quantities, prices, running total), price chart overlay, value over time. |
+| **Currency exposure** | "How exposed am I to each currency?" | Group all assets by currency, sum current values, show as percentages of total net worth. |
+| **Realized vs unrealized P&L** | "What have I actually locked in vs what's on paper?" | Realized: P&L from sell lots (sell price − average cost basis at time of sell). Unrealized: current value − remaining cost basis. |
+| **Income/expense/transfer summary** | "Where did my money go this month, including transfers?" | Extends existing `spending_summary` with a transfer breakdown: how much went to each asset type, net cash flow after transfers. |
+
+#### Service layer
+
+- `PortfolioReportService`:
+  - `getNetWorthTimeSeries(window)` — time series of total net worth (cash + assets) at configurable intervals (daily/weekly/monthly)
+  - `getAssetPerformance(dateRange?)` — per-asset P&L table with cost basis, current value, absolute P&L, percentage return, annualized return
+  - `getAllocationHistory(window)` — portfolio allocation at month boundaries over time
+  - `getCurrencyExposure()` — current value grouped by currency
+  - `getRealizedPnL(dateRange?)` — P&L from completed sells, using weighted-average cost basis
+  - `getAssetHistory(assetId, window)` — combined lot + price timeline for a single asset
+  - `getTransferSummary(month)` — transfer amounts grouped by destination asset/type
+
+- **Extend existing** `ReportService`:
+  - `spendingSummary` gains an optional `includeTransfers` flag — when true, returns a separate `transfers` section showing money moved to assets
+  - `trends` gains a `netWorth` mode alongside the existing spending mode
+
+#### MCP tools
+
+| Tool | Description |
+|------|-------------|
+| `get_net_worth_history` | Net worth time series. Params: window (3m/6m/12m/ytd/all), interval (daily/weekly/monthly). Returns date + cash + assets + total per point. |
+| `get_asset_performance` | All assets ranked by performance. Params: optional date range. Returns cost basis, current value, P&L, P&L %, annualized return per asset. |
+| `get_allocation` | Current portfolio allocation by asset and by type. |
+| `get_currency_exposure` | Net worth breakdown by currency. |
+| `get_realized_pnl` | Realized P&L from sells in a date range. |
+| `get_asset_history` | Combined lot + price + value timeline for one asset. Params: asset ID, window. |
+
+#### API routes
+
+- `GET /api/portfolio/net-worth` — `?window=6m&interval=monthly`
+- `GET /api/portfolio/performance` — `?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/portfolio/allocation` — `?historical=true&window=12m`
+- `GET /api/portfolio/currency-exposure`
+- `GET /api/portfolio/realized-pnl` — `?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/assets/[id]/history` — `?window=12m`
+- `GET /api/reports/summary` — extended with `?includeTransfers=true`
+
+#### Key implementation notes
+
+- **Net worth at a past date** requires finding the nearest recorded price for each asset held at that date. If no price exists before a date for an asset, use the lot's `price_per_unit` (cost basis) as a fallback — better than `null`.
+- **Annualized return** uses time-weighted calculation: `((current_value / cost_basis) ^ (365 / days_held)) - 1`. Only meaningful for assets held > 30 days.
+- **Deposit assets** (type `'deposit'`, same currency): price is always 1, so P&L is always 0 and net worth contribution = sum of lots. Skip price lookups for these.
+- All reports should handle the **empty state** gracefully (no assets yet, no prices recorded).
+
+**Done when:** The AI can ask "how has my net worth changed over the last 6 months?" and get a time series. "Which of my assets is performing best?" returns a ranked P&L table. All endpoints return correct data tested against known lot + price fixtures.
+
+---
+
+### Sprint 20: Portfolio & Asset Reports — UI
+**Goal:** Web UI pages and dashboard widgets for visualizing portfolio reports from Sprint 18a.
+
+#### Assets page enhancements (`/assets`)
+
+- **Performance table**: sortable columns — asset name, type, holdings, cost basis, current value, P&L (€), P&L (%), annualized return. Color-coded green/red for P&L.
+- **Allocation donut chart**: interactive — click a segment to navigate to asset detail
+- **Currency exposure bar**: horizontal stacked bar showing % per currency
+- **Summary cards row**: total net worth, total invested, total P&L (absolute + %), cash balance
+
+#### Asset detail page enhancements (`/assets/[id]`)
+
+- **Value over time chart**: line chart combining price history × holdings quantity. Overlay lot events (buy/sell markers on the timeline).
+- **Lot history table**: date, type (buy/sell), quantity, price per unit, total value, running holdings total, linked transaction (clickable)
+- **P&L card**: cost basis, current value, unrealized P&L, realized P&L (from sells)
+- **Price history chart**: standalone price line chart with "record price" quick action
+
+#### New page: Portfolio Reports (`/portfolio`)
+
+- **Net worth over time**: area chart (stacked: cash + each asset, or grouped by asset type). Date range picker with presets.
+- **Allocation over time**: stacked area or stacked bar chart showing allocation % shifts month-over-month
+- **Performance ranking**: horizontal bar chart — assets sorted by P&L % or absolute P&L, toggleable
+- **Realized vs unrealized P&L**: grouped bar chart or summary cards
+- **Transfer flow**: Sankey-style or simple bar chart showing money flow from cash → asset types per month
+
+#### Dashboard additions
+
+- **Net worth card**: prominent, showing total net worth with trend arrow (vs last month)
+- **Net worth sparkline**: mini area chart (last 6 months) below or beside the card
+- **Top movers**: 2-3 assets with biggest P&L change (absolute or %) this month
+- **Allocation mini-donut**: small donut chart in the dashboard grid
+
+#### Responsive considerations
+
+- Charts should degrade gracefully on mobile (hide legends, simplify to key metrics)
+- Performance table → card layout on small screens
+- Portfolio page tabs on mobile instead of side-by-side sections
+
+#### Project structure additions
+
+```
+src/
+├── app/
+│   └── portfolio/
+│       └── page.tsx                  # Portfolio reports page
+├── components/
+│   ├── portfolio/                    # Portfolio-specific charts and widgets
+│   │   ├── net-worth-chart.tsx
+│   │   ├── allocation-chart.tsx
+│   │   ├── performance-table.tsx
+│   │   ├── currency-exposure.tsx
+│   │   ├── pnl-summary.tsx
+│   │   └── transfer-flow.tsx
+│   └── assets/                       # Enhanced asset components
+│       ├── value-chart.tsx           # Asset value over time with lot markers
+│       └── price-chart.tsx           # Price history with record action
+```
+
+**Done when:** Portfolio page shows net worth over time, allocation breakdown, and performance ranking with real data. Asset detail pages show value charts with buy/sell markers. Dashboard includes net worth card with sparkline. All charts are responsive.
+
+---
+### Sprint 21: Packaging & Auto-Updates
 **Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
 - [ ] Build an auto-updater mechanism for easy rolling releases
 
-### Sprint 20: Project Website & AI Onboarding
+### Sprint 22: Project Website & AI Onboarding
 **Goal:** Create a public face for the project and a frictionless onboarding experience.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
