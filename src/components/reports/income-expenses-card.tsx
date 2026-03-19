@@ -55,11 +55,11 @@ export function IncomeExpensesCard({
   const netIsPositive = balance.netBalance >= 0;
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <CardHeader>
         <CardTitle>Income vs Expenses</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex flex-1 flex-col space-y-4">
         {/* KPI row */}
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
@@ -87,7 +87,7 @@ export function IncomeExpensesCard({
 
         {/* Dual area chart */}
         {showChart && chartData.length > 0 ? (
-          <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+          <ChartContainer config={chartConfig} className="min-h-[200px] w-full flex-1">
             <AreaChart data={chartData} accessibilityLayer>
               <CartesianGrid vertical={false} />
               <XAxis

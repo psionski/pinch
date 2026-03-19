@@ -114,17 +114,13 @@ export function ReportsClient({
 
       <div className={loading ? "pointer-events-none opacity-60" : ""}>
         <div className="space-y-6">
-          {/* Income vs Expenses — always show KPIs, chart only for 3+ months */}
-          <IncomeExpensesCard
-            balance={data.balance}
-            incomeTrend={data.incomeTrend}
-            expenseTrend={data.expenseTrend}
-            showChart={isLongRange}
-          />
-
-          {/* Trend charts — only for 3+ months */}
-          {isLongRange && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {isLongRange ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <IncomeExpensesCard
+                balance={data.balance}
+                incomeTrend={data.incomeTrend}
+                expenseTrend={data.expenseTrend}
+              />
               <SavingsRateChart incomeTrend={data.incomeTrend} expenseTrend={data.expenseTrend} />
               <TrendsChart
                 data={data.spendingTrend}
@@ -132,12 +128,18 @@ export function ReportsClient({
                 months={range.months}
               />
             </div>
+          ) : (
+            <>
+              <IncomeExpensesCard
+                balance={data.balance}
+                incomeTrend={data.incomeTrend}
+                expenseTrend={data.expenseTrend}
+                showChart={false}
+              />
+              <CategoryChangesCard groups={data.summary.groups} />
+            </>
           )}
 
-          {/* Category Changes — only for 1-2 months */}
-          {!isLongRange && <CategoryChangesCard groups={data.summary.groups} />}
-
-          {/* Merchant Table — always */}
           <MerchantTable data={data.topMerchants} />
         </div>
       </div>

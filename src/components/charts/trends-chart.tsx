@@ -79,7 +79,7 @@ export function TrendsChart({
   }));
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Spending Trends</CardTitle>
         <Select value={selectedCategory} onValueChange={handleCategoryChange}>
@@ -92,10 +92,10 @@ export function TrendsChart({
           </SelectContent>
         </Select>
       </CardHeader>
-      <CardContent>
-        <div className={loading ? "pointer-events-none opacity-60" : ""}>
+      <CardContent className="flex flex-1 flex-col">
+        <div className={`flex flex-1 flex-col ${loading ? "pointer-events-none opacity-60" : ""}`}>
           {chartData.length > 0 ? (
-            <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
+            <ChartContainer config={chartConfig} className="min-h-[200px] w-full flex-1">
               <AreaChart data={chartData} accessibilityLayer>
                 <CartesianGrid vertical={false} />
                 <XAxis
