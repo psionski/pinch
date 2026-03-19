@@ -1,12 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import {
-  DateRangeFilter,
-  computeCompareRange,
-  type ComputedRange,
-  type DateRange,
-} from "./date-range-filter";
+import { DateRangeFilter } from "./date-range-filter";
+import { computeCompareRange, type ComputedRange, type DateRange } from "@/lib/date-ranges";
 import { IncomeExpensesCard } from "./income-expenses-card";
 import { SavingsRateChart } from "@/components/charts/savings-rate-chart";
 import { TrendsChart } from "@/components/charts/trends-chart";
