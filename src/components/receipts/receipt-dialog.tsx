@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ReceiptResponse } from "@/lib/validators/receipts";
 import type { PaginatedTransactionsResponse } from "@/lib/validators/transactions";
@@ -10,6 +17,7 @@ import type { PaginatedTransactionsResponse } from "@/lib/validators/transaction
 interface ReceiptDialogProps {
   receiptId: number | null;
   onOpenChange: (open: boolean) => void;
+  onDeleted?: () => void;
 }
 
 function formatCurrency(cents: number): string {
@@ -24,12 +32,32 @@ function formatDate(iso: string): string {
   });
 }
 
-export function ReceiptDialog({ receiptId, onOpenChange }: ReceiptDialogProps): React.ReactElement {
+export function ReceiptDialog({
+  receiptId,
+  onOpenChange,
+  onDeleted,
+}: ReceiptDialogProps): React.ReactElement {
   const open = receiptId !== null;
   const [receipt, setReceipt] = useState<ReceiptResponse | null>(null);
   const [linkedTxs, setLinkedTxs] = useState<PaginatedTransactionsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete(): Promise<void> {
+    if (
+      !receiptId ||
+      !confirm("Delete this receipt and its image? Linked transactions will be kept.")
+    )
+      return;
+    setDeleting(true);
+    const res = await fetch(`/api/receipts/${receiptId}`, { method: "DELETE" });
+    setDeleting(false);
+    if (res.ok) {
+      onOpenChange(false);
+      onDeleted?.();
+    }
+  }
 
   useEffect(() => {
     if (!receiptId) return;
@@ -156,6 +184,17 @@ export function ReceiptDialog({ receiptId, onOpenChange }: ReceiptDialogProps): 
 
         {!loading && !receipt && (
           <p className="text-muted-foreground text-sm">Receipt not found.</p>
+        )}
+
+        {!loading && receipt && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void handleDelete()}>
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>

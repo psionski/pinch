@@ -390,6 +390,7 @@ export function TransactionsClient({
         onOpenChange={(open) => {
           if (!open) setViewingReceiptId(null);
         }}
+        onDeleted={() => void fetchTransactions(filters, sortBy, sortOrder, limit, offset)}
       />
 
       {/* Receipt upload dialog */}

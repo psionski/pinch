@@ -26,8 +26,26 @@ export const CreateReceiptSchema = z.object({
 
 export type CreateReceiptInput = z.infer<typeof CreateReceiptSchema>;
 
+// ─── List ─────────────────────────────────────────────────────────────────────
+
+export const ListReceiptsSchema = PaginationSchema.extend({
+  dateFrom: IsoDateSchema.optional(),
+  dateTo: IsoDateSchema.optional(),
+  merchant: z.string().max(255).optional(),
+});
+
+export type ListReceiptsInput = z.infer<typeof ListReceiptsSchema>;
+
 // ─── List Unprocessed ─────────────────────────────────────────────────────────
 
 export const ListUnprocessedReceiptsSchema = PaginationSchema;
 
 export type ListUnprocessedReceiptsInput = z.infer<typeof ListUnprocessedReceiptsSchema>;
+
+// ─── Delete Batch ─────────────────────────────────────────────────────────────
+
+export const DeleteReceiptsBatchSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1, "At least one ID required").max(200),
+});
+
+export type DeleteReceiptsBatchInput = z.infer<typeof DeleteReceiptsBatchSchema>;

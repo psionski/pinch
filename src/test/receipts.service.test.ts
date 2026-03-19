@@ -10,6 +10,7 @@ vi.mock("fs", () => ({
   mkdirSync: vi.fn(),
   existsSync: vi.fn(() => true),
   readFileSync: vi.fn(() => Buffer.from("fake-image")),
+  unlinkSync: vi.fn(),
 }));
 
 type TestDb = ReturnType<typeof makeTestDb>;
@@ -138,5 +139,135 @@ describe("listUnprocessed", () => {
     const page2 = service.listUnprocessed({ limit: 2, offset: 2 });
     expect(page2.data).toHaveLength(1);
     expect(page2.hasMore).toBe(false);
+  });
+});
+
+// ─── list ────────────────────────────────────────────────────────────────────
+
+describe("list", () => {
+  it("returns all receipts", () => {
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-02" });
+    const result = service.list({ limit: 50, offset: 0 });
+    expect(result.total).toBe(2);
+    expect(result.data).toHaveLength(2);
+  });
+
+  it("respects pagination", () => {
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-02" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-03" });
+
+    const page1 = service.list({ limit: 2, offset: 0 });
+    expect(page1.data).toHaveLength(2);
+    expect(page1.hasMore).toBe(true);
+
+    const page2 = service.list({ limit: 2, offset: 2 });
+    expect(page2.data).toHaveLength(1);
+    expect(page2.hasMore).toBe(false);
+  });
+
+  it("returns empty when no receipts exist", () => {
+    const result = service.list({ limit: 50, offset: 0 });
+    expect(result.total).toBe(0);
+    expect(result.data).toHaveLength(0);
+  });
+
+  it("filters by dateFrom", () => {
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-01-15" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-10" });
+    const result = service.list({ limit: 50, offset: 0, dateFrom: "2026-03-01" });
+    expect(result.total).toBe(1);
+    expect(result.data[0].date).toBe("2026-03-10");
+  });
+
+  it("filters by dateTo", () => {
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-01-15" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-10" });
+    const result = service.list({ limit: 50, offset: 0, dateTo: "2026-02-01" });
+    expect(result.total).toBe(1);
+    expect(result.data[0].date).toBe("2026-01-15");
+  });
+
+  it("filters by merchant substring", () => {
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01", merchant: "Lidl Berlin" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-02", merchant: "Rewe Hamburg" });
+    const result = service.list({ limit: 50, offset: 0, merchant: "Lidl" });
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("Lidl Berlin");
+  });
+
+  it("combines multiple filters", () => {
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-01-15", merchant: "Lidl" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-10", merchant: "Lidl" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-10", merchant: "Rewe" });
+    const result = service.list({ limit: 50, offset: 0, dateFrom: "2026-03-01", merchant: "Lidl" });
+    expect(result.total).toBe(1);
+    expect(result.data[0].date).toBe("2026-03-10");
+  });
+});
+
+// ─── delete ──────────────────────────────────────────────────────────────────
+
+describe("delete", () => {
+  it("deletes a receipt by id and returns true", () => {
+    const created = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    expect(service.delete(created.id)).toBe(true);
+    expect(service.getById(created.id)).toBeNull();
+  });
+
+  it("returns false for a non-existent id", () => {
+    expect(service.delete(99999)).toBe(false);
+  });
+
+  it("unlinks transactions (SET NULL) when receipt is deleted", () => {
+    const r = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    db.insert(transactions)
+      .values({
+        amount: 1000,
+        type: "expense",
+        description: "Linked tx",
+        date: "2026-03-01",
+        receiptId: r.id,
+      })
+      .run();
+
+    service.delete(r.id);
+
+    const [tx] = db.select().from(transactions).all();
+    expect(tx.receiptId).toBeNull();
+  });
+
+  it("calls unlinkSync for the image file", async () => {
+    const { unlinkSync } = await import("fs");
+    const created = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    service.delete(created.id);
+    expect(unlinkSync).toHaveBeenCalled();
+  });
+});
+
+// ─── batchDelete ─────────────────────────────────────────────────────────────
+
+describe("batchDelete", () => {
+  it("deletes multiple receipts and returns the count", () => {
+    const r1 = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    const r2 = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-02" });
+    service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-03" });
+
+    const deleted = service.batchDelete([r1.id, r2.id]);
+    expect(deleted).toBe(2);
+    expect(service.getById(r1.id)).toBeNull();
+    expect(service.getById(r2.id)).toBeNull();
+    expect(service.list({ limit: 50, offset: 0 }).total).toBe(1);
+  });
+
+  it("returns 0 when no ids match", () => {
+    expect(service.batchDelete([99998, 99999])).toBe(0);
+  });
+
+  it("ignores non-existent ids in the batch", () => {
+    const r1 = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    const deleted = service.batchDelete([r1.id, 99999]);
+    expect(deleted).toBe(1);
   });
 });

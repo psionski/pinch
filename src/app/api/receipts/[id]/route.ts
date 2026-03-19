@@ -15,3 +15,13 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
 
   return NextResponse.json(receipt);
 }
+
+export async function DELETE(_req: Request, ctx: RouteContext): Promise<NextResponse> {
+  const id = parseId(await ctx.params);
+  if (isErrorResponse(id)) return id;
+
+  const deleted = getReceiptService().delete(id);
+  if (!deleted) return errorResponse("Receipt not found", "NOT_FOUND", 404);
+
+  return NextResponse.json({ success: true });
+}

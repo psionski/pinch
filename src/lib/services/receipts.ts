@@ -1,12 +1,13 @@
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, unlinkSync } from "fs";
 import { join, extname } from "path";
-import { eq, notExists } from "drizzle-orm";
+import { eq, notExists, inArray, desc, gte, lte, like, type SQL, and } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { receipts, transactions } from "@/lib/db/schema";
 import type {
   ReceiptResponse,
   CreateReceiptInput,
+  ListReceiptsInput,
   ListUnprocessedReceiptsInput,
 } from "@/lib/validators/receipts";
 import type { PaginatedResponse } from "@/lib/validators/common";
@@ -120,6 +121,77 @@ export class ReceiptService {
     const ext = extname(row.imagePath).toLowerCase();
     const contentType = MIME_MAP[ext] ?? "application/octet-stream";
     return { buffer: readFileSync(row.imagePath), contentType };
+  }
+
+  /** List all receipts with optional filters, newest first. */
+  list(input: ListReceiptsInput): PaginatedResponse<ReceiptResponse> {
+    const filters: SQL[] = [];
+    if (input.dateFrom !== undefined) filters.push(gte(receipts.date, input.dateFrom));
+    if (input.dateTo !== undefined) filters.push(lte(receipts.date, input.dateTo));
+    if (input.merchant !== undefined) filters.push(like(receipts.merchant, `%${input.merchant}%`));
+
+    const where = filters.length > 0 ? and(...filters) : undefined;
+
+    const [{ total }] = this.db
+      .select({ total: sql<number>`count(*)`.mapWith(Number) })
+      .from(receipts)
+      .where(where)
+      .all();
+
+    const data = this.db
+      .select()
+      .from(receipts)
+      .where(where)
+      .orderBy(desc(receipts.createdAt))
+      .limit(input.limit)
+      .offset(input.offset)
+      .all()
+      .map(toResponse);
+
+    return {
+      data,
+      total,
+      limit: input.limit,
+      offset: input.offset,
+      hasMore: input.offset + data.length < total,
+    };
+  }
+
+  /** Delete a receipt by ID. Removes the image file from disk if present. */
+  delete(id: number): boolean {
+    const [row] = this.db.select().from(receipts).where(eq(receipts.id, id)).all();
+    if (!row) return false;
+
+    this.db.delete(receipts).where(eq(receipts.id, id)).run();
+
+    if (row.imagePath) {
+      try {
+        unlinkSync(row.imagePath);
+      } catch {
+        /* file may already be gone */
+      }
+    }
+    return true;
+  }
+
+  /** Delete multiple receipts by IDs. Returns the number deleted. */
+  batchDelete(ids: number[]): number {
+    const rows = this.db.select().from(receipts).where(inArray(receipts.id, ids)).all();
+    if (rows.length === 0) return 0;
+
+    const matchedIds = rows.map((r) => r.id);
+    this.db.delete(receipts).where(inArray(receipts.id, matchedIds)).run();
+
+    for (const row of rows) {
+      if (row.imagePath) {
+        try {
+          unlinkSync(row.imagePath);
+        } catch {
+          /* file may already be gone */
+        }
+      }
+    }
+    return rows.length;
   }
 
   /**

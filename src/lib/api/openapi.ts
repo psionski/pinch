@@ -28,7 +28,11 @@ import {
   UpdateRecurringSchema,
   RecurringResponseSchema,
 } from "@/lib/validators/recurring";
-import { ReceiptResponseSchema } from "@/lib/validators/receipts";
+import {
+  ReceiptResponseSchema,
+  ListReceiptsSchema,
+  DeleteReceiptsBatchSchema,
+} from "@/lib/validators/receipts";
 import {
   SpendingSummarySchema,
   CategoryStatsSchema,
@@ -152,7 +156,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       { name: "Reports", description: "Spending reports, trends, and breakdowns" },
       { name: "Budgets", description: "Monthly budget management" },
       { name: "Recurring", description: "Recurring transaction templates" },
-      { name: "Receipts", description: "Receipt image serving" },
+      { name: "Receipts", description: "Receipt management and image serving" },
     ],
     paths: {
       "/api/transactions": {
@@ -424,6 +428,30 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           errors: [500],
         }),
       },
+      "/api/receipts": {
+        get: op({
+          id: "listReceipts",
+          summary: "List receipts with optional date/merchant filters, newest first",
+          tags: ["Receipts"],
+          query: ListReceiptsSchema,
+          response: z.object({
+            data: z.array(ReceiptRecord),
+            total: z.number().int(),
+            limit: z.number().int(),
+            offset: z.number().int(),
+            hasMore: z.boolean(),
+          }),
+          errors: [400, 500],
+        }),
+        delete: op({
+          id: "batchDeleteReceipts",
+          summary: "Batch-delete receipts by IDs (also removes image files from disk)",
+          tags: ["Receipts"],
+          body: DeleteReceiptsBatchSchema,
+          response: z.object({ deleted: z.number().int() }),
+          errors: [400, 500],
+        }),
+      },
       "/api/receipts/upload": {
         post: {
           operationId: "uploadReceipt",
@@ -473,6 +501,14 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           tags: ["Receipts"],
           pathId: "Receipt ID",
           response: ReceiptRecord,
+          errors: [400, 404, 500],
+        }),
+        delete: op({
+          id: "deleteReceipt",
+          summary: "Delete a receipt and its image file",
+          tags: ["Receipts"],
+          pathId: "Receipt ID",
+          response: SuccessSchema,
           errors: [400, 404, 500],
         }),
       },
