@@ -100,7 +100,7 @@ CREATE TABLE categories (
 CREATE TABLE transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   amount INTEGER NOT NULL,       -- cents (e.g. 1210 = €12.10); always positive
-  type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense')),
+  type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense', 'transfer')),
   description TEXT NOT NULL,
   merchant TEXT,                 -- store/vendor name
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
@@ -137,7 +137,7 @@ CREATE TABLE budgets (
 CREATE TABLE recurring_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   amount INTEGER NOT NULL,       -- cents
-  type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense')),
+  type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense', 'transfer')),
   description TEXT NOT NULL,
   merchant TEXT,
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
@@ -518,6 +518,10 @@ pinch/
 │   │   │   └── page.tsx
 │   │   ├── budgets/
 │   │   │   └── page.tsx
+│   │   ├── assets/
+│   │   │   ├── page.tsx
+│   │   │   └── [id]/
+│   │   │       └── page.tsx
 │   │   ├── recurring/
 │   │   │   └── page.tsx
 │   │   └── api/
@@ -533,18 +537,29 @@ pinch/
 │   │       │   └── route.ts
 │   │       ├── recurring/
 │   │       │   └── route.ts
-│   │       └── receipts/
-│   │           ├── upload/
-│   │           │   └── route.ts      # POST multipart receipt image upload → { receipt_id }
-│   │           └── [id]/
-│   │               └── image/
-│   │                   └── route.ts  # GET serve receipt image by ID
+│   │       ├── receipts/
+│   │       │   ├── upload/
+│   │       │   │   └── route.ts      # POST multipart receipt image upload → { receipt_id }
+│   │       │   └── [id]/
+│   │       │       └── image/
+│   │       │           └── route.ts  # GET serve receipt image by ID
+│   │       ├── assets/
+│   │       │   ├── route.ts          # GET/POST
+│   │       │   └── [id]/
+│   │       │       ├── route.ts      # GET/PATCH/DELETE
+│   │       │       ├── buy/route.ts
+│   │       │       ├── sell/route.ts
+│   │       │       ├── lots/route.ts
+│   │       │       └── prices/route.ts
+│   │       └── portfolio/
+│   │           └── route.ts          # GET net worth + allocation
 │   ├── components/
 │   │   ├── ui/                  # shadcn/ui components
 │   │   ├── charts/              # Chart components (Recharts via shadcn/ui)
 │   │   ├── transactions/        # Transaction list, form, filters
 │   │   ├── categories/          # Category tree, merge dialog
 │   │   ├── budgets/             # Budget progress bars, form
+│   │   ├── assets/              # Asset cards, lot table, price chart, buy/sell modals
 │   │   └── layout/              # Sidebar, header, breadcrumbs
 │   ├── lib/
 │   │   ├── cron.ts              # Cron job definitions (recurring gen, backup)
@@ -559,6 +574,10 @@ pinch/
 │   │   │   ├── budgets.ts       # Set/get/compare
 │   │   │   ├── recurring.ts     # Template CRUD + generation engine
 │   │   │   ├── receipts.ts     # Upload, store, retrieve receipt images
+│   │   │   ├── assets.ts        # Asset CRUD + holdings + P&L
+│   │   │   ├── asset-lots.ts    # Buy/sell operations (atomic with transactions)
+│   │   │   ├── asset-prices.ts  # Price snapshots + history
+│   │   │   ├── portfolio.ts     # Net worth, allocation, aggregate P&L
 │   │   │   └── backup.ts        # SQLite backup logic
 │   │   ├── mcp/
 │   │   │   ├── server.ts        # MCP server init + tool registration
@@ -568,13 +587,15 @@ pinch/
 │   │   │       ├── reports.ts
 │   │   │       ├── budgets.ts
 │   │   │       ├── recurring.ts
+│   │   │       ├── assets.ts    # Asset + lot + price + portfolio tools
 │   │   │       └── query.ts     # Read-only SQL escape hatch
 │   │   ├── validators/          # Zod schemas (shared by API + MCP + forms)
 │   │   │   ├── common.ts        # Pagination, error envelope
 │   │   │   ├── transactions.ts
 │   │   │   ├── categories.ts
 │   │   │   ├── budgets.ts
-│   │   │   └── recurring.ts
+│   │   │   ├── recurring.ts
+│   │   │   └── assets.ts
 │   │   └── utils/
 │   │       ├── dates.ts         # Date helpers (month ranges, formatting)
 │   │       └── currency.ts      # Cents ↔ decimal formatting
@@ -729,7 +750,7 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 ### Sprint 9: App Shell + Minimal Dashboard ✅
 **Goal:** Navigable layout with a functional dashboard — the first thing you see in the browser.
 
-- [x] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Recurring)
+- [x] Root layout with sidebar navigation (Dashboard, Transactions, Categories, Reports, Budgets, Assets, Recurring)
 - [x] Responsive: sidebar collapses on mobile
 - [x] Active route highlighting
 - [x] Install and configure shadcn/ui charts (Recharts wrapper) — Tremor v3 incompatible with Tailwind v4 OKLCH
@@ -873,154 +894,179 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 18: Accounts & Savings
-**Goal:** First-class account model. Existing transactions map to a default checking account. Savings accounts can be created, and transfers between accounts are recorded atomically.
+### Sprint 18: Assets & Net Worth Tracking
+**Goal:** Unified asset model for tracking net worth across savings, investments, crypto, and foreign currencies. Adds a `transfer` transaction type so asset purchases don't pollute spending reports. Replaces the previously planned separate Accounts (old Sprint 18) and Investments (old Sprint 19) sprints with a single, more powerful abstraction.
+
+#### Design principles
+
+Every financial holding is an **asset** — a bank deposit, a stock position, a crypto wallet, a foreign currency account. All assets are tracked uniformly through **lots** (quantity × price-per-unit events). This eliminates the need for separate account/holdings/transfers tables.
+
+- **Savings deposit (EUR):** 5,000 units at €1.00/unit. Withdrawal = sell 1,000 at €1.00.
+- **Foreign currency deposit:** 1,000 USD at €0.92/unit. Exchange rate changes = P&L.
+- **Stocks:** 10 SPX at €345.63/unit. Price moves = P&L.
+- **Crypto:** 0.5 BTC at €80,000/unit. Same math.
+
+One model, zero special cases.
 
 #### Schema additions
 
 ```sql
-accounts (
-  id          INTEGER PRIMARY KEY,
-  name        TEXT NOT NULL,          -- "Main Checking", "Emergency Fund", etc.
-  type        TEXT NOT NULL,          -- 'checking' | 'savings'
-  currency    TEXT NOT NULL DEFAULT 'EUR',
+-- Assets: anything you own that has value
+CREATE TABLE assets (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,            -- "Emergency Fund", "SPX", "BTC", "USD Savings"
+  type        TEXT NOT NULL CHECK(type IN ('deposit', 'investment', 'crypto', 'other')),
+  currency    TEXT NOT NULL DEFAULT 'EUR',  -- the currency this asset is denominated in
+  icon        TEXT,                     -- emoji or icon name
+  color       TEXT,                     -- hex color for charts
   notes       TEXT,
-  is_default  INTEGER NOT NULL DEFAULT 0,  -- only one account can be default
-  created_at  TEXT NOT NULL,
-  updated_at  TEXT NOT NULL
-)
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
--- transactions gets a nullable FK; NULL means "default account" for backwards compat
--- (add account_id to the transactions table definition in schema.ts; Drizzle Kit generates the migration)
+-- Lots: every buy/sell/deposit/withdrawal event
+CREATE TABLE asset_lots (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  quantity        REAL NOT NULL,         -- positive = buy/deposit, negative = sell/withdraw
+  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
+  date            TEXT NOT NULL,          -- ISO 8601 date
+  transaction_id  INTEGER REFERENCES transactions(id) ON DELETE SET NULL,  -- optional cash-side link
+  notes           TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
-transfers (
-  id                   INTEGER PRIMARY KEY,
-  from_account_id      INTEGER NOT NULL REFERENCES accounts(id),
-  from_transaction_id  INTEGER NOT NULL REFERENCES transactions(id),
-  to_account_id        INTEGER NOT NULL REFERENCES accounts(id),
-  to_transaction_id    INTEGER NOT NULL REFERENCES transactions(id),
-  amount               INTEGER NOT NULL,  -- cents, always positive
-  date                 TEXT NOT NULL,
-  notes                TEXT,
-  created_at           TEXT NOT NULL
-)
+-- Price snapshots: current and historical valuations
+CREATE TABLE asset_prices (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
+  recorded_at     TEXT NOT NULL           -- ISO 8601 datetime
+);
+
+-- Indices
+CREATE INDEX idx_asset_lots_asset ON asset_lots(asset_id);
+CREATE INDEX idx_asset_lots_date ON asset_lots(asset_id, date);
+CREATE INDEX idx_asset_lots_transaction ON asset_lots(transaction_id);
+CREATE INDEX idx_asset_prices_asset ON asset_prices(asset_id);
+CREATE INDEX idx_asset_prices_latest ON asset_prices(asset_id, recorded_at);
 ```
 
-A transfer creates two transactions (one `expense` on the source, one `income` on the destination) inside a DB transaction, then records the link in `transfers`. Deleting a transfer deletes both child transactions.
+#### Transaction type extension
 
-#### Service layer
-
-- `AccountService`: `create`, `list`, `getById`, `update`, `delete`, `getBalance` (sum of all transactions on the account, or default account if null)
-- `TransferService`: `create` (atomic — two txns + transfer record), `list`, `getById`, `delete` (atomic)
-- `TransactionService.list`: extend `accountId` filter (null = default account, a number = specific account)
-
-#### MCP tools
-
-| Tool | Description |
-|------|-------------|
-| `list_accounts` | All accounts with current balance |
-| `create_account` | Create a savings account |
-| `get_account_balance` | Balance for a specific account |
-| `create_transfer` | Move money between accounts — e.g. "deposited 1000 EUR to savings" → debit checking, credit savings |
-| `list_transfers` | Recent transfers, optionally filtered by account |
-
-#### API routes
-
-- `GET/POST /api/accounts`
-- `GET/PATCH/DELETE /api/accounts/[id]`
-- `GET /api/accounts/[id]/balance`
-- `GET/POST /api/transfers`
-- `GET/DELETE /api/transfers/[id]`
-
-#### UI
-
-- Dashboard: account balance cards (one per account) above the KPI row
-- Transfers page or modal: select from/to account, amount, date, optional note
-- Transaction list: account column + account filter dropdown
-
-**Done when:** You can tell the AI "move 500 EUR to savings" and it creates a transfer. Both account balances update correctly. The web UI shows per-account balances.
-
----
-
-### Sprint 19: Investment Accounts & Portfolio Tracking
-**Goal:** Track stock/ETF/crypto purchases. Buying an asset debits the funding account and records a holding. A prices table provides current values for P&L calculation.
-
-#### Schema additions
+The `transactions.type` CHECK constraint gains `'transfer'`:
 
 ```sql
--- accounts.type gains 'investment' (extends Sprint 18 enum)
-
-holdings (
-  id               INTEGER PRIMARY KEY,
-  account_id       INTEGER NOT NULL REFERENCES accounts(id),
-  ticker           TEXT NOT NULL,   -- "SPX", "AAPL", "BTC", etc.
-  name             TEXT,            -- "S&P 500 ETF", optional display name
-  quantity         REAL NOT NULL,   -- supports fractional shares
-  cost_basis_cents INTEGER NOT NULL, -- total paid, in cents
-  currency         TEXT NOT NULL DEFAULT 'EUR',
-  created_at       TEXT NOT NULL,
-  updated_at       TEXT NOT NULL,
-  UNIQUE (account_id, ticker)
-)
-
-asset_prices (
-  id           INTEGER PRIMARY KEY,
-  ticker       TEXT NOT NULL,
-  price_cents  INTEGER NOT NULL,
-  currency     TEXT NOT NULL DEFAULT 'EUR',
-  recorded_at  TEXT NOT NULL        -- ISO datetime
-)
--- only the latest price per ticker matters for P&L; history is kept for charting
+CHECK(type IN ('income', 'expense', 'transfer'))
 ```
 
-#### Business logic
+**Transfer semantics:**
+- A `transfer` transaction records cash leaving (or entering) your account to buy (or sell) an asset
+- Transfers are **included in balance calculations** (they affect how much cash you have)
+- Transfers are **excluded from spending reports**, savings rate, category budgets, and category breakdowns
+- A transfer transaction is optionally linked to an asset lot via `asset_lots.transaction_id`
 
-- **Buy:** debit funding account (new `expense` transaction linked to holding), upsert holding (add quantity, add to cost basis). All in one DB transaction.
-- **Sell:** credit funding account (new `income` transaction), reduce holding quantity/cost basis proportionally (FIFO average cost). If quantity reaches 0, holding remains at zero (not deleted) for history.
-- **P&L:** `(current_price × quantity) − cost_basis`. Requires a price record. If no price recorded, P&L is `null`.
-- **Price updates:** stored in `asset_prices`. The AI can record a price any time ("SPX is now 5800 USD"). Latest record per ticker is used for valuations.
+#### Derived calculations
+
+| Metric | Formula |
+|--------|---------|
+| Current holdings | `SUM(quantity)` from `asset_lots` per asset |
+| Cost basis | `SUM(quantity × price_per_unit)` for positive lots (buys), or weighted-average for partial sells |
+| Current value | `SUM(quantity) × latest_price` from `asset_prices` |
+| P&L | Current value − cost basis (`null` if no price recorded) |
+| Net worth | Cash balance (from transactions) + total current value of all assets |
+| Savings rate | `(income − expenses) / income` — transfers excluded from both sides |
+
+**Deposit assets** (type `'deposit'`): if no price is recorded in `asset_prices`, assume price = 100 (€1.00 in cents) for same-currency deposits. Only foreign-currency deposits need explicit price updates.
 
 #### Service layer
 
-- `InvestmentService`: `buy` (atomic), `sell` (atomic), `listHoldings`, `getHolding`, `getPortfolioPnL` (all holdings + latest prices)
-- `PriceService`: `record` (insert price), `getLatest` (latest price per ticker), `getHistory` (time series for charting)
+- `AssetService`: `create`, `list` (with current holdings + latest price + P&L), `getById`, `update`, `delete`
+- `AssetLotService`: `buy` (atomic — creates transfer transaction + lot in one DB transaction), `sell` (atomic — creates transfer transaction + negative lot), `listLots` (history for an asset)
+- `AssetPriceService`: `record` (insert price snapshot), `getLatest` (per asset), `getHistory` (time series for charting)
+- `PortfolioService`: `getNetWorth` (cash + all assets), `getPnL` (aggregate P&L across all assets), `getAllocation` (percentage breakdown by asset)
+- **Existing report updates:** `ReportService.spendingSummary`, `categoryBreakdown`, `trends` — add `WHERE type != 'transfer'` filter. `get_net_balance` tool — transfers still count (cash moved is cash moved).
+- **Existing budget updates:** `BudgetService.getForMonth` — exclude transfers from spend calculations.
 
 #### MCP tools
 
 | Tool | Description |
 |------|-------------|
-| `buy_asset` | Record a purchase: ticker, quantity, total cost in cents, funding account, date. Creates expense + updates holding. |
-| `sell_asset` | Record a sale: ticker, quantity, total proceeds in cents, destination account, date. Creates income + reduces holding. |
-| `record_price` | Update current price for a ticker. Use after checking a quote. |
-| `list_holdings` | All holdings with quantity, cost basis, current value, and P&L (null if no price recorded). |
-| `get_portfolio_pnl` | Aggregate portfolio: total cost basis, total current value, total P&L, P&L %. |
+| `create_asset` | Create an asset (name, type, currency, icon, color) |
+| `list_assets` | All assets with current holdings, cost basis, current value, P&L |
+| `get_asset` | Single asset with full details |
+| `update_asset` | Update asset metadata (name, icon, color, notes) |
+| `delete_asset` | Delete an asset and its lots |
+| `buy_asset` | Record a purchase/deposit: asset, quantity, price per unit (cents), date. Creates a `transfer` transaction + asset lot atomically. |
+| `sell_asset` | Record a sale/withdrawal: asset, quantity, price per unit (cents), date. Creates a `transfer` transaction + negative lot atomically. |
+| `record_price` | Update current price for an asset. Used after checking a quote/rate. |
+| `get_portfolio` | Full portfolio: all assets with holdings + P&L + net worth + allocation percentages |
+| `get_price_history` | Price time series for a single asset (for charting) |
+| `list_lots` | Lot history for a single asset (buy/sell events) |
 
 #### API routes
 
-- `GET/POST /api/investments/holdings`
-- `GET /api/investments/holdings/[id]`
-- `POST /api/investments/buy`
-- `POST /api/investments/sell`
-- `GET/POST /api/investments/prices` — record + history
-- `GET /api/investments/pnl`
+- `GET/POST /api/assets` — list + create
+- `GET/PATCH/DELETE /api/assets/[id]` — single asset CRUD
+- `POST /api/assets/[id]/buy` — record purchase/deposit
+- `POST /api/assets/[id]/sell` — record sale/withdrawal
+- `GET /api/assets/[id]/lots` — lot history
+- `GET/POST /api/assets/[id]/prices` — price history + record new price
+- `GET /api/portfolio` — net worth, allocation, aggregate P&L
 
 #### UI
 
-- Investment account detail page: holdings table (ticker, quantity, cost basis, current price, current value, P&L, P&L %)
-- "Update price" inline action per row (quick form → calls `record_price`)
-- Portfolio summary card on dashboard: total invested, current value, total P&L with colour coding
-- Price history sparkline per holding
+- **Assets page** (`/assets`): asset cards/list showing name, type, icon, current holdings, current value, P&L (color-coded green/red), allocation %
+- **Asset detail view**: lot history table (date, quantity, price, linked transaction), price chart (sparkline or full chart), P&L breakdown
+- **Dashboard additions**: net worth card (cash + assets), portfolio allocation donut chart, top movers (assets with biggest P&L change)
+- **Transaction list**: transfer type shown with distinct styling (e.g., arrow icon, muted color), filterable (show/hide transfers)
+- **Quick actions**: "Buy asset" / "Sell asset" modals accessible from asset cards and transaction page
+- **Sidebar**: add "Assets" nav item between Budgets and Recurring
 
-**Done when:** "Bought 10 SPX for 3456.32 EUR" via MCP creates the expense on the checking account and records the holding. Telling the AI the current price shows accurate P&L in the UI.
+#### Project structure additions
+
+```
+src/
+├── app/
+│   ├── assets/
+│   │   ├── page.tsx              # Assets list
+│   │   └── [id]/
+│   │       └── page.tsx          # Asset detail (lots, prices, P&L)
+│   └── api/
+│       ├── assets/
+│       │   ├── route.ts          # GET/POST
+│       │   └── [id]/
+│       │       ├── route.ts      # GET/PATCH/DELETE
+│       │       ├── buy/route.ts
+│       │       ├── sell/route.ts
+│       │       ├── lots/route.ts
+│       │       └── prices/route.ts
+│       └── portfolio/
+│           └── route.ts          # GET net worth + allocation
+├── components/
+│   └── assets/                   # Asset cards, lot table, price chart, buy/sell modals
+├── lib/
+│   ├── services/
+│   │   ├── assets.ts
+│   │   ├── asset-lots.ts
+│   │   ├── asset-prices.ts
+│   │   └── portfolio.ts
+│   ├── mcp/tools/
+│   │   └── assets.ts
+│   └── validators/
+│       └── assets.ts
+```
+
+**Done when:** "Bought 10 SPX for €3,456.32" via MCP creates a transfer transaction (cash balance drops by €3,456.32, excluded from spending) + an asset lot (10 units at €345.63). "SPX is now €360" records a price → P&L shows +€143.70. "Deposited €1,000 to savings" creates a transfer + deposit lot. Dashboard shows net worth across cash + all assets. Savings rate stays clean.
 
 ---
-### Sprint 20: Packaging & Auto-Updates
+### Sprint 19: Packaging & Auto-Updates
 **Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
 - [ ] Build an auto-updater mechanism for easy rolling releases
 
-### Sprint 21: Project Website & AI Onboarding
+### Sprint 20: Project Website & AI Onboarding
 **Goal:** Create a public face for the project and a frictionless onboarding experience.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
@@ -1030,7 +1076,7 @@ asset_prices (
 ## Future Considerations (not in scope now, but design should accommodate)
 
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
-- **Multi-currency:** Add `currency` field to transactions, exchange rate table. All reporting converts to EUR base. Avoid hardcoding EUR assumptions in business logic so this is easy to add.
+- **Multi-currency transactions:** Assets already support per-asset currencies (Sprint 18). For full multi-currency, add a `currency` field to transactions and an exchange rate table. All reporting converts to EUR base.
 - **Attachments:** Beyond receipts — invoices, contracts. Generalize receipt storage to a generic attachments table.
 - **App-level auth:** Session-based or token-based auth for shared access or public exposure. Keep auth concerns in middleware/route guards so this can be slotted in cleanly.
 - **Shared access:** Multiple users or shared household access. Auth is a prerequisite.
