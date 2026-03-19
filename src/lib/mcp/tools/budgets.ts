@@ -17,7 +17,8 @@ export function registerBudgetTools(server: McpServer): void {
     {
       description:
         "Set or update a monthly budget for a category. " +
-        "Set applyToFutureMonths to true to also update all existing budgets for later months.",
+        "Set applyToFutureMonths to true to also update all existing budget rows for the same " +
+        "category in later months — does not create new rows for months without a budget yet.",
       inputSchema: SetBudgetSchema,
     },
     (input) => ok(getBudgetService().set(input))
@@ -27,8 +28,9 @@ export function registerBudgetTools(server: McpServer): void {
     "get_budget_status",
     {
       description:
-        "Current spend vs budget for all categories in a given month. " +
-        "Returns amounts, percentages, and over/under status.",
+        "Current spend vs budget for all budgeted categories in a given month. " +
+        "Only returns categories that have a budget set — categories without budgets are excluded. " +
+        "Returns amounts, percentages, and over/under status. Uses child category rollup for spend.",
       inputSchema: GetBudgetStatusSchema,
     },
     (input) => ok(getBudgetService().getForMonth(input))

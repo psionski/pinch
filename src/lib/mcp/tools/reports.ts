@@ -43,7 +43,8 @@ export function registerReportTools(server: McpServer): void {
     {
       description:
         "Per-category spending stats augmented with budget amounts for a given month. " +
-        "Returns everything category_stats returns, plus budgetAmount per category. " +
+        "Returns everything category_stats returns (amounts, percentages, hierarchy rollups, " +
+        "color/icon, parentId), plus budgetAmount per category (null if no budget is set). " +
         "Requires 'month' (YYYY-MM).",
       inputSchema: BudgetStatsSchema,
     },
@@ -54,7 +55,8 @@ export function registerReportTools(server: McpServer): void {
     "trends",
     {
       description:
-        "Month-over-month time series. Configurable look-back window (months). " +
+        "Monthly totals time series for the last N months (default 6, max 24). " +
+        "Returns one data point per month with total amount and transaction count. " +
         "Optionally filter by a single category.",
       inputSchema: TrendsSchema,
     },
