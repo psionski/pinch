@@ -33,7 +33,14 @@ export function DateRangeFilter({ onChange }: DateRangeFilterProps): React.React
 
   function handleCustomChange(from: string, to: string): void {
     if (from && to && from <= to) {
-      onChange(computeCompareRange({ dateFrom: from, dateTo: to }));
+      const [toYear, toMonth] = to.split("-").map(Number);
+      const lastDay = new Date(toYear, toMonth, 0).getDate();
+      onChange(
+        computeCompareRange({
+          dateFrom: `${from}-01`,
+          dateTo: `${to}-${String(lastDay).padStart(2, "0")}`,
+        })
+      );
     }
   }
 
@@ -56,7 +63,7 @@ export function DateRangeFilter({ onChange }: DateRangeFilterProps): React.React
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">From:</span>
           <Input
-            type="date"
+            type="month"
             value={customFrom}
             onChange={(e) => {
               setCustomFrom(e.target.value);
@@ -66,7 +73,7 @@ export function DateRangeFilter({ onChange }: DateRangeFilterProps): React.React
           />
           <span className="text-muted-foreground">to</span>
           <Input
-            type="date"
+            type="month"
             value={customTo}
             onChange={(e) => {
               setCustomTo(e.target.value);
