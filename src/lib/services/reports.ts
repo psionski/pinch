@@ -1,19 +1,21 @@
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { transactions, categories } from "@/lib/db/schema";
-import type {
-  SpendingSummaryInput,
-  CategoryBreakdownInput,
-  TrendsInput,
-  TopMerchantsInput,
-  NetBalanceInput,
-  SpendingGroup,
-  CategoryBreakdownItem,
-  TrendPoint,
-  TopMerchant,
-  SpendingSummaryResult,
-  NetBalanceResult,
+import { transactions, categories, budgets } from "@/lib/db/schema";
+import {
+  type SpendingSummaryInput,
+  type CategoryStatsInput,
+  type BudgetStatsInput,
+  type TrendsInput,
+  type TopMerchantsInput,
+  type NetBalanceInput,
+  type SpendingGroup,
+  type CategorySpendingItem,
+  type BudgetStatsItem,
+  type TrendPoint,
+  type TopMerchant,
+  type SpendingSummaryResult,
+  type NetBalanceResult,
 } from "@/lib/validators/reports";
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -41,6 +43,47 @@ function periodTotal(db: Db, dateFrom: string, dateTo: string, type: "income" | 
     .where(and(...filters))
     .all();
   return row ?? { total: 0, count: 0 };
+}
+
+// ─── Hierarchy helpers ───────────────────────────────────────────────────────
+
+interface CategoryNode {
+  id: number;
+  parentId: number | null;
+}
+
+function buildChildrenMap(cats: CategoryNode[]): Map<number, number[]> {
+  const map = new Map<number, number[]>();
+  for (const cat of cats) {
+    if (cat.parentId !== null) {
+      const siblings = map.get(cat.parentId) ?? [];
+      siblings.push(cat.id);
+      map.set(cat.parentId, siblings);
+    }
+  }
+  return map;
+}
+
+function rollupValues<K extends string>(
+  id: number,
+  childrenMap: Map<number, number[]>,
+  valueMaps: Record<K, Map<number, number>>
+): Record<K, number> {
+  const keys = Object.keys(valueMaps) as K[];
+  const result = {} as Record<K, number>;
+  for (const key of keys) {
+    result[key] = valueMaps[key].get(id) ?? 0;
+  }
+  const children = childrenMap.get(id);
+  if (children) {
+    for (const childId of children) {
+      const childResult = rollupValues(childId, childrenMap, valueMaps);
+      for (const key of keys) {
+        result[key] += childResult[key];
+      }
+    }
+  }
+  return result;
 }
 
 export class ReportService {
@@ -187,33 +230,145 @@ export class ReportService {
     };
   }
 
-  categoryBreakdown(input: CategoryBreakdownInput): CategoryBreakdownItem[] {
-    const filters: SQL[] = [...dateFilters(input.dateFrom, input.dateTo)];
+  getCategoryStats(input: CategoryStatsInput): CategorySpendingItem[] {
+    // Normalize date range
+    let dateFrom: string;
+    let dateTo: string;
+
+    if (input.month) {
+      const [y, m] = input.month.split("-").map(Number);
+      dateFrom = `${input.month}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      dateTo = `${input.month}-${String(lastDay).padStart(2, "0")}`;
+    } else {
+      dateFrom = input.dateFrom!;
+      dateTo = input.dateTo!;
+    }
+
+    // Query aggregated spend per category
+    const filters: SQL[] = [...dateFilters(dateFrom, dateTo)];
     const tf = typeFilter(input.type);
     if (tf) filters.push(tf);
 
-    const rows = this.db
+    const spendRows = this.db
       .select({
         categoryId: transactions.categoryId,
-        categoryName: categories.name,
         total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
         count: sql<number>`count(*)`.mapWith(Number),
       })
       .from(transactions)
-      .leftJoin(categories, eq(transactions.categoryId, categories.id))
       .where(and(...filters))
       .groupBy(transactions.categoryId)
-      .orderBy(sql`sum(${transactions.amount}) DESC`)
       .all();
 
-    const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+    const spendMap = new Map<number | null, { total: number; count: number }>();
+    for (const row of spendRows) {
+      spendMap.set(row.categoryId, { total: row.total, count: row.count });
+    }
 
-    return rows.map((r) => ({
-      categoryId: r.categoryId,
-      categoryName: r.categoryName ?? null,
-      total: r.total,
-      count: r.count,
-      percentage: grandTotal > 0 ? Math.round((r.total / grandTotal) * 10000) / 100 : 0,
+    // Query all categories
+    const allCategories = this.db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        parentId: categories.parentId,
+        color: categories.color,
+        icon: categories.icon,
+      })
+      .from(categories)
+      .all();
+
+    // Build hierarchy and compute rollups
+    const childrenMap = buildChildrenMap(allCategories);
+    const spendAmountMap = new Map<number, number>();
+    const spendCountMap = new Map<number, number>();
+    for (const [catId, spend] of spendMap) {
+      if (catId !== null) {
+        spendAmountMap.set(catId, spend.total);
+        spendCountMap.set(catId, spend.count);
+      }
+    }
+
+    // Build result rows
+    const items: CategorySpendingItem[] = [];
+
+    // Category rows
+    for (const cat of allCategories) {
+      const direct = spendMap.get(cat.id);
+      const total = direct?.total ?? 0;
+      const count = direct?.count ?? 0;
+      const rollup = rollupValues(cat.id, childrenMap, {
+        spend: spendAmountMap,
+        count: spendCountMap,
+      });
+
+      if (!input.includeZeroSpend && total === 0 && rollup.spend === 0) continue;
+
+      items.push({
+        categoryId: cat.id,
+        categoryName: cat.name,
+        color: cat.color,
+        icon: cat.icon,
+        parentId: cat.parentId,
+        total,
+        count,
+        rollupTotal: rollup.spend,
+        rollupCount: rollup.count,
+        percentage: 0, // computed below
+      });
+    }
+
+    // Uncategorized row
+    if (input.includeUncategorized) {
+      const uncategorized = spendMap.get(null);
+      if (uncategorized && uncategorized.total > 0) {
+        items.push({
+          categoryId: null,
+          categoryName: null,
+          color: null,
+          icon: null,
+          parentId: null,
+          total: uncategorized.total,
+          count: uncategorized.count,
+          rollupTotal: uncategorized.total,
+          rollupCount: uncategorized.count,
+          percentage: 0,
+        });
+      }
+    }
+
+    // Compute percentages and sort
+    const grandTotal = items.reduce((s, r) => s + r.total, 0);
+    for (const item of items) {
+      item.percentage = grandTotal > 0 ? Math.round((item.total / grandTotal) * 10000) / 100 : 0;
+    }
+
+    items.sort((a, b) => b.rollupTotal - a.rollupTotal);
+    return items;
+  }
+
+  getBudgetStats(input: BudgetStatsInput): BudgetStatsItem[] {
+    const stats = this.getCategoryStats({
+      month: input.month,
+      type: input.type,
+      includeZeroSpend: input.includeZeroSpend,
+      includeUncategorized: input.includeUncategorized,
+    });
+
+    // Query budgets for this month
+    const budgetRows = this.db
+      .select({ categoryId: budgets.categoryId, amount: budgets.amount })
+      .from(budgets)
+      .where(eq(budgets.month, input.month))
+      .all();
+    const budgetMap = new Map<number, number>();
+    for (const b of budgetRows) {
+      budgetMap.set(b.categoryId, b.amount);
+    }
+
+    return stats.map((s) => ({
+      ...s,
+      budgetAmount: s.categoryId !== null ? (budgetMap.get(s.categoryId) ?? null) : null,
     }));
   }
 

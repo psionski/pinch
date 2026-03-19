@@ -23,7 +23,7 @@ export function setupTestServices(): { getDb: () => AppDb } {
       getTransactionService: () => new TransactionService(db),
       getCategoryService: () => new CategoryService(db),
       getReportService: () => new ReportService(db),
-      getBudgetService: () => new BudgetService(db),
+      getBudgetService: () => new BudgetService(db, new ReportService(db)),
       getRecurringService: () => new RecurringService(db),
     }));
 

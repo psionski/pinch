@@ -4,10 +4,12 @@ import { makeTestDb } from "./helpers";
 import { ReportService } from "@/lib/services/reports";
 import { TransactionService } from "@/lib/services/transactions";
 import { CategoryService } from "@/lib/services/categories";
+import { BudgetService } from "@/lib/services/budgets";
 import { CreateTransactionSchema } from "@/lib/validators/transactions";
 import {
   SpendingSummarySchema,
-  CategoryBreakdownSchema,
+  CategoryStatsSchema,
+  BudgetStatsSchema,
   TrendsSchema,
   TopMerchantsSchema,
 } from "@/lib/validators/reports";
@@ -18,12 +20,14 @@ let db: TestDb;
 let reports: ReportService;
 let txService: TransactionService;
 let catService: CategoryService;
+let budgetService: BudgetService;
 
 beforeEach(() => {
   db = makeTestDb();
   reports = new ReportService(db);
   txService = new TransactionService(db);
   catService = new CategoryService(db);
+  budgetService = new BudgetService(db, reports);
 });
 
 function tx(overrides: Record<string, unknown> = {}) {
@@ -169,17 +173,21 @@ describe("spendingSummary", () => {
   });
 });
 
-// ─── categoryBreakdown ────────────────────────────────────────────────────────
+function catStats(overrides: Record<string, unknown> = {}) {
+  return CategoryStatsSchema.parse(overrides);
+}
 
-describe("categoryBreakdown", () => {
+// ─── getCategoryStats ─────────────────────────────────────────────────────────
+
+describe("getCategoryStats", () => {
   it("returns percentages that sum to 100", () => {
     const food = catService.create({ name: "Food" });
     const transport = catService.create({ name: "Transport" });
     txService.create(tx({ amount: 750, categoryId: food.id }));
     txService.create(tx({ amount: 250, categoryId: transport.id }));
 
-    const result = reports.categoryBreakdown(
-      CategoryBreakdownSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
+    const result = reports.getCategoryStats(
+      catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
     );
     const total = result.reduce((s, r) => s + r.percentage, 0);
     expect(Math.round(total)).toBe(100);
@@ -187,21 +195,175 @@ describe("categoryBreakdown", () => {
     expect(food_?.percentage).toBe(75);
   });
 
-  it("returns empty array when no transactions", () => {
-    const result = reports.categoryBreakdown(
-      CategoryBreakdownSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
+  it("returns empty array when no transactions and includeZeroSpend is false", () => {
+    const result = reports.getCategoryStats(
+      catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
     );
     expect(result).toHaveLength(0);
   });
 
   it("groups uncategorized transactions under null category", () => {
     txService.create(tx({ amount: 500 })); // no categoryId
-    const result = reports.categoryBreakdown(
-      CategoryBreakdownSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
+    const result = reports.getCategoryStats(
+      catStats({
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-31",
+        includeZeroSpend: false,
+        includeUncategorized: true,
+      })
     );
     expect(result).toHaveLength(1);
     expect(result[0].categoryId).toBeNull();
     expect(result[0].percentage).toBe(100);
+  });
+
+  it("includes color and icon from category", () => {
+    const food = catService.create({ name: "Food", color: "#FF0000", icon: "🍕" });
+    txService.create(tx({ amount: 500, categoryId: food.id }));
+
+    const result = reports.getCategoryStats(
+      catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
+    );
+    const foodItem = result.find((r) => r.categoryId === food.id);
+    expect(foodItem?.color).toBe("#FF0000");
+    expect(foodItem?.icon).toBe("🍕");
+  });
+
+  it("returns stats for all categories with zero spend when includeZeroSpend is true", () => {
+    catService.create({ name: "A" });
+    catService.create({ name: "B" });
+
+    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    expect(result).toHaveLength(2);
+    expect(result.every((s) => s.total === 0 && s.count === 0)).toBe(true);
+  });
+
+  it("computes total spend from expense transactions in the given month", () => {
+    const cat = catService.create({ name: "Food" });
+    txService.create(tx({ categoryId: cat.id, amount: 500, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: cat.id, amount: 300, date: "2026-03-15" }));
+    // Different month — should not count
+    txService.create(tx({ categoryId: cat.id, amount: 999, date: "2026-02-28" }));
+
+    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const foodStats = result.find((s) => s.categoryId === cat.id);
+    expect(foodStats?.total).toBe(800);
+    expect(foodStats?.count).toBe(2);
+  });
+
+  it("excludes income transactions from spend total", () => {
+    const cat = catService.create({ name: "Salary" });
+    txService.create(tx({ categoryId: cat.id, amount: 5000, type: "income", date: "2026-03-01" }));
+    txService.create(tx({ categoryId: cat.id, amount: 200, date: "2026-03-01" })); // expense
+
+    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const salaryStats = result.find((s) => s.categoryId === cat.id);
+    expect(salaryStats?.total).toBe(200);
+    expect(salaryStats?.count).toBe(1);
+  });
+
+  it("scopes stats to the requested month only", () => {
+    const cat = catService.create({ name: "Food" });
+    txService.create(tx({ categoryId: cat.id, amount: 100, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: cat.id, amount: 200, date: "2026-04-01" }));
+
+    const marchStats = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const aprilStats = reports.getCategoryStats(catStats({ month: "2026-04" }));
+
+    expect(marchStats.find((s) => s.categoryId === cat.id)?.total).toBe(100);
+    expect(aprilStats.find((s) => s.categoryId === cat.id)?.total).toBe(200);
+  });
+
+  it("rollup includes parent's own spend plus all children", () => {
+    const parent = catService.create({ name: "Food" });
+    const child1 = catService.create({ name: "Groceries", parentId: parent.id });
+    const child2 = catService.create({ name: "Dining", parentId: parent.id });
+
+    txService.create(tx({ categoryId: parent.id, amount: 100, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: child1.id, amount: 500, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: child2.id, amount: 300, date: "2026-03-01" }));
+
+    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const parentStats = result.find((s) => s.categoryId === parent.id);
+
+    expect(parentStats?.total).toBe(100);
+    expect(parentStats?.count).toBe(1);
+    expect(parentStats?.rollupTotal).toBe(900);
+    expect(parentStats?.rollupCount).toBe(3);
+  });
+
+  it("rollup for leaf categories equals their own spend", () => {
+    catService.create({ name: "Food" });
+    const child = catService.create({ name: "Groceries", parentId: 1 });
+
+    txService.create(tx({ categoryId: child.id, amount: 500, date: "2026-03-01" }));
+
+    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const childStats = result.find((s) => s.categoryId === child.id);
+
+    expect(childStats?.total).toBe(500);
+    expect(childStats?.rollupTotal).toBe(500);
+  });
+
+  it("rollup works with nested grandchildren", () => {
+    const grandparent = catService.create({ name: "Food" });
+    const parent = catService.create({ name: "Dining", parentId: grandparent.id });
+    const child = catService.create({ name: "Coffee", parentId: parent.id });
+
+    txService.create(tx({ categoryId: grandparent.id, amount: 100, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: parent.id, amount: 200, date: "2026-03-01" }));
+    txService.create(tx({ categoryId: child.id, amount: 300, date: "2026-03-01" }));
+
+    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+
+    expect(result.find((s) => s.categoryId === grandparent.id)?.rollupTotal).toBe(600);
+    expect(result.find((s) => s.categoryId === parent.id)?.rollupTotal).toBe(500);
+    expect(result.find((s) => s.categoryId === child.id)?.rollupTotal).toBe(300);
+  });
+});
+
+// ─── getBudgetStats ──────────────────────────────────────────────────────────
+
+function budgetStats(overrides: Record<string, unknown> = {}) {
+  return BudgetStatsSchema.parse({ month: "2026-03", ...overrides });
+}
+
+describe("getBudgetStats", () => {
+  it("includes budget amount when a budget exists for the month", () => {
+    const cat = catService.create({ name: "Food" });
+    budgetService.set({
+      categoryId: cat.id,
+      month: "2026-03",
+      amount: 50000,
+      applyToFutureMonths: false,
+    });
+
+    const result = reports.getBudgetStats(budgetStats());
+    const foodStats = result.find((s) => s.categoryId === cat.id);
+    expect(foodStats?.budgetAmount).toBe(50000);
+  });
+
+  it("returns null budgetAmount when no budget is set", () => {
+    catService.create({ name: "Food" });
+
+    const result = reports.getBudgetStats(budgetStats());
+    expect(result[0].budgetAmount).toBeNull();
+  });
+
+  it("includes spending stats from getCategoryStats", () => {
+    const cat = catService.create({ name: "Food" });
+    txService.create(tx({ categoryId: cat.id, amount: 500, date: "2026-03-01" }));
+    budgetService.set({
+      categoryId: cat.id,
+      month: "2026-03",
+      amount: 10000,
+      applyToFutureMonths: false,
+    });
+
+    const result = reports.getBudgetStats(budgetStats());
+    const foodStats = result.find((s) => s.categoryId === cat.id);
+    expect(foodStats?.total).toBe(500);
+    expect(foodStats?.budgetAmount).toBe(10000);
   });
 });
 

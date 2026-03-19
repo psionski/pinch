@@ -15,15 +15,33 @@ export const SpendingSummarySchema = z.object({
 
 export type SpendingSummaryInput = z.infer<typeof SpendingSummarySchema>;
 
-// ─── Category Breakdown ───────────────────────────────────────────────────────
+// ─── Category Stats ──────────────────────────────────────────────────────────
 
-export const CategoryBreakdownSchema = z.object({
-  dateFrom: IsoDateSchema,
-  dateTo: IsoDateSchema,
-  type: z.enum(["income", "expense"]).default("expense"),
+export const CategoryStatsSchema = z
+  .object({
+    dateFrom: IsoDateSchema.optional(),
+    dateTo: IsoDateSchema.optional(),
+    month: YearMonthSchema.optional(),
+    type: z.enum(["income", "expense", "all"]).default("expense"),
+    includeZeroSpend: z.boolean().default(true),
+    includeUncategorized: z.boolean().default(false),
+  })
+  .refine((d) => d.month || (d.dateFrom && d.dateTo), {
+    message: "Provide either 'month' or both 'dateFrom' and 'dateTo'",
+  });
+
+export type CategoryStatsInput = z.infer<typeof CategoryStatsSchema>;
+
+// ─── Budget Stats ───────────────────────────────────────────────────────────
+
+export const BudgetStatsSchema = z.object({
+  month: YearMonthSchema,
+  type: z.enum(["income", "expense", "all"]).default("expense"),
+  includeZeroSpend: z.boolean().default(true),
+  includeUncategorized: z.boolean().default(false),
 });
 
-export type CategoryBreakdownInput = z.infer<typeof CategoryBreakdownSchema>;
+export type BudgetStatsInput = z.infer<typeof BudgetStatsSchema>;
 
 // ─── Trends ───────────────────────────────────────────────────────────────────
 
@@ -77,15 +95,26 @@ export const SpendingGroupSchema = z.object({
 
 export type SpendingGroup = z.infer<typeof SpendingGroupSchema>;
 
-export const CategoryBreakdownItemSchema = z.object({
+export const CategorySpendingItemSchema = z.object({
   categoryId: z.number().int().nullable(),
   categoryName: z.string().nullable(),
-  total: z.number().int(), // cents
-  count: z.number().int(),
-  percentage: z.number(), // 0–100
+  color: z.string().nullable(),
+  icon: z.string().nullable(),
+  parentId: z.number().int().nullable(),
+  total: z.number().int(), // cents, direct spend
+  count: z.number().int(), // direct transaction count
+  rollupTotal: z.number().int(), // this + descendants
+  rollupCount: z.number().int(), // this + descendants
+  percentage: z.number(), // 0–100, share of grand total
 });
 
-export type CategoryBreakdownItem = z.infer<typeof CategoryBreakdownItemSchema>;
+export type CategorySpendingItem = z.infer<typeof CategorySpendingItemSchema>;
+
+export const BudgetStatsItemSchema = CategorySpendingItemSchema.extend({
+  budgetAmount: z.number().int().nullable(), // cents, null if no budget
+});
+
+export type BudgetStatsItem = z.infer<typeof BudgetStatsItemSchema>;
 
 export const TrendPointSchema = z.object({
   month: z.string(), // YYYY-MM

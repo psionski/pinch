@@ -1,4 +1,4 @@
-import { getCategoryService } from "@/lib/api/services";
+import { getCategoryService, getReportService } from "@/lib/api/services";
 import { CategoriesClient } from "@/components/categories/categories-client";
 
 function getCurrentMonth(): string {
@@ -8,8 +8,14 @@ function getCurrentMonth(): string {
 
 export default function CategoriesPage(): React.ReactElement {
   const categoryService = getCategoryService();
+  const reportService = getReportService();
   const categories = categoryService.getAll();
-  const stats = categoryService.getStats(getCurrentMonth());
+  const stats = reportService.getBudgetStats({
+    month: getCurrentMonth(),
+    type: "expense",
+    includeZeroSpend: true,
+    includeUncategorized: false,
+  });
 
   return <CategoriesClient initialCategories={categories} initialStats={stats} />;
 }

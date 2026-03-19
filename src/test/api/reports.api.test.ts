@@ -5,7 +5,7 @@ setupTestServices();
 
 describe("Report API Routes", () => {
   let GET_SUMMARY: (req: Request) => Promise<Response>;
-  let GET_BREAKDOWN: (req: Request) => Promise<Response>;
+  let GET_CATEGORY_STATS: (req: Request) => Promise<Response>;
   let GET_TRENDS: (req: Request) => Promise<Response>;
   let GET_TOP_MERCHANTS: (req: Request) => Promise<Response>;
   let GET_BALANCE: (req: Request) => Promise<Response>;
@@ -14,14 +14,14 @@ describe("Report API Routes", () => {
 
   beforeEach(async () => {
     const summary = await import("@/app/api/reports/summary/route");
-    const breakdown = await import("@/app/api/reports/breakdown/route");
+    const categoryStats = await import("@/app/api/reports/category-stats/route");
     const trends = await import("@/app/api/reports/trends/route");
     const topMerchants = await import("@/app/api/reports/top-merchants/route");
     const balance = await import("@/app/api/reports/balance/route");
     const txs = await import("@/app/api/transactions/route");
     const cats = await import("@/app/api/categories/route");
     GET_SUMMARY = summary.GET;
-    GET_BREAKDOWN = breakdown.GET;
+    GET_CATEGORY_STATS = categoryStats.GET;
     GET_TRENDS = trends.GET;
     GET_TOP_MERCHANTS = topMerchants.GET;
     GET_BALANCE = balance.GET;
@@ -68,10 +68,14 @@ describe("Report API Routes", () => {
     expect(body.groups).toHaveLength(1);
   });
 
-  it("GET /breakdown returns category breakdown", async () => {
+  it("GET /category-stats returns category stats", async () => {
     await seedData();
-    const res = await GET_BREAKDOWN(
-      makeGet("/api/reports/breakdown", { dateFrom: "2025-01-01", dateTo: "2025-01-31" })
+    const res = await GET_CATEGORY_STATS(
+      makeGet("/api/reports/category-stats", {
+        dateFrom: "2025-01-01",
+        dateTo: "2025-01-31",
+        includeZeroSpend: "false",
+      })
     );
     expect(res.status).toBe(200);
     const body = await json<Array<{ percentage: number }>>(res);

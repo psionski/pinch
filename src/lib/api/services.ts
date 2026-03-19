@@ -18,7 +18,8 @@ export function getReportService(): ReportService {
 }
 
 export function getBudgetService(): BudgetService {
-  return new BudgetService(getDb());
+  const db = getDb();
+  return new BudgetService(db, new ReportService(db));
 }
 
 export function getRecurringService(): RecurringService {
