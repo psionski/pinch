@@ -16,6 +16,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { transactions, categories } from "@/lib/db/schema";
 import type { Transaction } from "@/lib/db/schema";
+import { buildChildrenMap, getDescendantIds } from "./category-hierarchy";
 import type {
   CreateTransactionInput,
   UpdateTransactionInput,
@@ -63,7 +64,7 @@ export class TransactionService {
         receiptId: input.receiptId,
         recurringId: input.recurringId,
         notes: input.notes,
-        tags: input.tags ? JSON.stringify(input.tags) : undefined,
+        tags: input.tags ? JSON.stringify(input.tags) : null,
       })
       .returning()
       .all();
@@ -81,7 +82,7 @@ export class TransactionService {
       receiptId: tx.receiptId ?? input.receiptId,
       recurringId: tx.recurringId,
       notes: tx.notes,
-      tags: tx.tags ? JSON.stringify(tx.tags) : undefined,
+      tags: tx.tags ? JSON.stringify(tx.tags) : null,
     }));
     return this.db.insert(transactions).values(values).returning().all().map(parseTransaction);
   }
@@ -101,7 +102,7 @@ export class TransactionService {
         filters.push(isNull(transactions.categoryId));
       } else {
         // Include the category itself and all descendants
-        const descendantIds = this.getDescendantIds(input.categoryId);
+        const descendantIds = this.getDescendantCategoryIds(input.categoryId);
         const allIds = [input.categoryId, ...descendantIds];
         filters.push(inArray(transactions.categoryId, allIds));
       }
@@ -209,30 +210,12 @@ export class TransactionService {
   }
 
   /** Returns all descendant category IDs for a given category (children, grandchildren, etc). */
-  private getDescendantIds(categoryId: number): number[] {
+  private getDescendantCategoryIds(categoryId: number): number[] {
     const allCats = this.db
       .select({ id: categories.id, parentId: categories.parentId })
       .from(categories)
       .all();
-
-    const childrenMap = new Map<number, number[]>();
-    for (const cat of allCats) {
-      if (cat.parentId !== null) {
-        const siblings = childrenMap.get(cat.parentId) ?? [];
-        siblings.push(cat.id);
-        childrenMap.set(cat.parentId, siblings);
-      }
-    }
-
-    const result: number[] = [];
-    const queue = childrenMap.get(categoryId) ?? [];
-    while (queue.length > 0) {
-      const id = queue.pop()!;
-      result.push(id);
-      const children = childrenMap.get(id);
-      if (children) queue.push(...children);
-    }
-    return result;
+    return getDescendantIds(categoryId, buildChildrenMap(allCats));
   }
 
   /** Returns all distinct tags across all transactions, sorted alphabetically. */
