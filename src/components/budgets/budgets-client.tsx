@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Copy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BudgetTable } from "./budget-table";
 import { BudgetFormDialog } from "./budget-form-dialog";
 import { DeleteBudgetDialog } from "./delete-budget-dialog";
 import { formatMonth } from "@/lib/format";
 import type { BudgetStatusItem } from "@/lib/validators/reports";
+import type { BudgetStatusResponse } from "@/lib/validators/budgets";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 interface BudgetsClientProps {
   initialBudgetStatus: BudgetStatusItem[];
+  initialInheritedFrom: string | null;
   initialCategories: CategoryWithCountResponse[];
   currentMonth: string;
 }
@@ -22,13 +24,20 @@ function shiftMonth(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function formatMonthLabel(month: string): string {
+  const [year, m] = month.split("-").map(Number);
+  return new Date(year, m - 1).toLocaleString("default", { month: "long", year: "numeric" });
+}
+
 export function BudgetsClient({
   initialBudgetStatus,
+  initialInheritedFrom,
   initialCategories,
   currentMonth,
 }: BudgetsClientProps): React.ReactElement {
   const [month, setMonth] = useState(currentMonth);
   const [budgetStatus, setBudgetStatus] = useState(initialBudgetStatus);
+  const [inheritedFrom, setInheritedFrom] = useState(initialInheritedFrom);
   const [categories] = useState(initialCategories);
   const [loading, setLoading] = useState(false);
 
@@ -42,7 +51,11 @@ export function BudgetsClient({
     setLoading(true);
     try {
       const res = await fetch(`/api/budgets?month=${m}`);
-      if (res.ok) setBudgetStatus((await res.json()) as BudgetStatusItem[]);
+      if (res.ok) {
+        const data = (await res.json()) as BudgetStatusResponse;
+        setBudgetStatus(data.items);
+        setInheritedFrom(data.inheritedFrom);
+      }
     } finally {
       setLoading(false);
     }
@@ -58,7 +71,6 @@ export function BudgetsClient({
     categoryId: number;
     month: string;
     amount: number;
-    applyToFutureMonths: boolean;
   }): Promise<void> {
     setFormLoading(true);
     try {
@@ -95,14 +107,13 @@ export function BudgetsClient({
     }
   }
 
-  async function handleCopyFromPrevious(): Promise<void> {
+  async function handleResetToInherited(): Promise<void> {
     setLoading(true);
     try {
-      const prevMonth = shiftMonth(month, -1);
-      const res = await fetch("/api/budgets/copy", {
+      const res = await fetch("/api/budgets/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromMonth: prevMonth, toMonth: month }),
+        body: JSON.stringify({ month }),
       });
       if (res.ok) {
         void refresh(month);
@@ -119,10 +130,17 @@ export function BudgetsClient({
         <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleCopyFromPrevious()}>
-            <Copy className="size-4" />
-            Copy from {formatMonth(shiftMonth(month, -1))}
-          </Button>
+          {inheritedFrom === null && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleResetToInherited()}
+              disabled={loading}
+            >
+              <RotateCcw className="size-4" />
+              Reset to inherited
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowForm(true)}>
             <Plus className="size-4" />
             Add Budget
@@ -139,6 +157,11 @@ export function BudgetsClient({
         <Button variant="outline" size="icon-sm" onClick={() => navigateMonth(1)}>
           <ChevronRight className="size-4" />
         </Button>
+        {inheritedFrom !== null && (
+          <span className="text-muted-foreground text-sm">
+            Inherited from {formatMonthLabel(inheritedFrom)}
+          </span>
+        )}
       </div>
 
       {/* Budget table */}

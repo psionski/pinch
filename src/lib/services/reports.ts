@@ -1,7 +1,8 @@
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { transactions, categories, budgets } from "@/lib/db/schema";
+import { transactions, categories } from "@/lib/db/schema";
+import { getEffectiveBudgets } from "./budget-inheritance";
 import {
   type SpendingSummaryInput,
   type CategoryStatsInput,
@@ -347,7 +348,10 @@ export class ReportService {
     return items;
   }
 
-  getBudgetStats(input: BudgetStatsInput): BudgetStatsItem[] {
+  getBudgetStats(input: BudgetStatsInput): {
+    items: BudgetStatsItem[];
+    inheritedFrom: string | null;
+  } {
     const stats = this.getCategoryStats({
       month: input.month,
       type: input.type,
@@ -355,21 +359,14 @@ export class ReportService {
       includeUncategorized: input.includeUncategorized,
     });
 
-    // Query budgets for this month
-    const budgetRows = this.db
-      .select({ categoryId: budgets.categoryId, amount: budgets.amount })
-      .from(budgets)
-      .where(eq(budgets.month, input.month))
-      .all();
-    const budgetMap = new Map<number, number>();
-    for (const b of budgetRows) {
-      budgetMap.set(b.categoryId, b.amount);
-    }
+    const { budgets: budgetMap, inheritedFrom } = getEffectiveBudgets(this.db, input.month);
 
-    return stats.map((s) => ({
+    const items = stats.map((s) => ({
       ...s,
       budgetAmount: s.categoryId !== null ? (budgetMap.get(s.categoryId) ?? null) : null,
     }));
+
+    return { items, inheritedFrom };
   }
 
   trends(input: TrendsInput): TrendPoint[] {

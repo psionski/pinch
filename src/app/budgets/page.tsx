@@ -8,12 +8,15 @@ function getCurrentMonth(): string {
 
 export default function BudgetsPage(): React.ReactElement {
   const currentMonth = getCurrentMonth();
-  const budgetStatus = getBudgetService().getForMonth({ month: currentMonth });
+  const { items: budgetStatus, inheritedFrom } = getBudgetService().getForMonth({
+    month: currentMonth,
+  });
   const categories = getCategoryService().getAll();
 
   return (
     <BudgetsClient
       initialBudgetStatus={budgetStatus}
+      initialInheritedFrom={inheritedFrom}
       initialCategories={categories}
       currentMonth={currentMonth}
     />

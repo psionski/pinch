@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { setupTestServices, makeGet, makeJson, json } from "./helpers";
+import type { BudgetStatusResponse } from "@/lib/validators/budgets";
 
 setupTestServices();
 
@@ -7,21 +8,21 @@ describe("Budget API Routes", () => {
   let POST_BUDGET: (req: Request) => Promise<Response>;
   let GET_BUDGET: (req: Request) => Promise<Response>;
   let DELETE_BUDGET: (req: Request) => Promise<Response>;
-  let POST_COPY: (req: Request) => Promise<Response>;
+  let POST_RESET: (req: Request) => Promise<Response>;
   let GET_HISTORY: (req: Request) => Promise<Response>;
   let POST_CATEGORY: (req: Request) => Promise<Response>;
   let POST_TX: (req: Request) => Promise<Response>;
 
   beforeEach(async () => {
     const budgets = await import("@/app/api/budgets/route");
-    const copy = await import("@/app/api/budgets/copy/route");
+    const reset = await import("@/app/api/budgets/reset/route");
     const history = await import("@/app/api/budgets/history/route");
     const cats = await import("@/app/api/categories/route");
     const txs = await import("@/app/api/transactions/route");
     POST_BUDGET = budgets.POST;
     GET_BUDGET = budgets.GET;
     DELETE_BUDGET = budgets.DELETE;
-    POST_COPY = copy.POST;
+    POST_RESET = reset.POST;
     GET_HISTORY = history.GET;
     POST_CATEGORY = cats.POST;
     POST_TX = txs.POST;
@@ -54,7 +55,6 @@ describe("Budget API Routes", () => {
         amount: 50000,
       })
     );
-    // Add a transaction
     await POST_TX(
       makeJson("POST", "/api/transactions", {
         amount: 15000,
@@ -67,13 +67,30 @@ describe("Budget API Routes", () => {
 
     const res = await GET_BUDGET(makeGet("/api/budgets", { month: "2025-01" }));
     expect(res.status).toBe(200);
-    const body = await json<Array<{ budgetAmount: number; spentAmount: number }>>(res);
-    expect(body).toHaveLength(1);
-    expect(body[0].budgetAmount).toBe(50000);
-    expect(body[0].spentAmount).toBe(15000);
+    const body = await json<BudgetStatusResponse>(res);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].budgetAmount).toBe(50000);
+    expect(body.items[0].spentAmount).toBe(15000);
+    expect(body.inheritedFrom).toBeNull();
   });
 
-  it("DELETE removes a budget and returns success", async () => {
+  it("GET returns inherited budgets when month has no own rows", async () => {
+    const cat = await json<{ id: number }>(
+      await POST_CATEGORY(makeJson("POST", "/api/categories", { name: "Food" }))
+    );
+    await POST_BUDGET(
+      makeJson("POST", "/api/budgets", { categoryId: cat.id, month: "2025-01", amount: 50000 })
+    );
+
+    const res = await GET_BUDGET(makeGet("/api/budgets", { month: "2025-02" }));
+    expect(res.status).toBe(200);
+    const body = await json<BudgetStatusResponse>(res);
+    expect(body.inheritedFrom).toBe("2025-01");
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].budgetAmount).toBe(50000);
+  });
+
+  it("DELETE soft-deletes a budget and returns success", async () => {
     const cat = await json<{ id: number }>(
       await POST_CATEGORY(makeJson("POST", "/api/categories", { name: "Food" }))
     );
@@ -92,11 +109,11 @@ describe("Budget API Routes", () => {
     const body = await json<{ success: boolean }>(res);
     expect(body.success).toBe(true);
 
-    // Verify it's gone
-    const status = await json<unknown[]>(
+    // Verify it's gone from status
+    const status = await json<BudgetStatusResponse>(
       await GET_BUDGET(makeGet("/api/budgets", { month: "2025-01" }))
     );
-    expect(status).toHaveLength(0);
+    expect(status.items).toHaveLength(0);
   });
 
   it("DELETE returns 404 for non-existent budget", async () => {
@@ -106,32 +123,37 @@ describe("Budget API Routes", () => {
     expect(res.status).toBe(404);
   });
 
-  it("POST /copy copies budgets from one month to another", async () => {
+  it("POST /reset resets a month to inherited state", async () => {
     const cat1 = await json<{ id: number }>(
       await POST_CATEGORY(makeJson("POST", "/api/categories", { name: "Food" }))
     );
     const cat2 = await json<{ id: number }>(
       await POST_CATEGORY(makeJson("POST", "/api/categories", { name: "Transport" }))
     );
+    // Jan has budgets
     await POST_BUDGET(
       makeJson("POST", "/api/budgets", { categoryId: cat1.id, month: "2025-01", amount: 50000 })
     );
     await POST_BUDGET(
       makeJson("POST", "/api/budgets", { categoryId: cat2.id, month: "2025-01", amount: 30000 })
     );
-
-    const res = await POST_COPY(
-      makeJson("POST", "/api/budgets/copy", { fromMonth: "2025-01", toMonth: "2025-02" })
+    // Materialize Feb with its own budget
+    await POST_BUDGET(
+      makeJson("POST", "/api/budgets", { categoryId: cat1.id, month: "2025-02", amount: 60000 })
     );
-    expect(res.status).toBe(200);
-    const body = await json<{ copied: number }>(res);
-    expect(body.copied).toBe(2);
 
-    // Verify target month has budgets
-    const status = await json<unknown[]>(
+    // Reset Feb — should fall back to inheriting from Jan
+    const res = await POST_RESET(makeJson("POST", "/api/budgets/reset", { month: "2025-02" }));
+    expect(res.status).toBe(200);
+    const body = await json<{ success: boolean }>(res);
+    expect(body.success).toBe(true);
+
+    // Verify Feb now inherits from Jan
+    const status = await json<BudgetStatusResponse>(
       await GET_BUDGET(makeGet("/api/budgets", { month: "2025-02" }))
     );
-    expect(status).toHaveLength(2);
+    expect(status.inheritedFrom).toBe("2025-01");
+    expect(status.items).toHaveLength(2);
   });
 
   it("GET /history returns budget vs actual for recent months", async () => {
@@ -155,7 +177,6 @@ describe("Budget API Routes", () => {
     expect(res.status).toBe(200);
     const body = await json<{ month: string; totalBudget: number; totalSpent: number }[]>(res);
     expect(body).toHaveLength(3);
-    // Each point should have the expected shape
     for (const point of body) {
       expect(point).toHaveProperty("month");
       expect(point).toHaveProperty("totalBudget");

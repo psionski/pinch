@@ -73,7 +73,7 @@ export default function DashboardPage(): React.ReactElement {
 
   const trends = reportService.trends({ months: 6, type: "expense" });
 
-  const budgetStatus = budgetService.getForMonth({ month: currentMonth });
+  const { items: budgetStatus } = budgetService.getForMonth({ month: currentMonth });
 
   const recentTx = transactionService.list({
     limit: 15,

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -23,12 +22,7 @@ interface BudgetFormDialogProps {
   onOpenChange: (open: boolean) => void;
   categories: CategoryWithCountResponse[];
   currentMonth: string;
-  onSubmit: (data: {
-    categoryId: number;
-    month: string;
-    amount: number;
-    applyToFutureMonths: boolean;
-  }) => void;
+  onSubmit: (data: { categoryId: number; month: string; amount: number }) => void;
   initialData?: BudgetStatusItem | null;
   loading?: boolean;
 }
@@ -49,7 +43,6 @@ export function BudgetFormDialog({
   const [amount, setAmount] = useState(
     initialData ? (initialData.budgetAmount / 100).toFixed(2) : ""
   );
-  const [applyToFutureMonths, setApplyToFutureMonths] = useState(false);
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent): void {
@@ -72,7 +65,6 @@ export function BudgetFormDialog({
       categoryId: Number(categoryId),
       month: currentMonth,
       amount: cents,
-      applyToFutureMonths,
     });
   }
 
@@ -116,17 +108,6 @@ export function BudgetFormDialog({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="budget-future"
-              checked={applyToFutureMonths}
-              onCheckedChange={(checked) => setApplyToFutureMonths(checked === true)}
-            />
-            <Label htmlFor="budget-future" className="text-sm font-normal">
-              Apply to future months
-            </Label>
           </div>
 
           {error && <p className="text-destructive text-sm">{error}</p>}

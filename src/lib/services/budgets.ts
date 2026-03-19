@@ -1,15 +1,15 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { budgets } from "@/lib/db/schema";
 import type {
   SetBudgetInput,
   GetBudgetStatusInput,
-  CopyBudgetsInput,
   BudgetResponse,
+  BudgetStatusResponse,
 } from "@/lib/validators/budgets";
-import type { BudgetStatusItem } from "@/lib/validators/reports";
 import type { ReportService } from "./reports";
+import { ensureOwnRows, monthHasOwnRows } from "./budget-inheritance";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -21,64 +21,55 @@ export class BudgetService {
 
   /**
    * Upsert a budget for a category + month.
-   * When `applyToFutureMonths` is true, also upserts the same amount for every
-   * existing budget row of the same category that is in a later month.
+   * If the month has no own rows yet, materializes inherited budgets first (copy-on-write).
+   * Re-adding a previously soft-deleted budget un-deletes it.
    */
   set(input: SetBudgetInput): BudgetResponse {
+    ensureOwnRows(this.db, input.month);
+
     const existing = this.db
       .select()
       .from(budgets)
       .where(and(eq(budgets.categoryId, input.categoryId), eq(budgets.month, input.month)))
       .all();
 
-    let result: BudgetResponse;
     if (existing.length > 0) {
       const [row] = this.db
         .update(budgets)
-        .set({ amount: input.amount })
+        .set({ amount: input.amount, deleted: 0 })
         .where(and(eq(budgets.categoryId, input.categoryId), eq(budgets.month, input.month)))
         .returning()
         .all();
-      result = row;
+      return row;
     } else {
       const [row] = this.db
         .insert(budgets)
-        .values({ categoryId: input.categoryId, month: input.month, amount: input.amount })
+        .values({
+          categoryId: input.categoryId,
+          month: input.month,
+          amount: input.amount,
+          deleted: 0,
+        })
         .returning()
         .all();
-      result = row;
+      return row;
     }
-
-    if (input.applyToFutureMonths) {
-      this.db
-        .update(budgets)
-        .set({ amount: input.amount })
-        .where(
-          and(
-            eq(budgets.categoryId, input.categoryId),
-            gte(budgets.month, input.month),
-            sql`${budgets.month} != ${input.month}`
-          )
-        )
-        .run();
-    }
-
-    return result;
   }
 
   /**
-   * Returns budget status for every category that has a budget in the given month,
+   * Returns budget status for every category that has an effective budget in the given month,
    * enriched with actual spend from transactions (including child category rollup).
+   * Returns `inheritedFrom` so the UI can show the source month.
    */
-  getForMonth(input: GetBudgetStatusInput): BudgetStatusItem[] {
-    const stats = this.reportService.getBudgetStats({
+  getForMonth(input: GetBudgetStatusInput): BudgetStatusResponse {
+    const { items: allStats, inheritedFrom } = this.reportService.getBudgetStats({
       month: input.month,
       type: "expense",
       includeZeroSpend: true,
       includeUncategorized: false,
     });
 
-    return stats
+    const items = allStats
       .filter((s) => s.budgetAmount !== null)
       .map((s) => {
         const budgetAmount = s.budgetAmount!;
@@ -100,42 +91,40 @@ export class BudgetService {
           isOver: spentAmount > budgetAmount,
         };
       });
+
+    return { items, inheritedFrom };
   }
 
   /**
-   * Copy all budgets from `fromMonth` into `toMonth`.
-   * Already-existing budgets for `toMonth` are updated (upserted).
-   * Returns the number of rows written.
+   * Soft-delete a budget row for a category + month.
+   * If the month has no own rows yet, materializes inherited budgets first (copy-on-write).
+   * Returns true if a row was affected.
    */
-  copyFromPreviousMonth(input: CopyBudgetsInput): number {
-    const source = this.db.select().from(budgets).where(eq(budgets.month, input.fromMonth)).all();
+  delete(categoryId: number, month: string): boolean {
+    ensureOwnRows(this.db, month);
 
-    if (source.length === 0) return 0;
+    const existing = this.db
+      .select({ id: budgets.id })
+      .from(budgets)
+      .where(and(eq(budgets.categoryId, categoryId), eq(budgets.month, month)))
+      .all();
 
-    let count = 0;
-    this.db.transaction((tx) => {
-      for (const row of source) {
-        const existing = tx
-          .select({ id: budgets.id })
-          .from(budgets)
-          .where(and(eq(budgets.categoryId, row.categoryId), eq(budgets.month, input.toMonth)))
-          .all();
+    if (existing.length === 0) return false;
 
-        if (existing.length > 0) {
-          tx.update(budgets)
-            .set({ amount: row.amount })
-            .where(and(eq(budgets.categoryId, row.categoryId), eq(budgets.month, input.toMonth)))
-            .run();
-        } else {
-          tx.insert(budgets)
-            .values({ categoryId: row.categoryId, month: input.toMonth, amount: row.amount })
-            .run();
-        }
-        count++;
-      }
-    });
+    this.db
+      .update(budgets)
+      .set({ deleted: 1 })
+      .where(and(eq(budgets.categoryId, categoryId), eq(budgets.month, month)))
+      .run();
+    return true;
+  }
 
-    return count;
+  /**
+   * Hard-delete ALL budget rows for a month, making it fall back to inheritance.
+   * This is the "Reset to inherited" action.
+   */
+  resetToInherited(month: string): void {
+    this.db.delete(budgets).where(eq(budgets.month, month)).run();
   }
 
   /** Returns all budget rows for a given category, sorted by month. */
@@ -143,17 +132,13 @@ export class BudgetService {
     return this.db
       .select()
       .from(budgets)
-      .where(eq(budgets.categoryId, categoryId))
+      .where(and(eq(budgets.categoryId, categoryId), eq(budgets.deleted, 0)))
       .orderBy(budgets.month)
       .all();
   }
 
-  delete(categoryId: number, month: string): boolean {
-    const result = this.db
-      .delete(budgets)
-      .where(and(eq(budgets.categoryId, categoryId), eq(budgets.month, month)))
-      .returning()
-      .all();
-    return result.length > 0;
+  /** Returns true if the month has its own explicit budget rows (not inherited). */
+  hasOwnRows(month: string): boolean {
+    return monthHasOwnRows(this.db, month);
   }
 }

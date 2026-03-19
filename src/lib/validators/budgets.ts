@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { YearMonthSchema } from "./common";
+import { BudgetStatusItemSchema } from "./reports";
 
 // ─── Response ────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,6 @@ export const SetBudgetSchema = z.object({
   categoryId: z.number().int().positive("Category ID is required"),
   month: YearMonthSchema,
   amount: z.number().int().positive("Amount must be a positive integer (cents)"),
-  applyToFutureMonths: z.boolean().default(false),
 });
 
 export type SetBudgetInput = z.infer<typeof SetBudgetSchema>;
@@ -40,14 +40,22 @@ export const DeleteBudgetSchema = z.object({
 
 export type DeleteBudgetInput = z.infer<typeof DeleteBudgetSchema>;
 
-// ─── Copy Budgets ─────────────────────────────────────────────────────────────
+// ─── Reset Budgets ────────────────────────────────────────────────────────────
 
-export const CopyBudgetsSchema = z.object({
-  fromMonth: YearMonthSchema,
-  toMonth: YearMonthSchema,
+export const ResetBudgetsSchema = z.object({
+  month: YearMonthSchema,
 });
 
-export type CopyBudgetsInput = z.infer<typeof CopyBudgetsSchema>;
+export type ResetBudgetsInput = z.infer<typeof ResetBudgetsSchema>;
+
+// ─── Budget Status Response ───────────────────────────────────────────────────
+
+export const BudgetStatusResponseSchema = z.object({
+  items: z.array(BudgetStatusItemSchema),
+  inheritedFrom: z.string().nullable(),
+});
+
+export type BudgetStatusResponse = z.infer<typeof BudgetStatusResponseSchema>;
 
 // ─── Budget History ──────────────────────────────────────────────────────────
 

@@ -134,6 +134,7 @@ export const budgets = sqliteTable(
       .references(() => categories.id, { onDelete: "cascade" }),
     month: text("month").notNull(), // YYYY-MM
     amount: integer("amount").notNull(), // cents
+    deleted: integer("deleted").notNull().default(0), // soft-delete: 1 = deleted
   },
   (table) => [
     index("idx_budgets_month").on(table.month),

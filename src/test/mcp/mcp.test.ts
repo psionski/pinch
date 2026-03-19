@@ -115,7 +115,7 @@ describe("MCP /api/mcp route", () => {
     expect(tools).toContain("list_categories");
     expect(tools).toContain("spending_summary");
     expect(tools).toContain("set_budget");
-    expect(tools).toContain("copy_budgets");
+    expect(tools).toContain("reset_budgets");
     expect(tools).toContain("delete_budget");
     expect(tools).toContain("create_recurring");
     expect(tools).toContain("query");
@@ -208,46 +208,39 @@ describe("MCP /api/mcp route", () => {
 
     const res = await POST(toolCallRequest("get_budget_status", { month: "2025-06" }));
     const result = await parseResult(res);
-    const items = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      categoryName: string;
-      budgetAmount: number;
-    }[];
-    expect(items[0].budgetAmount).toBe(10000);
+    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
+      items: { categoryName: string; budgetAmount: number }[];
+      inheritedFrom: string | null;
+    };
+    expect(body.items[0].budgetAmount).toBe(10000);
+    expect(body.inheritedFrom).toBeNull();
   });
 
-  it("copy_budgets copies budgets between months", async () => {
+  it("reset_budgets resets a month to inherited state", async () => {
     const catSvc = new CategoryService(db);
     const cat = catSvc.create({ name: "Rent" });
     const budgetSvc = new BudgetService(db, new ReportService(db));
-    budgetSvc.set({
-      categoryId: cat.id,
-      month: "2025-05",
-      amount: 80000,
-      applyToFutureMonths: false,
-    });
+    budgetSvc.set({ categoryId: cat.id, month: "2025-05", amount: 80000 });
+    // Materialize June with own rows
+    budgetSvc.set({ categoryId: cat.id, month: "2025-06", amount: 90000 });
+    expect(budgetSvc.hasOwnRows("2025-06")).toBe(true);
 
     await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("copy_budgets", { fromMonth: "2025-05", toMonth: "2025-06" })
-    );
+    const res = await POST(toolCallRequest("reset_budgets", { month: "2025-06" }));
     expect(res.status).toBe(200);
     const result = await parseResult(res);
     const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      copied: number;
+      success: boolean;
     };
-    expect(body.copied).toBe(1);
+    expect(body.success).toBe(true);
+    expect(budgetSvc.hasOwnRows("2025-06")).toBe(false);
   });
 
   it("delete_budget removes a budget", async () => {
     const catSvc = new CategoryService(db);
     const cat = catSvc.create({ name: "Snacks" });
     const budgetSvc = new BudgetService(db, new ReportService(db));
-    budgetSvc.set({
-      categoryId: cat.id,
-      month: "2025-06",
-      amount: 5000,
-      applyToFutureMonths: false,
-    });
+    budgetSvc.set({ categoryId: cat.id, month: "2025-06", amount: 5000 });
 
     await POST(initRequest());
     const res = await POST(

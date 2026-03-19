@@ -15,7 +15,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     for (let i = input.months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const status = budgetService.getForMonth({ month });
+      const { items: status } = budgetService.getForMonth({ month });
 
       const totalBudget = status.reduce((sum, b) => sum + b.budgetAmount, 0);
       const totalSpent = status.reduce((sum, b) => sum + b.spentAmount, 0);

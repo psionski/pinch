@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   SetBudgetSchema,
   GetBudgetStatusSchema,
-  CopyBudgetsSchema,
+  ResetBudgetsSchema,
   DeleteBudgetSchema,
 } from "@/lib/validators/budgets";
 import { getBudgetService } from "@/lib/api/services";
@@ -17,8 +17,9 @@ export function registerBudgetTools(server: McpServer): void {
     {
       description:
         "Set or update a monthly budget for a category. " +
-        "Set applyToFutureMonths to true to also update all existing budget rows for the same " +
-        "category in later months — does not create new rows for months without a budget yet.",
+        "If the month has no budgets yet, inherited budgets from the most recent prior month are " +
+        "automatically copied first (copy-on-write), then this budget is set. " +
+        "Re-setting a previously deleted budget un-deletes it.",
       inputSchema: SetBudgetSchema,
     },
     (input) => ok(getBudgetService().set(input))
@@ -29,7 +30,9 @@ export function registerBudgetTools(server: McpServer): void {
     {
       description:
         "Current spend vs budget for all budgeted categories in a given month. " +
-        "Only returns categories that have a budget set — categories without budgets are excluded. " +
+        "Budgets are inherited from the most recent prior month if none exist for the requested month — " +
+        "'inheritedFrom' in the response indicates the source month (null means the month has its own budgets). " +
+        "Only returns categories that have an effective budget — categories without budgets are excluded. " +
         "Returns amounts, percentages, and over/under status. Uses child category rollup for spend.",
       inputSchema: GetBudgetStatusSchema,
     },
@@ -37,20 +40,27 @@ export function registerBudgetTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "copy_budgets",
+    "reset_budgets",
     {
       description:
-        "Copy all budgets from one month to another. " +
-        "Existing budgets in the target month are updated with the source amounts.",
-      inputSchema: CopyBudgetsSchema,
+        "Reset a month's budgets back to inherited state by hard-deleting all explicit budget rows for that month. " +
+        "After a reset the month will show budgets inherited from the most recent prior month. " +
+        "Use this to undo manual budget edits for a specific month.",
+      inputSchema: ResetBudgetsSchema,
     },
-    (input) => ok({ copied: getBudgetService().copyFromPreviousMonth(input) })
+    (input) => {
+      getBudgetService().resetToInherited(input.month);
+      return ok({ success: true });
+    }
   );
 
   server.registerTool(
     "delete_budget",
     {
-      description: "Delete a budget for a specific category and month.",
+      description:
+        "Remove a budget for a specific category and month. " +
+        "If the month has no own budget rows yet, inherited budgets are copied first, then this " +
+        "category's budget is soft-deleted so future months also exclude it via inheritance.",
       inputSchema: DeleteBudgetSchema,
     },
     (input) => ok({ deleted: getBudgetService().delete(input.categoryId, input.month) })

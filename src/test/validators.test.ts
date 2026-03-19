@@ -16,7 +16,7 @@ import {
 import {
   SetBudgetSchema,
   GetBudgetStatusSchema,
-  CopyBudgetsSchema,
+  ResetBudgetsSchema,
 } from "@/lib/validators/budgets";
 import { CreateRecurringSchema, UpdateRecurringSchema } from "@/lib/validators/recurring";
 
@@ -290,12 +290,9 @@ describe("SetBudgetSchema", () => {
 
   it("parses valid budget", () => {
     const result = SetBudgetSchema.parse(valid);
-    expect(result.applyToFutureMonths).toBe(false); // default
-  });
-
-  it("accepts applyToFutureMonths = true", () => {
-    const result = SetBudgetSchema.parse({ ...valid, applyToFutureMonths: true });
-    expect(result.applyToFutureMonths).toBe(true);
+    expect(result.categoryId).toBe(1);
+    expect(result.month).toBe("2026-03");
+    expect(result.amount).toBe(50000);
   });
 
   it("rejects invalid month format", () => {
@@ -319,15 +316,14 @@ describe("GetBudgetStatusSchema", () => {
   });
 });
 
-describe("CopyBudgetsSchema", () => {
-  it("parses valid copy params", () => {
-    const result = CopyBudgetsSchema.parse({ fromMonth: "2026-02", toMonth: "2026-03" });
-    expect(result.fromMonth).toBe("2026-02");
-    expect(result.toMonth).toBe("2026-03");
+describe("ResetBudgetsSchema", () => {
+  it("parses valid month", () => {
+    const result = ResetBudgetsSchema.parse({ month: "2026-03" });
+    expect(result.month).toBe("2026-03");
   });
 
-  it("rejects invalid months", () => {
-    expect(() => CopyBudgetsSchema.parse({ fromMonth: "invalid", toMonth: "2026-03" })).toThrow();
+  it("rejects invalid month", () => {
+    expect(() => ResetBudgetsSchema.parse({ month: "invalid" })).toThrow();
   });
 });
 

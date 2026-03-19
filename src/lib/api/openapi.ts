@@ -19,7 +19,7 @@ import {
   SetBudgetSchema,
   GetBudgetStatusSchema,
   DeleteBudgetSchema,
-  CopyBudgetsSchema,
+  ResetBudgetsSchema,
   BudgetHistorySchema,
   BudgetResponseSchema,
 } from "@/lib/validators/budgets";
@@ -341,13 +341,13 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           errors: [400, 404, 500],
         }),
       },
-      "/api/budgets/copy": {
+      "/api/budgets/reset": {
         post: op({
-          id: "copyBudgets",
-          summary: "Copy all budgets from one month to another",
+          id: "resetBudgets",
+          summary: "Reset a month's budgets to inherited state by hard-deleting all explicit rows",
           tags: ["Budgets"],
-          body: CopyBudgetsSchema,
-          response: z.object({ copied: z.number().int() }),
+          body: ResetBudgetsSchema,
+          response: z.object({ success: z.boolean() }),
           errors: [400, 500],
         }),
       },

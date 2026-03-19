@@ -331,39 +331,47 @@ function budgetStats(overrides: Record<string, unknown> = {}) {
 describe("getBudgetStats", () => {
   it("includes budget amount when a budget exists for the month", () => {
     const cat = catService.create({ name: "Food" });
-    budgetService.set({
-      categoryId: cat.id,
-      month: "2026-03",
-      amount: 50000,
-      applyToFutureMonths: false,
-    });
+    budgetService.set({ categoryId: cat.id, month: "2026-03", amount: 50000 });
 
-    const result = reports.getBudgetStats(budgetStats());
-    const foodStats = result.find((s) => s.categoryId === cat.id);
+    const { items } = reports.getBudgetStats(budgetStats());
+    const foodStats = items.find((s) => s.categoryId === cat.id);
     expect(foodStats?.budgetAmount).toBe(50000);
   });
 
   it("returns null budgetAmount when no budget is set", () => {
     catService.create({ name: "Food" });
 
-    const result = reports.getBudgetStats(budgetStats());
-    expect(result[0].budgetAmount).toBeNull();
+    const { items } = reports.getBudgetStats(budgetStats());
+    expect(items[0].budgetAmount).toBeNull();
   });
 
   it("includes spending stats from getCategoryStats", () => {
     const cat = catService.create({ name: "Food" });
     txService.create(tx({ categoryId: cat.id, amount: 500, date: "2026-03-01" }));
-    budgetService.set({
-      categoryId: cat.id,
-      month: "2026-03",
-      amount: 10000,
-      applyToFutureMonths: false,
-    });
+    budgetService.set({ categoryId: cat.id, month: "2026-03", amount: 10000 });
 
-    const result = reports.getBudgetStats(budgetStats());
-    const foodStats = result.find((s) => s.categoryId === cat.id);
+    const { items } = reports.getBudgetStats(budgetStats());
+    const foodStats = items.find((s) => s.categoryId === cat.id);
     expect(foodStats?.total).toBe(500);
     expect(foodStats?.budgetAmount).toBe(10000);
+  });
+
+  it("returns inheritedFrom null when month has own budget rows", () => {
+    const cat = catService.create({ name: "Food" });
+    budgetService.set({ categoryId: cat.id, month: "2026-03", amount: 50000 });
+
+    const { inheritedFrom } = reports.getBudgetStats(budgetStats());
+    expect(inheritedFrom).toBeNull();
+  });
+
+  it("returns inherited budget from prior month when no own rows exist", () => {
+    const cat = catService.create({ name: "Food" });
+    budgetService.set({ categoryId: cat.id, month: "2026-02", amount: 50000 });
+
+    const { items, inheritedFrom } = reports.getBudgetStats(budgetStats({ month: "2026-03" }));
+    expect(inheritedFrom).toBe("2026-02");
+    const foodStats = items.find((s) => s.categoryId === cat.id);
+    expect(foodStats?.budgetAmount).toBe(50000);
   });
 });
 

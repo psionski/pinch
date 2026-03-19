@@ -43,7 +43,7 @@ export function CategoriesClient({
         fetch(`/api/reports/budget-stats?month=${getCurrentMonth()}`),
       ]);
       if (catRes.ok) setCategories((await catRes.json()) as CategoryWithCountResponse[]);
-      if (statsRes.ok) setStats((await statsRes.json()) as BudgetStatsItem[]);
+      if (statsRes.ok) setStats(((await statsRes.json()) as { items: BudgetStatsItem[] }).items);
     } finally {
       setLoading(false);
     }
