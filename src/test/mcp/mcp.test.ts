@@ -293,11 +293,11 @@ describe("MCP /api/mcp route", () => {
     const res = await POST(toolCallRequest("get_db_schema", {}));
     expect(res.status).toBe(200);
     const result = await parseResult(res);
-    const tables = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      name: string;
-      sql: string;
-    }[];
-    const names = tables.map((t) => t.name);
+    const parsed = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
+      tables: { name: string; sql: string }[];
+      conventions: string;
+    };
+    const names = parsed.tables.map((t) => t.name);
     expect(names).toContain("transactions");
     expect(names).toContain("categories");
   });

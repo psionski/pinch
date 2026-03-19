@@ -38,9 +38,10 @@ export function registerQueryTool(server: McpServer): void {
       const client = (getDb() as unknown as { $client: InstanceType<typeof Database> }).$client;
       const rows = client
         .prepare(
-          "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+          "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE '%\\_fts\\_%' ESCAPE '\\' ORDER BY name"
         )
         .all() as { name: string; sql: string }[];
+
       return ok({ tables: rows, conventions: DB_CONVENTIONS });
     }
   );
