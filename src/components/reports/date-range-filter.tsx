@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MonthPicker } from "@/components/ui/month-picker";
 import {
   DEFAULT_PRESET,
   PRESET_LABELS,
@@ -62,24 +62,20 @@ export function DateRangeFilter({ onChange }: DateRangeFilterProps): React.React
       {activePreset === "custom" && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">From:</span>
-          <Input
-            type="month"
+          <MonthPicker
             value={customFrom}
-            onChange={(e) => {
-              setCustomFrom(e.target.value);
-              handleCustomChange(e.target.value, customTo);
+            onChange={(v) => {
+              setCustomFrom(v);
+              handleCustomChange(v, customTo);
             }}
-            className="h-8 w-[150px]"
           />
           <span className="text-muted-foreground">to</span>
-          <Input
-            type="month"
+          <MonthPicker
             value={customTo}
-            onChange={(e) => {
-              setCustomTo(e.target.value);
-              handleCustomChange(customFrom, e.target.value);
+            onChange={(v) => {
+              setCustomTo(v);
+              handleCustomChange(customFrom, v);
             }}
-            className="h-8 w-[150px]"
           />
         </div>
       )}
