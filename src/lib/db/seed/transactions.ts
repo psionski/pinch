@@ -22,6 +22,7 @@ export interface TxInput {
   categoryId: number;
   date: string;
   tags: string[];
+  recurringId?: number;
 }
 
 export function generateMonth(
@@ -29,10 +30,13 @@ export function generateMonth(
   month: number,
   endDay: number,
   catIds: Record<string, number>,
-  startBalance: number
+  startBalance: number,
+  recurringIds?: Record<string, number>
 ): { txs: TxInput[]; balance: number } {
   const txs: TxInput[] = [];
   let bal = startBalance;
+
+  const recId = (desc: string): number | undefined => recurringIds?.[desc];
 
   const tryAdd = (tx: TxInput): void => {
     if (tx.type === "expense" && bal < tx.amount) return; // never go negative
@@ -58,6 +62,7 @@ export function generateMonth(
         categoryId: catIds.Rent,
         date,
         tags: ["housing", "rent"],
+        recurringId: recId("Monthly rent"),
       });
       tryAdd({
         amount: 1599,
@@ -67,6 +72,7 @@ export function generateMonth(
         categoryId: catIds.Subscriptions,
         date,
         tags: ["subscription", "streaming"],
+        recurringId: recId("Netflix Standard"),
       });
       tryAdd({
         amount: 899,
@@ -76,6 +82,7 @@ export function generateMonth(
         categoryId: catIds.Subscriptions,
         date,
         tags: ["subscription"],
+        recurringId: recId("Amazon Prime"),
       });
     }
 
@@ -88,6 +95,7 @@ export function generateMonth(
         categoryId: catIds.Subscriptions,
         date,
         tags: ["subscription", "music"],
+        recurringId: recId("Spotify Premium"),
       });
     }
 
@@ -100,6 +108,7 @@ export function generateMonth(
         categoryId: catIds.Subscriptions,
         date,
         tags: ["subscription"],
+        recurringId: recId("iCloud+ 50GB"),
       });
     }
 
@@ -112,6 +121,7 @@ export function generateMonth(
         categoryId: catIds.Utilities,
         date,
         tags: ["bills", "internet"],
+        recurringId: recId("Internet bill"),
       });
     }
 
@@ -136,6 +146,7 @@ export function generateMonth(
         categoryId: catIds.Income,
         date,
         tags: ["salary"],
+        recurringId: recId("Monthly salary"),
       });
     }
 
