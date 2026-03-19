@@ -39,6 +39,7 @@ export function ReportsClient({
   const [data, setData] = useState<ReportsData>(initialData);
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState<ComputedRange>(computeCompareRange(initialDateRange));
+  const isLongRange = range.months >= 3;
 
   const fetchAll = useCallback(async (r: ComputedRange): Promise<void> => {
     setLoading(true);
@@ -113,23 +114,30 @@ export function ReportsClient({
 
       <div className={loading ? "pointer-events-none opacity-60" : ""}>
         <div className="space-y-6">
-          {/* Income vs Expenses */}
+          {/* Income vs Expenses — always show KPIs, chart only for 3+ months */}
           <IncomeExpensesCard
             balance={data.balance}
             incomeTrend={data.incomeTrend}
             expenseTrend={data.expenseTrend}
+            showChart={isLongRange}
           />
 
-          {/* Savings Rate + Spending Trends side by side */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <SavingsRateChart incomeTrend={data.incomeTrend} expenseTrend={data.expenseTrend} />
-            <TrendsChart data={data.spendingTrend} categories={categories} months={range.months} />
-          </div>
+          {/* Trend charts — only for 3+ months */}
+          {isLongRange && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <SavingsRateChart incomeTrend={data.incomeTrend} expenseTrend={data.expenseTrend} />
+              <TrendsChart
+                data={data.spendingTrend}
+                categories={categories}
+                months={range.months}
+              />
+            </div>
+          )}
 
-          {/* Category Changes */}
-          <CategoryChangesCard groups={data.summary.groups} />
+          {/* Category Changes — only for 1-2 months */}
+          {!isLongRange && <CategoryChangesCard groups={data.summary.groups} />}
 
-          {/* Merchant Table */}
+          {/* Merchant Table — always */}
           <MerchantTable data={data.topMerchants} />
         </div>
       </div>

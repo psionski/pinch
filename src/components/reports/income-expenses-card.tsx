@@ -21,6 +21,7 @@ interface IncomeExpensesCardProps {
   balance: NetBalanceResult;
   incomeTrend: TrendPoint[];
   expenseTrend: TrendPoint[];
+  showChart?: boolean;
 }
 
 interface MergedPoint {
@@ -33,6 +34,7 @@ export function IncomeExpensesCard({
   balance,
   incomeTrend,
   expenseTrend,
+  showChart = true,
 }: IncomeExpensesCardProps): React.ReactElement {
   const chartData = useMemo((): MergedPoint[] => {
     const map = new Map<string, MergedPoint>();
@@ -84,7 +86,7 @@ export function IncomeExpensesCard({
         </div>
 
         {/* Dual area chart */}
-        {chartData.length > 0 ? (
+        {showChart && chartData.length > 0 ? (
           <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
             <AreaChart data={chartData} accessibilityLayer>
               <CartesianGrid vertical={false} />
@@ -128,11 +130,11 @@ export function IncomeExpensesCard({
               />
             </AreaChart>
           </ChartContainer>
-        ) : (
+        ) : showChart ? (
           <p className="text-muted-foreground py-10 text-center text-sm">
             No data for this period.
           </p>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
