@@ -216,6 +216,30 @@ describe("list — categoryId filter", () => {
     expect(result.total).toBe(1);
     expect(result.data[0].description).toBe("Bus");
   });
+
+  it("includes child category transactions when filtering by parent", () => {
+    const [parent] = db.insert(categories).values({ name: "Food" }).returning().all();
+    const [child] = db
+      .insert(categories)
+      .values({ name: "Groceries", parentId: parent.id })
+      .returning()
+      .all();
+    const [grandchild] = db
+      .insert(categories)
+      .values({ name: "Organic", parentId: child.id })
+      .returning()
+      .all();
+
+    service.create(tx({ description: "Parent tx", categoryId: parent.id }));
+    service.create(tx({ description: "Child tx", categoryId: child.id }));
+    service.create(tx({ description: "Grandchild tx", categoryId: grandchild.id }));
+    service.create(tx({ description: "Unrelated" }));
+
+    const result = service.list(listInput({ categoryId: parent.id }));
+    expect(result.total).toBe(3);
+    const descs = result.data.map((r) => r.description).sort();
+    expect(descs).toEqual(["Child tx", "Grandchild tx", "Parent tx"]);
+  });
 });
 
 // ─── list — FTS search ────────────────────────────────────────────────────────

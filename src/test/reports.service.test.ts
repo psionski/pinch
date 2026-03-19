@@ -411,6 +411,21 @@ describe("trends", () => {
     expect(march?.total).toBe(500);
   });
 
+  it("filters by type when provided", () => {
+    txService.create(tx({ amount: 500, type: "expense", date: "2026-03-01" }));
+    txService.create(
+      tx({ amount: 3000, type: "income", date: "2026-03-15", description: "Salary" })
+    );
+
+    const expenses = reports.trends(TrendsSchema.parse({ months: 3, type: "expense" }));
+    const march = expenses.find((r) => r.month === "2026-03");
+    expect(march?.total).toBe(500);
+
+    const income = reports.trends(TrendsSchema.parse({ months: 3, type: "income" }));
+    const marchIncome = income.find((r) => r.month === "2026-03");
+    expect(marchIncome?.total).toBe(3000);
+  });
+
   it("months are returned in ascending order", () => {
     const result = reports.trends(TrendsSchema.parse({ months: 4 }));
     const months = result.map((r) => r.month);

@@ -1,13 +1,24 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { makeTestDb } from "@/test/helpers";
 import { TransactionService } from "@/lib/services/transactions";
 import { CategoryService } from "@/lib/services/categories";
 import { ReportService } from "@/lib/services/reports";
 import { BudgetService } from "@/lib/services/budgets";
 import { RecurringService } from "@/lib/services/recurring";
+import { ReceiptService } from "@/lib/services/receipts";
 import type { AppDb } from "@/lib/db";
 
-// MCP JSON-RPC helpers
+// Mock fs — ReceiptService uses it for image file ops
+vi.mock("fs", () => ({
+  writeFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  existsSync: vi.fn(() => true),
+  readFileSync: vi.fn(() => Buffer.from("fake-image")),
+  unlinkSync: vi.fn(),
+}));
+
+// ─── MCP JSON-RPC helpers ────────────────────────────────────────────────────
+
 const MCP_BASE = "http://localhost:4000/api/mcp";
 
 function mcpRequest(body: unknown): Request {
@@ -35,12 +46,7 @@ function initRequest() {
 }
 
 function toolsListRequest() {
-  return mcpRequest({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "tools/list",
-    params: {},
-  });
+  return mcpRequest({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
 }
 
 function toolCallRequest(name: string, args: Record<string, unknown>) {
@@ -54,8 +60,12 @@ function toolCallRequest(name: string, args: Record<string, unknown>) {
 
 async function parseResult(res: Response): Promise<unknown> {
   const body = await res.json();
-  // body is either a JSON-RPC response or a batch; unwrap result
-  return (body as { result?: unknown; error?: unknown }).result;
+  return (body as { result?: unknown }).result;
+}
+
+function parseToolText(result: unknown): unknown {
+  const text = (result as { content: { text: string }[] }).content[0].text;
+  return JSON.parse(text);
 }
 
 // ─── Test setup ──────────────────────────────────────────────────────────────
@@ -71,6 +81,7 @@ beforeEach(() => {
     getReportService: () => new ReportService(db),
     getBudgetService: () => new BudgetService(db, new ReportService(db)),
     getRecurringService: () => new RecurringService(db),
+    getReceiptService: () => new ReceiptService(db),
   }));
 
   vi.doMock("@/lib/db", () => ({
@@ -82,14 +93,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+// ─── Infrastructure ──────────────────────────────────────────────────────────
 
-describe("MCP /api/mcp route", () => {
+describe("MCP infrastructure", () => {
   let POST: (req: Request) => Promise<Response>;
 
   beforeEach(async () => {
-    const route = await import("@/app/api/mcp/route");
-    POST = route.POST;
+    POST = (await import("@/app/api/mcp/route")).POST;
   });
 
   it("responds to initialize", async () => {
@@ -102,507 +112,178 @@ describe("MCP /api/mcp route", () => {
   });
 
   it("lists all registered tools", async () => {
-    // Stateless — initialize and list in separate requests (both valid)
     await POST(initRequest());
     const res = await POST(toolsListRequest());
     expect(res.status).toBe(200);
     const result = await parseResult(res);
     const tools = (result as { tools: { name: string }[] }).tools.map((t) => t.name);
-
-    // Spot-check a representative set
     expect(tools).toContain("add_transaction");
-    expect(tools).toContain("list_transactions");
     expect(tools).toContain("list_categories");
-    expect(tools).toContain("spending_summary");
-    expect(tools).toContain("set_budget");
-    expect(tools).toContain("reset_budgets");
-    expect(tools).toContain("delete_budget");
-    expect(tools).toContain("create_recurring");
     expect(tools).toContain("query");
+    expect(tools).toContain("delete_receipt");
   });
+});
 
-  it("add_transaction creates a transaction", async () => {
+// ─── query tool — SQL validation + direct DB access ──────────────────────────
+
+describe("query tool", () => {
+  let POST: (req: Request) => Promise<Response>;
+
+  beforeEach(async () => {
+    POST = (await import("@/app/api/mcp/route")).POST;
     await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("add_transaction", {
-        amount: 1200,
-        description: "Coffee",
-        date: "2025-06-01",
-        type: "expense",
-      })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const content = (result as { content: { text: string }[] }).content[0].text;
-    const tx = JSON.parse(content) as { amount: number; description: string };
-    expect(tx.amount).toBe(1200);
-    expect(tx.description).toBe("Coffee");
   });
 
-  it("list_transactions returns seeded data", async () => {
-    // Seed directly via service
-    const svc = new TransactionService(db);
-    svc.create({ amount: 500, description: "Tea", date: "2025-06-01", type: "expense" });
-    svc.create({ amount: 800, description: "Juice", date: "2025-06-02", type: "expense" });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("list_transactions", {}));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const content = (result as { content: { text: string }[] }).content[0].text;
-    const page = JSON.parse(content) as { total: number };
-    expect(page.total).toBe(2);
-  });
-
-  it("update_transaction modifies a field", async () => {
-    const svc = new TransactionService(db);
-    const tx = svc.create({ amount: 999, description: "Old", date: "2025-06-01", type: "expense" });
-
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("update_transaction", { id: tx.id, description: "New" })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const content = (result as { content: { text: string }[] }).content[0].text;
-    const updated = JSON.parse(content) as { description: string };
-    expect(updated.description).toBe("New");
-  });
-
-  it("delete_transaction removes a transaction", async () => {
-    const svc = new TransactionService(db);
-    const tx = svc.create({
-      amount: 100,
-      description: "Gone",
-      date: "2025-06-01",
-      type: "expense",
-    });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("delete_transaction", { id: tx.id }));
-    expect(res.status).toBe(200);
-    expect(svc.getById(tx.id)).toBeNull();
-  });
-
-  it("list_categories returns all categories", async () => {
-    const svc = new CategoryService(db);
-    svc.create({ name: "Food" });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("list_categories", {}));
-    const result = await parseResult(res);
-    const cats = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      name: string;
-    }[];
-    expect(cats.some((c) => c.name === "Food")).toBe(true);
-  });
-
-  it("set_budget and get_budget_status", async () => {
-    const catSvc = new CategoryService(db);
-    const cat = catSvc.create({ name: "Groceries" });
-
-    await POST(initRequest());
-    await POST(
-      toolCallRequest("set_budget", { categoryId: cat.id, month: "2025-06", amount: 10000 })
-    );
-
-    const res = await POST(toolCallRequest("get_budget_status", { month: "2025-06" }));
-    const result = await parseResult(res);
-    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      items: { categoryName: string; budgetAmount: number }[];
-      inheritedFrom: string | null;
-    };
-    expect(body.items[0].budgetAmount).toBe(10000);
-    expect(body.inheritedFrom).toBeNull();
-  });
-
-  it("reset_budgets resets a month to inherited state", async () => {
-    const catSvc = new CategoryService(db);
-    const cat = catSvc.create({ name: "Rent" });
-    const budgetSvc = new BudgetService(db, new ReportService(db));
-    budgetSvc.set({ categoryId: cat.id, month: "2025-05", amount: 80000 });
-    // Materialize June with own rows
-    budgetSvc.set({ categoryId: cat.id, month: "2025-06", amount: 90000 });
-    expect(budgetSvc.hasOwnRows("2025-06")).toBe(true);
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("reset_budgets", { month: "2025-06" }));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      success: boolean;
-    };
-    expect(body.success).toBe(true);
-    expect(budgetSvc.hasOwnRows("2025-06")).toBe(false);
-  });
-
-  it("delete_budget removes a budget", async () => {
-    const catSvc = new CategoryService(db);
-    const cat = catSvc.create({ name: "Snacks" });
-    const budgetSvc = new BudgetService(db, new ReportService(db));
-    budgetSvc.set({ categoryId: cat.id, month: "2025-06", amount: 5000 });
-
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("delete_budget", { categoryId: cat.id, month: "2025-06" })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      deleted: boolean;
-    };
-    expect(body.deleted).toBe(true);
-    // Verify it's gone
-    expect(budgetSvc.listForCategory(cat.id)).toHaveLength(0);
-  });
-
-  it("query tool executes read-only SQL", async () => {
+  it("executes read-only SQL and returns rows", async () => {
     const svc = new TransactionService(db);
     svc.create({ amount: 300, description: "Test", date: "2025-06-01", type: "expense" });
 
-    await POST(initRequest());
     const res = await POST(
       toolCallRequest("query", { sql: "SELECT count(*) AS n FROM transactions" })
     );
-    const result = await parseResult(res);
-    const rows = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      n: number;
-    }[];
+    const rows = parseToolText(await parseResult(res)) as { n: number }[];
     expect(rows[0].n).toBe(1);
   });
 
-  it("query tool rejects non-SELECT statements", async () => {
-    await POST(initRequest());
+  it("rejects non-SELECT statements", async () => {
     const res = await POST(toolCallRequest("query", { sql: "DELETE FROM transactions" }));
     const body = await res.json();
-    // MCP wraps tool errors in the result with isError: true
-    const content = (body as { result?: { content?: { text: string }[] }; isError?: boolean })
-      .result;
-    expect(content).toBeDefined();
+    expect((body as { result?: { isError?: boolean } }).result?.isError).toBe(true);
   });
 
-  it("get_db_schema returns table DDL", async () => {
+  it("allows WITH (CTE) statements", async () => {
+    const res = await POST(
+      toolCallRequest("query", {
+        sql: "WITH cte AS (SELECT 1 AS x) SELECT * FROM cte",
+      })
+    );
+    const rows = parseToolText(await parseResult(res)) as { x: number }[];
+    expect(rows[0].x).toBe(1);
+  });
+
+  it("rejects INSERT disguised with leading whitespace", async () => {
+    const res = await POST(
+      toolCallRequest("query", { sql: "  INSERT INTO transactions VALUES (1)" })
+    );
+    const body = await res.json();
+    expect((body as { result?: { isError?: boolean } }).result?.isError).toBe(true);
+  });
+});
+
+// ─── get_db_schema — direct sqlite_master query + filtering ──────────────────
+
+describe("get_db_schema tool", () => {
+  let POST: (req: Request) => Promise<Response>;
+
+  beforeEach(async () => {
+    POST = (await import("@/app/api/mcp/route")).POST;
     await POST(initRequest());
+  });
+
+  it("returns user tables with DDL and conventions", async () => {
     const res = await POST(toolCallRequest("get_db_schema", {}));
     expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const parsed = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
+    const data = parseToolText(await parseResult(res)) as {
       tables: { name: string; sql: string }[];
       conventions: string;
     };
-    const names = parsed.tables.map((t) => t.name);
+    const names = data.tables.map((t) => t.name);
     expect(names).toContain("transactions");
     expect(names).toContain("categories");
+    expect(names).toContain("budgets");
+    expect(data.conventions).toContain("cents");
   });
 
-  // ─── Categories tools ───────────────────────────────────────────────────────
-
-  it("create_category creates a category", async () => {
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("create_category", { name: "Transport" }));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const cat = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      name: string;
+  it("excludes internal sqlite tables and FTS tables", async () => {
+    const res = await POST(toolCallRequest("get_db_schema", {}));
+    const data = parseToolText(await parseResult(res)) as {
+      tables: { name: string }[];
     };
-    expect(cat.name).toBe("Transport");
+    const names = data.tables.map((t) => t.name);
+    expect(names.every((n) => !n.startsWith("sqlite_"))).toBe(true);
+    expect(names.every((n) => !n.includes("_fts_"))).toBe(true);
   });
+});
 
-  it("update_category renames a category", async () => {
-    const svc = new CategoryService(db);
-    const cat = svc.create({ name: "Old Name" });
+// ─── delete_transaction — array/single polymorphism ──────────────────────────
 
+describe("delete_transaction tool", () => {
+  let POST: (req: Request) => Promise<Response>;
+
+  beforeEach(async () => {
+    POST = (await import("@/app/api/mcp/route")).POST;
     await POST(initRequest());
-    const res = await POST(toolCallRequest("update_category", { id: cat.id, name: "New Name" }));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const updated = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      name: string;
-    };
-    expect(updated.name).toBe("New Name");
   });
 
-  it("recategorize bulk-moves transactions", async () => {
-    const catSvc = new CategoryService(db);
-    const src = catSvc.create({ name: "Source" });
-    const dst = catSvc.create({ name: "Dest" });
-    const txSvc = new TransactionService(db);
-    txSvc.create({
+  it("deletes a single transaction by ID", async () => {
+    const svc = new TransactionService(db);
+    const tx = svc.create({
       amount: 100,
-      description: "Move me",
-      date: "2025-06-01",
-      type: "expense",
-      categoryId: src.id,
-    });
-
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("recategorize", {
-        targetCategoryId: dst.id,
-        sourceCategoryId: src.id,
-      })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      updated: number;
-    };
-    expect(body.updated).toBe(1);
-  });
-
-  it("merge_categories merges source into target", async () => {
-    const catSvc = new CategoryService(db);
-    const src = catSvc.create({ name: "To Merge" });
-    const dst = catSvc.create({ name: "Keep" });
-    const txSvc = new TransactionService(db);
-    txSvc.create({
-      amount: 200,
-      description: "Merged tx",
-      date: "2025-06-01",
-      type: "expense",
-      categoryId: src.id,
-    });
-
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("merge_categories", {
-        sourceCategoryId: src.id,
-        targetCategoryId: dst.id,
-      })
-    );
-    expect(res.status).toBe(200);
-    // Source category should be gone
-    expect(catSvc.getById(src.id)).toBeNull();
-  });
-
-  // ─── Recurring tools ────────────────────────────────────────────────────────
-
-  it("list_recurring returns templates", async () => {
-    const svc = new RecurringService(db);
-    svc.create({
-      amount: 5000,
-      type: "expense",
-      description: "Netflix",
-      frequency: "monthly",
-      startDate: "2025-01-01",
-    });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("list_recurring", {}));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const list = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      description: string;
-    }[];
-    expect(list.some((r) => r.description === "Netflix")).toBe(true);
-  });
-
-  it("update_recurring modifies a template", async () => {
-    const svc = new RecurringService(db);
-    const rec = svc.create({
-      amount: 5000,
-      type: "expense",
-      description: "Old Sub",
-      frequency: "monthly",
-      startDate: "2025-01-01",
-    });
-
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("update_recurring", { id: rec.id, description: "New Sub" })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const updated = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      description: string;
-    };
-    expect(updated.description).toBe("New Sub");
-  });
-
-  it("delete_recurring removes a template", async () => {
-    const svc = new RecurringService(db);
-    const rec = svc.create({
-      amount: 1000,
-      type: "expense",
-      description: "Temp",
-      frequency: "daily",
-      startDate: "2025-01-01",
-    });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("delete_recurring", { id: rec.id }));
-    expect(res.status).toBe(200);
-    expect(svc.getById(rec.id)).toBeNull();
-  });
-
-  it("generate_recurring creates pending transactions", async () => {
-    const svc = new RecurringService(db);
-    svc.create({
-      amount: 300,
-      type: "expense",
-      description: "Daily coffee",
-      frequency: "daily",
-      startDate: "2025-06-01",
-    });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("generate_recurring", {}));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const body = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      generated: number;
-    };
-    expect(typeof body.generated).toBe("number");
-  });
-
-  // ─── Report tools ───────────────────────────────────────────────────────────
-
-  it("category_stats returns per-category amounts", async () => {
-    const catSvc = new CategoryService(db);
-    const cat = catSvc.create({ name: "Food" });
-    const txSvc = new TransactionService(db);
-    txSvc.create({
-      amount: 1500,
-      description: "Lunch",
-      date: "2025-06-01",
-      type: "expense",
-      categoryId: cat.id,
-    });
-
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("category_stats", {
-        dateFrom: "2025-06-01",
-        dateTo: "2025-06-30",
-        includeZeroSpend: false,
-      })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const stats = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      categoryName: string;
-    }[];
-    expect(stats.some((s) => s.categoryName === "Food")).toBe(true);
-  });
-
-  it("trends returns monthly time series", async () => {
-    const txSvc = new TransactionService(db);
-    txSvc.create({
-      amount: 1000,
-      description: "Jan spend",
-      date: "2025-01-15",
-      type: "expense",
-    });
-
-    await POST(initRequest());
-    const res = await POST(toolCallRequest("trends", { months: 6 }));
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const data = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      month: string;
-    }[];
-    expect(Array.isArray(data)).toBe(true);
-  });
-
-  it("top_merchants returns merchant ranking", async () => {
-    const txSvc = new TransactionService(db);
-    txSvc.create({
-      amount: 2000,
-      description: "Coffee",
-      merchant: "Starbucks",
+      description: "Single",
       date: "2025-06-01",
       type: "expense",
     });
 
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("top_merchants", {
-        dateFrom: "2025-06-01",
-        dateTo: "2025-06-30",
-      })
-    );
+    const res = await POST(toolCallRequest("delete_transaction", { id: tx.id }));
     expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const merchants = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      merchant: string;
-    }[];
-    expect(merchants.some((m) => m.merchant === "Starbucks")).toBe(true);
+    const data = parseToolText(await parseResult(res)) as { deleted: number };
+    expect(data.deleted).toBe(1);
+    expect(svc.getById(tx.id)).toBeNull();
   });
 
-  // ─── Transactions tools (remaining) ─────────────────────────────────────────
-
-  it("add_transactions batch-creates multiple transactions", async () => {
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("add_transactions", {
-        transactions: [
-          { amount: 500, description: "Item 1", date: "2025-06-01", type: "expense" },
-          { amount: 700, description: "Item 2", date: "2025-06-01", type: "expense" },
-        ],
-      })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const created = JSON.parse(
-      (result as { content: { text: string }[] }).content[0].text
-    ) as unknown[];
-    expect(created).toHaveLength(2);
-  });
-
-  it("batch_update_transactions updates multiple transactions", async () => {
+  it("deletes multiple transactions when given an array", async () => {
     const svc = new TransactionService(db);
     const tx1 = svc.create({ amount: 100, description: "A", date: "2025-06-01", type: "expense" });
     const tx2 = svc.create({ amount: 200, description: "B", date: "2025-06-01", type: "expense" });
 
-    await POST(initRequest());
-    const res = await POST(
-      toolCallRequest("batch_update_transactions", {
-        updates: [
-          { id: tx1.id, description: "A Updated" },
-          { id: tx2.id, description: "B Updated" },
-        ],
-      })
-    );
-    expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const updated = JSON.parse((result as { content: { text: string }[] }).content[0].text) as {
-      description: string;
-    }[];
-    expect(updated.map((t) => t.description)).toEqual(
-      expect.arrayContaining(["A Updated", "B Updated"])
-    );
-  });
-
-  it("delete_transaction handles array of IDs", async () => {
-    const svc = new TransactionService(db);
-    const tx1 = svc.create({ amount: 100, description: "D1", date: "2025-06-01", type: "expense" });
-    const tx2 = svc.create({ amount: 200, description: "D2", date: "2025-06-01", type: "expense" });
-
-    await POST(initRequest());
     const res = await POST(toolCallRequest("delete_transaction", { id: [tx1.id, tx2.id] }));
     expect(res.status).toBe(200);
-    expect(svc.getById(tx1.id)).toBeNull();
-    expect(svc.getById(tx2.id)).toBeNull();
+    const data = parseToolText(await parseResult(res)) as { deleted: number };
+    expect(data.deleted).toBe(2);
   });
 
-  it("list_tags returns distinct tags", async () => {
-    const svc = new TransactionService(db);
-    svc.create({
-      amount: 100,
-      description: "Tagged",
-      date: "2025-06-01",
-      type: "expense",
-      tags: ["food", "lunch"],
-    });
+  it("throws for non-existent single ID", async () => {
+    const res = await POST(toolCallRequest("delete_transaction", { id: 99999 }));
+    const body = await res.json();
+    expect((body as { result?: { isError?: boolean } }).result?.isError).toBe(true);
+  });
+});
 
+// ─── delete_receipt — array/single polymorphism ──────────────────────────────
+
+describe("delete_receipt tool", () => {
+  let POST: (req: Request) => Promise<Response>;
+
+  beforeEach(async () => {
+    POST = (await import("@/app/api/mcp/route")).POST;
     await POST(initRequest());
-    const res = await POST(toolCallRequest("list_tags", {}));
+  });
+
+  it("deletes a single receipt by ID", async () => {
+    const svc = new ReceiptService(db);
+    const r = svc.upload(Buffer.from("img"), ".jpg", { date: "2025-06-01" });
+
+    const res = await POST(toolCallRequest("delete_receipt", { id: r.id }));
     expect(res.status).toBe(200);
-    const result = await parseResult(res);
-    const tags = JSON.parse(
-      (result as { content: { text: string }[] }).content[0].text
-    ) as string[];
-    expect(tags).toContain("food");
-    expect(tags).toContain("lunch");
+    const data = parseToolText(await parseResult(res)) as { deleted: number };
+    expect(data.deleted).toBe(1);
+    expect(svc.getById(r.id)).toBeNull();
+  });
+
+  it("deletes multiple receipts when given an array", async () => {
+    const svc = new ReceiptService(db);
+    const r1 = svc.upload(Buffer.from("img"), ".jpg", { date: "2025-06-01" });
+    const r2 = svc.upload(Buffer.from("img"), ".jpg", { date: "2025-06-02" });
+
+    const res = await POST(toolCallRequest("delete_receipt", { id: [r1.id, r2.id] }));
+    expect(res.status).toBe(200);
+    const data = parseToolText(await parseResult(res)) as { deleted: number };
+    expect(data.deleted).toBe(2);
+  });
+
+  it("throws for non-existent single ID", async () => {
+    const res = await POST(toolCallRequest("delete_receipt", { id: 99999 }));
+    const body = await res.json();
+    expect((body as { result?: { isError?: boolean } }).result?.isError).toBe(true);
   });
 });

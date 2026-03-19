@@ -52,7 +52,8 @@ describe("upload", () => {
   });
 
   it("uses today's date when none is provided", () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const result = service.upload(Buffer.from("img"), ".jpg", {});
     expect(result.date).toBe(today);
   });
@@ -204,6 +205,77 @@ describe("list", () => {
     const result = service.list({ limit: 50, offset: 0, dateFrom: "2026-03-01", merchant: "Lidl" });
     expect(result.total).toBe(1);
     expect(result.data[0].date).toBe("2026-03-10");
+  });
+});
+
+// ─── createMetadataOnly ──────────────────────────────────────────────────────
+
+describe("createMetadataOnly", () => {
+  it("creates a receipt without an image", () => {
+    const result = service.createMetadataOnly({
+      date: "2026-03-01",
+      merchant: "Lidl",
+      total: 2500,
+    });
+    expect(result.id).toBeGreaterThan(0);
+    expect(result.date).toBe("2026-03-01");
+    expect(result.merchant).toBe("Lidl");
+    expect(result.total).toBe(2500);
+    expect(result.imageUrl).toBeNull();
+  });
+
+  it("uses today's date when none provided", () => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const result = service.createMetadataOnly({});
+    expect(result.date).toBe(today);
+  });
+
+  it("stores rawText when provided", () => {
+    const result = service.createMetadataOnly({
+      date: "2026-03-01",
+      rawText: "receipt line items",
+    });
+    expect(result.rawText).toBe("receipt line items");
+  });
+
+  it("is retrievable via getById", () => {
+    const created = service.createMetadataOnly({ date: "2026-03-01" });
+    const found = service.getById(created.id);
+    expect(found).not.toBeNull();
+    expect(found?.id).toBe(created.id);
+  });
+});
+
+// ─── getImage ────────────────────────────────────────────────────────────────
+
+describe("getImage", () => {
+  it("returns buffer and content type for a receipt with an image", () => {
+    const created = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
+    const result = service.getImage(created.id);
+    expect(result).not.toBeNull();
+    expect(result?.buffer).toBeInstanceOf(Buffer);
+    expect(result?.contentType).toBe("image/jpeg");
+  });
+
+  it("returns null for a receipt with no image (metadata-only)", () => {
+    const created = service.createMetadataOnly({ date: "2026-03-01" });
+    const result = service.getImage(created.id);
+    expect(result).toBeNull();
+  });
+
+  it("returns null for a non-existent receipt", () => {
+    expect(service.getImage(99999)).toBeNull();
+  });
+
+  it("returns null when image file is missing on disk", async () => {
+    const { existsSync } = await import("fs");
+    const created = service.upload(Buffer.from("img"), ".png", { date: "2026-03-01" });
+
+    // Simulate file missing on disk
+    vi.mocked(existsSync).mockReturnValueOnce(false);
+    const result = service.getImage(created.id);
+    expect(result).toBeNull();
   });
 });
 

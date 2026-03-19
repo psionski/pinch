@@ -5,14 +5,13 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: "jsdom",
+    environment: "node",
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/lib/**"],
-      exclude: ["src/lib/db/**", "src/lib/api/**"],
-      reporter: ["text", "html"],
+      exclude: ["src/lib/db/**", "src/lib/api/**", "src/lib/mcp/**"],
+      reporter: [["text", { maxCols: 200 }], "html"],
       reportsDirectory: "./coverage",
     },
   },

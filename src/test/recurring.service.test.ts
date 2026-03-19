@@ -103,6 +103,17 @@ describe("computeNextOccurrence", () => {
     const r = makeRow({ startDate: "2026-06-15", frequency: "yearly" });
     expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBe("2026-06-15");
   });
+
+  it("returns null for unknown frequency", () => {
+    const r = makeRow({ frequency: "biweekly" as "monthly" });
+    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBeNull();
+  });
+
+  it("monthly: handles cursor before startDate", () => {
+    const r = makeRow({ startDate: "2026-06-15", frequency: "monthly" });
+    // cursor is before startDate — first occurrence should be the startDate itself
+    expect(computeNextOccurrence(r, new Date("2026-01-01"))).toBe("2026-06-15");
+  });
 });
 
 // ─── create ───────────────────────────────────────────────────────────────────
