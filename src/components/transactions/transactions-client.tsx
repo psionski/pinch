@@ -15,6 +15,7 @@ import { RecategorizeDialog } from "./recategorize-dialog";
 import { PaginationControls } from "./pagination-controls";
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog";
 import { ReceiptUploadDialog } from "@/components/receipts/receipt-upload-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useTransactionMutations } from "./use-transaction-mutations";
 import type {
   TransactionResponse,
@@ -94,6 +95,7 @@ export function TransactionsClient({
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionResponse | null>(null);
   const [showRecategorize, setShowRecategorize] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [viewingReceiptId, setViewingReceiptId] = useState<number | null>(null);
   const [showUploadReceipt, setShowUploadReceipt] = useState(false);
 
@@ -184,7 +186,10 @@ export function TransactionsClient({
     if (selectedIds.size === 0) return;
     setLoading(true);
     try {
-      if (await bulkDelete(Array.from(selectedIds))) setSelectedIds(new Set());
+      if (await bulkDelete(Array.from(selectedIds))) {
+        setSelectedIds(new Set());
+        setShowDeleteConfirm(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -234,7 +239,7 @@ export function TransactionsClient({
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => void handleBulkDelete()}
+            onClick={() => setShowDeleteConfirm(true)}
             disabled={loading}
           >
             <Trash2 className="size-3.5" />
@@ -302,6 +307,20 @@ export function TransactionsClient({
         categories={categories}
         onConfirm={(catId) => void handleRecategorize(catId)}
         loading={formLoading}
+      />
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDeleteDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Transactions"
+        description={
+          <>
+            Are you sure you want to delete <strong>{selectedIds.size}</strong> transaction(s)?
+          </>
+        }
+        onConfirm={() => void handleBulkDelete()}
+        loading={loading}
       />
 
       {/* Receipt detail dialog */}
