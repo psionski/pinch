@@ -868,36 +868,187 @@ Sprints are organized into two phases: **MVP** (usable via MCP + minimal web UI)
 
 ---
 
-### Sprint 16: Documentation & Project Files
-**Goal:** Make this a proper public open-source project.
+### Sprint 16: Financial Data Service
+**Goal:** A provider-based service for fetching exchange rates and asset prices from public APIs, with SQLite caching. The UI and MCP clients use this to convert currencies (e.g. a receipt in USD → EUR) and update asset valuations. Historical queries supported. Users configure API keys via a settings table.
 
-- [ ] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
-- [ ] LICENSE file (choose an appropriate open-source license)
-- [ ] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
-- [ ] API documentation — REST endpoints and MCP tools (in README or `docs/`)
-- [ ] Extend MCP `instructions` field: Add explicit behavioral prompts (e.g., "If unsure about categorization, ask the user and remember the decision for next time").
-- [ ] Verify .gitignore, .env.example, and any other dotfiles are in order
+#### The problem
 
-**Done when:** A developer can clone the repo, read the README, and get running. Project looks professional on GitHub.
+Pinch stores amounts in cents with an implicit EUR base currency, but users encounter other currencies constantly: receipts from abroad, foreign-currency assets (Sprint 17), crypto priced in USD. Today, the AI has to guess exchange rates or ask the user. The app needs a reliable, self-hosted way to look up current and historical rates/prices.
 
----
+#### Design principles
 
-### Sprint 17: Polish & Hardening
-**Goal:** Production readiness.
+- **Provider abstraction:** A common interface (`FinancialDataProvider`) so backends are pluggable. Ship with free-tier providers; users can swap in premium ones by adding API keys.
+- **Cache-first:** Every fetched rate/price is stored in SQLite. Subsequent lookups for the same pair+date hit the cache. Reduces API calls and gives offline resilience.
+- **TTL-based freshness:** Current-day lookups have a configurable staleness window (default: 1 hour for exchange rates, 15 minutes for asset prices). Historical lookups (past dates) are considered immutable once cached.
+- **Graceful degradation:** If all providers fail, return the most recent cached value (if any) with a `stale: true` flag. Never block a transaction on a rate lookup.
 
-- [ ] Dark mode (Tailwind dark variant)
-- [ ] Mobile-responsive audit and fixes
-- [ ] CSV export for any filtered view
-- [ ] Tailscale access verification middleware
-- [ ] Error boundaries and loading states across all pages
-- [ ] Performance: check query efficiency, add missing indices if needed
-- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app.
+#### Providers to ship
 
-**Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
+| Provider | Type | Free tier | API key required | Notes |
+|----------|------|-----------|------------------|-------|
+| **ECB (European Central Bank)** | Exchange rates | Unlimited | No | Daily reference rates, ~30 currencies. 1-day lag. Default provider for EUR pairs. |
+| **Frankfurter** | Exchange rates | Unlimited | No | Wraps ECB data with a clean REST API. Historical back to 1999. Good fallback. |
+| **Open Exchange Rates** | Exchange rates | 1,000 req/month | Yes | Real-time rates, 170+ currencies. For users who need intraday or exotic pairs. |
+| **CoinGecko** | Crypto prices | ~30 req/min | No (optional pro key) | Current + historical prices for major cryptos. Prices in any fiat. |
+| **Alpha Vantage** | Stock/ETF prices | 25 req/day | Yes (free key) | Daily/intraday stock prices. Good for ETFs and equities. |
 
----
+Each provider implements the same interface. The service tries providers in priority order per query type.
 
-### Sprint 18: Assets & Net Worth Tracking
+#### Schema additions
+
+```sql
+-- App-level settings (key-value store for API keys, preferences, etc.)
+CREATE TABLE settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Cached exchange rates
+CREATE TABLE exchange_rates (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  base          TEXT NOT NULL,           -- e.g. 'USD'
+  quote         TEXT NOT NULL,           -- e.g. 'EUR'
+  rate          REAL NOT NULL,           -- 1 base = rate quote (e.g. 0.92)
+  date          TEXT NOT NULL,           -- YYYY-MM-DD
+  provider      TEXT NOT NULL,           -- which provider supplied this
+  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(base, quote, date)
+);
+
+-- Cached asset/commodity prices (complements asset_prices in Sprint 17)
+CREATE TABLE market_prices (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', 'SPX'
+  price         REAL NOT NULL,           -- in the asset's native currency
+  currency      TEXT NOT NULL,           -- what currency the price is in
+  date          TEXT NOT NULL,           -- YYYY-MM-DD
+  provider      TEXT NOT NULL,
+  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(symbol, currency, date)
+);
+
+CREATE INDEX idx_exchange_rates_pair ON exchange_rates(base, quote, date);
+CREATE INDEX idx_market_prices_symbol ON market_prices(symbol, date);
+```
+
+**Why separate from `asset_prices`?** `asset_prices` (Sprint 17) tracks user-specific asset valuations linked to portfolio lots. `market_prices` is a shared cache of raw market data — an asset's price update can be sourced from `market_prices`, but they serve different purposes. The financial data service populates `market_prices`; the asset price service reads from it when updating portfolio valuations.
+
+#### Provider interface
+
+```typescript
+interface ExchangeRateResult {
+  base: string;
+  quote: string;
+  rate: number;
+  date: string;         // YYYY-MM-DD
+  provider: string;
+}
+
+interface MarketPriceResult {
+  symbol: string;
+  price: number;
+  currency: string;
+  date: string;
+  provider: string;
+}
+
+interface FinancialDataProvider {
+  name: string;
+  supportsExchangeRates: boolean;
+  supportsMarketPrices: boolean;
+
+  // Exchange rates
+  getExchangeRate?(base: string, quote: string, date?: string): Promise<ExchangeRateResult | null>;
+  getExchangeRates?(base: string, date?: string): Promise<ExchangeRateResult[]>;   // all pairs for a base
+
+  // Market prices
+  getPrice?(symbol: string, currency: string, date?: string): Promise<MarketPriceResult | null>;
+
+  // Health check — verify API key is valid, service is reachable
+  healthCheck?(): Promise<boolean>;
+}
+```
+
+#### Service layer
+
+- **`FinancialDataService`** — orchestrates providers and cache:
+  - `getExchangeRate(base, quote, date?)` — cache-first lookup. If cached and fresh, return it. Otherwise try providers in priority order, cache result, return it. `date` defaults to today.
+  - `getExchangeRates(base, date?)` — all available pairs for a base currency on a given date.
+  - `convert(amount, from, to, date?)` — convenience: look up rate + multiply. Returns `{ converted: number, rate: number, date: string, stale: boolean }`.
+  - `getMarketPrice(symbol, currency?, date?)` — same pattern for asset prices. Currency defaults to EUR.
+  - `getProviderStatus()` — list configured providers with health status (reachable, key valid, rate limits).
+  - `setApiKey(provider, key)` — store in `settings` table.
+  - `getApiKey(provider)` — read from `settings` table.
+
+- **`SettingsService`** — generic key-value CRUD on the `settings` table. Used by financial data service for API keys, and available for future app settings.
+
+#### MCP tools
+
+| Tool | Description |
+|------|-------------|
+| `convert_currency` | Convert an amount between currencies. Params: `amount` (cents), `from`, `to`, `date` (optional, defaults to today). Returns converted amount (cents), rate used, source provider, whether the rate is stale. Primary use case: receipt in foreign currency → EUR. |
+| `get_exchange_rate` | Look up an exchange rate. Params: `base`, `quote`, `date` (optional). Returns rate, date, provider. |
+| `get_market_price` | Look up a market price. Params: `symbol`, `currency` (optional, default EUR), `date` (optional). Returns price, currency, date, provider. |
+| `list_providers` | List configured financial data providers with status (active, API key set, healthy). |
+| `set_api_key` | Configure an API key for a provider. Params: `provider`, `key`. |
+
+#### API routes
+
+- `GET /api/financial/exchange-rate` — `?base=USD&quote=EUR&date=2025-01-15`
+- `GET /api/financial/convert` — `?amount=1250&from=USD&to=EUR&date=2025-01-15`
+- `GET /api/financial/market-price` — `?symbol=bitcoin&currency=EUR&date=2025-01-15`
+- `GET /api/financial/providers` — list provider status
+- `POST /api/financial/providers/[provider]/key` — set API key
+
+#### Cron integration
+
+- **Daily rate fetch (08:00):** For each currency the user holds assets in (once Sprint 17 lands), fetch today's rate vs EUR and cache it. Until then, no-op — rates are fetched on demand.
+- **Startup warm:** On server start, if the cache has no rate for today for common pairs (USD/EUR, GBP/EUR), fetch them proactively.
+
+#### Integration with existing features
+
+- **Receipt flow:** When the AI uploads a receipt in a foreign currency, it calls `convert_currency` to get the EUR equivalent before creating transactions. The MCP server `instructions` field is updated to mention this capability.
+- **Sprint 17 bridge:** `AssetPriceService.record()` can optionally source from `FinancialDataService.getMarketPrice()` instead of requiring manual input. A future "update all prices" button/tool fetches latest prices for all tracked assets in one go.
+
+#### Project structure additions
+
+```
+src/
+├── lib/
+│   ├── services/
+│   │   ├── financial-data.ts       # Orchestrator: cache + provider fallback
+│   │   └── settings.ts             # Generic key-value settings CRUD
+│   ├── providers/
+│   │   ├── types.ts                # FinancialDataProvider interface
+│   │   ├── ecb.ts                  # ECB exchange rates (free, no key)
+│   │   ├── frankfurter.ts          # Frankfurter API (free, no key)
+│   │   ├── open-exchange-rates.ts  # Open Exchange Rates (key required)
+│   │   ├── coingecko.ts            # CoinGecko crypto prices
+│   │   └── alpha-vantage.ts        # Alpha Vantage stock prices
+│   ├── mcp/tools/
+│   │   └── financial.ts            # MCP tool registrations
+│   └── validators/
+│       └── financial.ts            # Zod schemas for rate/price queries
+├── app/api/
+│   └── financial/
+│       ├── exchange-rate/route.ts
+│       ├── convert/route.ts
+│       ├── market-price/route.ts
+│       └── providers/
+│           ├── route.ts            # GET list providers
+│           └── [provider]/
+│               └── key/route.ts    # POST set API key
+```
+
+#### Testing strategy
+
+- **Provider tests:** Mock HTTP responses for each provider. Verify parsing of ECB XML, Frankfurter JSON, CoinGecko JSON, etc.
+- **Service tests:** Real SQLite (via `makeTestDb()`). Verify cache-first behavior, TTL expiry, provider fallback, stale flag.
+- **Integration tests:** API routes with mocked providers — verify correct responses, error handling, key management.
+
+**Done when:** `convert_currency` MCP tool can answer "what's 15.99 USD in EUR for 2025-01-15?" by hitting ECB/Frankfurter (no API key needed), caching the result, and returning the converted amount. A second call for the same pair+date hits the cache instantly. `get_market_price` can fetch BTC price from CoinGecko. Provider status is visible via `list_providers`. API keys are stored securely in the settings table.
+
+### Sprint 17: Assets & Net Worth Tracking
 **Goal:** Unified asset model for tracking net worth across savings, investments, crypto, and foreign currencies. Adds a `transfer` transaction type so asset purchases don't pollute spending reports. Replaces the previously planned separate Accounts (old Sprint 18) and Investments (old Sprint 19) sprints with a single, more powerful abstraction.
 
 #### Design principles
@@ -1064,7 +1215,7 @@ src/
 
 ---
 
-### Sprint 19: Portfolio & Asset Reports — Backend
+### Sprint 18: Portfolio & Asset Reports — Backend
 **Goal:** Service layer, API routes, and MCP tools for common portfolio/asset analytics. All computed from lots + prices — no snapshots.
 
 #### Reports
@@ -1126,8 +1277,8 @@ src/
 
 ---
 
-### Sprint 20: Portfolio & Asset Reports — UI
-**Goal:** Web UI pages and dashboard widgets for visualizing portfolio reports from Sprint 18a.
+### Sprint 19: Portfolio & Asset Reports — UI
+**Goal:** Web UI pages and dashboard widgets for visualizing portfolio reports from Sprint 18.
 
 #### Assets page enhancements (`/assets`)
 
@@ -1187,7 +1338,7 @@ src/
 **Done when:** Portfolio page shows net worth over time, allocation breakdown, and performance ranking with real data. Asset detail pages show value charts with buy/sell markers. Dashboard includes net worth card with sparkline. All charts are responsive.
 
 ---
-### Sprint 21: Onboarding & Initial Setup
+### Sprint 20: Onboarding & Initial Setup
 **Goal:** Make it easy for new users to enter their current financial state without fabricating transaction history. Includes an interactive first-run experience.
 
 #### The problem
@@ -1232,7 +1383,7 @@ After setup (or skippable independently):
 - **Guided tour**: highlight key UI areas (sidebar nav, transaction list, add button, filters) using tooltip overlays
 - **First transaction prompt**: "Try adding your first real transaction" with a guided form
 - **MCP hint**: for AI-connected users, show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'"
-- **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 17)
+- **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 21)
 
 #### API routes
 
@@ -1273,13 +1424,44 @@ src/
 
 ---
 
+### Sprint 21: Polish & Hardening
+**Goal:** Production readiness.
+
+- [ ] Dark mode (Tailwind dark variant)
+- [ ] Mobile-responsive audit and fixes
+- [ ] CSV export for any filtered view
+- [ ] Tailscale access verification middleware
+- [ ] Error boundaries and loading states across all pages
+- [ ] Performance: check query efficiency, add missing indices if needed
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app.
+
+**Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
+
+---
+
 ### Sprint 22: Packaging & Auto-Updates
 **Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
 - [ ] Build an auto-updater mechanism for easy rolling releases
 
-### Sprint 23: Project Website
+---
+
+### Sprint 23: Documentation & Project Files
+**Goal:** Make this a proper public open-source project.
+
+- [ ] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
+- [ ] LICENSE file (choose an appropriate open-source license)
+- [ ] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
+- [ ] API documentation — REST endpoints and MCP tools (in README or `docs/`)
+- [ ] Extend MCP `instructions` field: Add explicit behavioral prompts (e.g., "If unsure about categorization, ask the user and remember the decision for next time").
+- [ ] Verify .gitignore, .env.example, and any other dotfiles are in order
+
+**Done when:** A developer can clone the repo, read the README, and get running. Project looks professional on GitHub.
+
+---
+
+### Sprint 24: Project Website
 **Goal:** Create a public face for the project.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
@@ -1288,7 +1470,7 @@ src/
 ## Future Considerations (not in scope now, but design should accommodate)
 
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
-- **Multi-currency transactions:** Assets already support per-asset currencies (Sprint 18). For full multi-currency, add a `currency` field to transactions and an exchange rate table. All reporting converts to EUR base.
+- **Multi-currency transactions:** Assets already support per-asset currencies (Sprint 17). For full multi-currency, add a `currency` field to transactions and an exchange rate table. All reporting converts to EUR base.
 - **Attachments:** Beyond receipts — invoices, contracts. Generalize receipt storage to a generic attachments table.
 - **App-level auth:** Session-based or token-based auth for shared access or public exposure. Keep auth concerns in middleware/route guards so this can be slotted in cleanly.
 - **Shared access:** Multiple users or shared household access. Auth is a prerequisite.
