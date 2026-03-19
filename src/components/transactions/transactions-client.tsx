@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Trash2, FolderInput } from "lucide-react";
+import { Plus, Trash2, FolderInput, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   TransactionFilterBar,
@@ -13,6 +13,8 @@ import { TransactionTable } from "./transaction-table";
 import { TransactionFormDialog, type TransactionFormData } from "./transaction-form";
 import { RecategorizeDialog } from "./recategorize-dialog";
 import { PaginationControls } from "./pagination-controls";
+import { ReceiptDialog } from "@/components/receipts/receipt-dialog";
+import { ReceiptUploadDialog } from "@/components/receipts/receipt-upload-dialog";
 import type {
   TransactionResponse,
   PaginatedTransactionsResponse,
@@ -92,6 +94,8 @@ export function TransactionsClient({
   const [editingTx, setEditingTx] = useState<TransactionResponse | null>(null);
   const [showRecategorize, setShowRecategorize] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
+  const [viewingReceiptId, setViewingReceiptId] = useState<number | null>(null);
+  const [showUploadReceipt, setShowUploadReceipt] = useState(false);
 
   const categoryMap = new Map<number, CategoryWithCountResponse>(categories.map((c) => [c.id, c]));
 
@@ -279,10 +283,16 @@ export function TransactionsClient({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
-        <Button onClick={() => setShowAddForm(true)} size="sm">
-          <Plus className="size-4" />
-          Add Transaction
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowUploadReceipt(true)}>
+            <ScanLine className="size-4" />
+            Add Receipt
+          </Button>
+          <Button onClick={() => setShowAddForm(true)} size="sm">
+            <Plus className="size-4" />
+            Add Transaction
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -329,6 +339,7 @@ export function TransactionsClient({
           onSortChange={handleSortChange}
           onEdit={setEditingTx}
           onInlineUpdate={handleInlineUpdate}
+          onReceiptClick={setViewingReceiptId}
         />
       </div>
 
@@ -371,6 +382,21 @@ export function TransactionsClient({
         categories={categories}
         onConfirm={(catId) => void handleRecategorize(catId)}
         loading={formLoading}
+      />
+
+      {/* Receipt detail dialog */}
+      <ReceiptDialog
+        receiptId={viewingReceiptId}
+        onOpenChange={(open) => {
+          if (!open) setViewingReceiptId(null);
+        }}
+      />
+
+      {/* Receipt upload dialog */}
+      <ReceiptUploadDialog
+        open={showUploadReceipt}
+        onOpenChange={setShowUploadReceipt}
+        onUploaded={(receiptId) => setViewingReceiptId(receiptId)}
       />
     </div>
   );

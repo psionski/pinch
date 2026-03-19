@@ -4,6 +4,7 @@ import { CategoryService } from "@/lib/services/categories";
 import { ReportService } from "@/lib/services/reports";
 import { BudgetService } from "@/lib/services/budgets";
 import { RecurringService } from "@/lib/services/recurring";
+import { ReceiptService } from "@/lib/services/receipts";
 
 export function getTransactionService(): TransactionService {
   return new TransactionService(getDb());
@@ -24,4 +25,8 @@ export function getBudgetService(): BudgetService {
 
 export function getRecurringService(): RecurringService {
   return new RecurringService(getDb());
+}
+
+export function getReceiptService(): ReceiptService {
+  return new ReceiptService(getDb());
 }

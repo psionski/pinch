@@ -5,6 +5,7 @@ import { registerReportTools } from "./tools/reports";
 import { registerBudgetTools } from "./tools/budgets";
 import { registerRecurringTools } from "./tools/recurring";
 import { registerQueryTool } from "./tools/query";
+import { registerReceiptTools } from "./tools/receipts";
 
 export function registerTools(server: McpServer): void {
   registerTransactionTools(server);
@@ -12,5 +13,6 @@ export function registerTools(server: McpServer): void {
   registerReportTools(server);
   registerBudgetTools(server);
   registerRecurringTools(server);
+  registerReceiptTools(server);
   registerQueryTool(server);
 }

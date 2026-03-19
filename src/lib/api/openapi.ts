@@ -28,6 +28,7 @@ import {
   UpdateRecurringSchema,
   RecurringResponseSchema,
 } from "@/lib/validators/recurring";
+import { ReceiptResponseSchema } from "@/lib/validators/receipts";
 import {
   SpendingSummarySchema,
   CategoryStatsSchema,
@@ -56,6 +57,7 @@ const CategoryWithCount = CategoryWithCountResponseSchema.meta({ id: "CategoryWi
 const Budget = BudgetResponseSchema.meta({ id: "Budget" });
 const BudgetStatus = BudgetStatusItemSchema.meta({ id: "BudgetStatusItem" });
 const Recurring = RecurringResponseSchema.meta({ id: "RecurringTemplate" });
+const ReceiptRecord = ReceiptResponseSchema.meta({ id: "Receipt" });
 const SummaryResult = SpendingSummaryResultSchema.meta({ id: "SpendingSummaryResult" });
 const CategorySpendingItem = CategorySpendingItemSchema.meta({ id: "CategorySpendingItem" });
 const BudgetStatsItem = BudgetStatsItemSchema.meta({ id: "BudgetStatsItem" });
@@ -420,6 +422,58 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           tags: ["Recurring"],
           response: z.object({ created: z.number().int() }),
           errors: [500],
+        }),
+      },
+      "/api/receipts/upload": {
+        post: {
+          operationId: "uploadReceipt",
+          summary: "Upload a receipt image and optional metadata",
+          tags: ["Receipts"],
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: z.object({
+                  image: z
+                    .string()
+                    .meta({ description: "Receipt image file (jpg, png, gif, webp, heic, pdf)" }),
+                  merchant: z.string().optional().meta({ description: "Merchant name" }),
+                  date: z.string().optional().meta({ description: "Receipt date (YYYY-MM-DD)" }),
+                  total: z.string().optional().meta({ description: "Receipt total in cents" }),
+                  raw_text: z
+                    .string()
+                    .optional()
+                    .meta({ description: "OCR or vision-extracted text" }),
+                }),
+              },
+            },
+          },
+          responses: {
+            "201": {
+              description: "Receipt created",
+              content: {
+                "application/json": { schema: z.object({ receipt_id: z.number().int() }) },
+              },
+            },
+            "400": {
+              description: "Validation error",
+              content: { "application/json": { schema: ErrorSchema } },
+            },
+            "500": {
+              description: "Internal server error",
+              content: { "application/json": { schema: ErrorSchema } },
+            },
+          },
+        },
+      },
+      "/api/receipts/{id}": {
+        get: op({
+          id: "getReceiptById",
+          summary: "Get receipt metadata by ID",
+          tags: ["Receipts"],
+          pathId: "Receipt ID",
+          response: ReceiptRecord,
+          errors: [400, 404, 500],
         }),
       },
       "/api/receipts/{id}/image": {

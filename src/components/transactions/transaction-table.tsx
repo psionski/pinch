@@ -39,6 +39,7 @@ interface TransactionTableProps {
   onSortChange: (field: SortField) => void;
   onEdit: (tx: TransactionResponse) => void;
   onInlineUpdate: (id: number, updates: Record<string, unknown>) => Promise<void>;
+  onReceiptClick?: (receiptId: number) => void;
 }
 
 interface InlineEditState {
@@ -77,6 +78,7 @@ export function TransactionTable({
   onSortChange,
   onEdit,
   onInlineUpdate,
+  onReceiptClick,
 }: TransactionTableProps): React.ReactElement {
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -277,10 +279,14 @@ export function TransactionTable({
                 <div className="flex items-center gap-1.5">
                   {renderCell(tx, "description", tx.description)}
                   {tx.receiptId && (
-                    <Receipt
-                      className="text-muted-foreground size-3.5 shrink-0"
-                      aria-label="Has receipt"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => onReceiptClick?.(tx.receiptId!)}
+                      className="text-muted-foreground hover:text-foreground shrink-0"
+                      aria-label="View receipt"
+                    >
+                      <Receipt className="size-3.5" />
+                    </button>
                   )}
                   {tx.recurringId && (
                     <Repeat
