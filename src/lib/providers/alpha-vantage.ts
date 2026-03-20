@@ -1,4 +1,4 @@
-import type { MarketPriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 
 const BASE_URL = "https://www.alphavantage.co/query";
 
@@ -9,26 +9,17 @@ const BASE_URL = "https://www.alphavantage.co/query";
  */
 export class AlphaVantageProvider implements FinancialDataProvider {
   readonly name = "alpha-vantage";
-  readonly supportsExchangeRates = false;
-  readonly supportsMarketPrices = true;
 
   constructor(private apiKey: string) {}
 
-  async getPrice(
-    symbol: string,
-    currency = "USD",
-    date?: string
-  ): Promise<MarketPriceResult | null> {
+  async getPrice(symbol: string, currency = "USD", date?: string): Promise<PriceResult | null> {
     if (date && date < today()) {
       return this.getHistoricalPrice(symbol, currency, date);
     }
     return this.getCurrentPrice(symbol, currency);
   }
 
-  private async getCurrentPrice(
-    symbol: string,
-    currency: string
-  ): Promise<MarketPriceResult | null> {
+  private async getCurrentPrice(symbol: string, currency: string): Promise<PriceResult | null> {
     const url = new URL(BASE_URL);
     url.searchParams.set("function", "GLOBAL_QUOTE");
     url.searchParams.set("symbol", symbol);
@@ -58,7 +49,7 @@ export class AlphaVantageProvider implements FinancialDataProvider {
     symbol: string,
     currency: string,
     date: string
-  ): Promise<MarketPriceResult | null> {
+  ): Promise<PriceResult | null> {
     const url = new URL(BASE_URL);
     url.searchParams.set("function", "TIME_SERIES_DAILY");
     url.searchParams.set("symbol", symbol);

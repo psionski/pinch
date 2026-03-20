@@ -1,4 +1,4 @@
-import type { ExchangeRateResult, FinancialDataProvider } from "./types";
+import type { PriceResult, FinancialDataProvider } from "./types";
 
 const BASE_URL = "https://openexchangerates.org/api";
 
@@ -9,21 +9,15 @@ const BASE_URL = "https://openexchangerates.org/api";
  */
 export class OpenExchangeRatesProvider implements FinancialDataProvider {
   readonly name = "open-exchange-rates";
-  readonly supportsExchangeRates = true;
-  readonly supportsMarketPrices = false;
 
   constructor(private apiKey: string) {}
 
-  async getExchangeRate(
-    base: string,
-    quote: string,
-    date?: string
-  ): Promise<ExchangeRateResult | null> {
-    const rates = await this.getExchangeRates(base, date);
-    return rates.find((r) => r.quote === quote) ?? null;
+  async getPrice(symbol: string, currency: string, date?: string): Promise<PriceResult | null> {
+    const prices = await this.getPrices(symbol, date);
+    return prices.find((r) => r.currency === currency) ?? null;
   }
 
-  async getExchangeRates(base: string, date?: string): Promise<ExchangeRateResult[]> {
+  async getPrices(symbol: string, date?: string): Promise<PriceResult[]> {
     // Free tier only supports USD as base; use USD as pivot
     const url = date
       ? `${BASE_URL}/historical/${date}.json?app_id=${this.apiKey}&base=USD`
@@ -39,18 +33,18 @@ export class OpenExchangeRatesProvider implements FinancialDataProvider {
     const usdRates = new Map(Object.entries(data.rates));
     usdRates.set("USD", 1);
 
-    const baseRate = usdRates.get(base);
+    const baseRate = usdRates.get(symbol);
     if (baseRate === undefined) return [];
 
     const rateDate = date ?? isoDate(data.timestamp * 1000);
-    const results: ExchangeRateResult[] = [];
+    const results: PriceResult[] = [];
 
     for (const [currency, usdRate] of usdRates) {
-      if (currency === base) continue;
+      if (currency === symbol) continue;
       results.push({
-        base,
-        quote: currency,
-        rate: usdRate / baseRate,
+        symbol,
+        price: usdRate / baseRate,
+        currency,
         date: rateDate,
         provider: this.name,
       });

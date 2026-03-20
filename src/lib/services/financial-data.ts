@@ -1,13 +1,8 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { exchangeRates, marketPrices } from "@/lib/db/schema";
-import type {
-  FinancialDataProvider,
-  ExchangeRateResult,
-  MarketPriceResult,
-  SymbolSearchResult,
-} from "@/lib/providers/types";
+import { marketPrices } from "@/lib/db/schema";
+import type { FinancialDataProvider, PriceResult, SymbolSearchResult } from "@/lib/providers/types";
 import type { SettingsService } from "./settings";
 import { EcbProvider } from "@/lib/providers/ecb";
 import { FrankfurterProvider } from "@/lib/providers/frankfurter";
@@ -19,10 +14,8 @@ type Db = BetterSQLite3Database<typeof schema>;
 
 // ─── TTL Configuration ────────────────────────────────────────────────────────
 
-/** Staleness window for current-day exchange rates (milliseconds). */
-const EXCHANGE_RATE_TTL_MS = 60 * 60 * 1000; // 1 hour
-/** Staleness window for current-day market prices (milliseconds). */
-const MARKET_PRICE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+/** Staleness window for current-day prices (milliseconds). */
+const PRICE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 // ─── Result Types ─────────────────────────────────────────────────────────────
 
@@ -39,7 +32,7 @@ export interface ProviderStatus {
   type: "exchange-rates" | "market-prices" | "both";
   apiKeyRequired: boolean;
   apiKeySet: boolean;
-  healthy: boolean | null; // null = not checked yet
+  healthy: boolean | null;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -53,36 +46,35 @@ export class FinancialDataService {
     this.settings = settings;
   }
 
-  // ─── Exchange Rates ────────────────────────────────────────────────────────
+  // ─── Unified Price Lookup ─────────────────────────────────────────────────
 
   /**
-   * Get an exchange rate for a currency pair on a date.
+   * Get a price for a symbol in a given currency on a date.
+   * Works for both market assets (crypto, stocks) and exchange rates (currencies).
    * Cache-first: returns cached value if fresh. Falls back to stale cache if all providers fail.
    */
-  async getExchangeRate(
-    base: string,
-    quote: string,
+  async getPrice(
+    symbol: string,
+    currency: string,
     date?: string
-  ): Promise<(ExchangeRateResult & { stale: boolean }) | null> {
-    const rateDate = date ?? isoToday();
-    const isHistorical = rateDate < isoToday();
+  ): Promise<(PriceResult & { stale: boolean }) | null> {
+    const priceDate = date ?? isoToday();
+    const isHistorical = priceDate < isoToday();
 
-    // Check cache
-    const cached = this.getCachedRate(base, quote, rateDate);
+    const cached = this.getCachedPrice(symbol, currency, priceDate);
     if (cached) {
       const age = Date.now() - new Date(cached.fetchedAt).getTime();
-      if (isHistorical || age < EXCHANGE_RATE_TTL_MS) {
-        return { ...toExchangeRateResult(cached), stale: false };
+      if (isHistorical || age < PRICE_TTL_MS) {
+        return { ...toPriceResult(cached), stale: false };
       }
     }
 
-    // Try providers
-    const providers = this.buildExchangeRateProviders();
+    const providers = this.buildAllProviders();
     for (const provider of providers) {
       try {
-        const result = await provider.getExchangeRate?.(base, quote, rateDate);
+        const result = await provider.getPrice?.(symbol, currency, priceDate);
         if (result) {
-          this.cacheRate(result);
+          this.cachePrice(result);
           return { ...result, stale: false };
         }
       } catch {
@@ -90,41 +82,36 @@ export class FinancialDataService {
       }
     }
 
-    // Return stale cached value if available
     if (cached) {
-      return { ...toExchangeRateResult(cached), stale: true };
+      return { ...toPriceResult(cached), stale: true };
     }
 
     return null;
   }
 
   /**
-   * Get all available exchange rates for a base currency on a date.
+   * Get all available prices/rates for a symbol on a date.
+   * Primarily useful for exchange rates (e.g. all pairs for "EUR").
    */
-  async getExchangeRates(
-    base: string,
-    date?: string
-  ): Promise<(ExchangeRateResult & { stale: boolean })[]> {
-    const rateDate = date ?? isoToday();
-    const isHistorical = rateDate < isoToday();
+  async getPrices(symbol: string, date?: string): Promise<(PriceResult & { stale: boolean })[]> {
+    const priceDate = date ?? isoToday();
+    const isHistorical = priceDate < isoToday();
 
-    // Check cache for existing rates on this date
-    const cached = this.getCachedRatesForBase(base, rateDate);
+    const cached = this.getCachedPricesForSymbol(symbol, priceDate);
     if (cached.length > 0) {
       const oldestFetch = Math.min(...cached.map((r) => new Date(r.fetchedAt).getTime()));
       const age = Date.now() - oldestFetch;
-      if (isHistorical || age < EXCHANGE_RATE_TTL_MS) {
-        return cached.map((r) => ({ ...toExchangeRateResult(r), stale: false }));
+      if (isHistorical || age < PRICE_TTL_MS) {
+        return cached.map((r) => ({ ...toPriceResult(r), stale: false }));
       }
     }
 
-    // Try providers
-    const providers = this.buildExchangeRateProviders();
+    const providers = this.buildAllProviders();
     for (const provider of providers) {
       try {
-        const results = await provider.getExchangeRates?.(base, rateDate);
+        const results = await provider.getPrices?.(symbol, priceDate);
         if (results && results.length > 0) {
-          for (const r of results) this.cacheRate(r);
+          for (const r of results) this.cachePrice(r);
           return results.map((r) => ({ ...r, stale: false }));
         }
       } catch {
@@ -132,9 +119,8 @@ export class FinancialDataService {
       }
     }
 
-    // Return stale cached values if available
     if (cached.length > 0) {
-      return cached.map((r) => ({ ...toExchangeRateResult(r), stale: true }));
+      return cached.map((r) => ({ ...toPriceResult(r), stale: true }));
     }
 
     return [];
@@ -160,59 +146,16 @@ export class FinancialDataService {
       };
     }
 
-    const rateResult = await this.getExchangeRate(from, to, date);
+    const rateResult = await this.getPrice(from, to, date);
     if (!rateResult) return null;
 
     return {
-      converted: Math.round(amountCents * rateResult.rate),
-      rate: rateResult.rate,
+      converted: Math.round(amountCents * rateResult.price),
+      rate: rateResult.price,
       date: rateResult.date,
       provider: rateResult.provider,
       stale: rateResult.stale,
     };
-  }
-
-  // ─── Market Prices ─────────────────────────────────────────────────────────
-
-  /**
-   * Get a market price for a symbol in a given currency on a date.
-   * Cache-first with TTL. Falls back to stale cache if providers fail.
-   */
-  async getMarketPrice(
-    symbol: string,
-    currency = "EUR",
-    date?: string
-  ): Promise<(MarketPriceResult & { stale: boolean }) | null> {
-    const priceDate = date ?? isoToday();
-    const isHistorical = priceDate < isoToday();
-    const currencyUpper = currency.toUpperCase();
-
-    const cached = this.getCachedPrice(symbol, currencyUpper, priceDate);
-    if (cached) {
-      const age = Date.now() - new Date(cached.fetchedAt).getTime();
-      if (isHistorical || age < MARKET_PRICE_TTL_MS) {
-        return { ...toMarketPriceResult(cached), stale: false };
-      }
-    }
-
-    const providers = this.buildMarketPriceProviders();
-    for (const provider of providers) {
-      try {
-        const result = await provider.getPrice?.(symbol, currencyUpper, priceDate);
-        if (result) {
-          this.cachePriceResult(result);
-          return { ...result, stale: false };
-        }
-      } catch {
-        // continue to next provider
-      }
-    }
-
-    if (cached) {
-      return { ...toMarketPriceResult(cached), stale: true };
-    }
-
-    return null;
   }
 
   // ─── Range Backfill ────────────────────────────────────────────────────────
@@ -228,16 +171,13 @@ export class FinancialDataService {
     from: string,
     to: string
   ): Promise<void> {
-    const currencyUpper = currency.toUpperCase();
-
-    // Check what we already have
     const cached = this.db
       .select({ date: marketPrices.date })
       .from(marketPrices)
       .where(
         and(
           eq(marketPrices.symbol, symbol),
-          eq(marketPrices.currency, currencyUpper),
+          eq(marketPrices.currency, currency),
           gte(marketPrices.date, from),
           lte(marketPrices.date, to)
         )
@@ -246,19 +186,17 @@ export class FinancialDataService {
 
     const cachedDates = new Set(cached.map((r) => r.date));
 
-    // If we have a reasonable density (>80% of expected days), skip fetch
     const expectedDays = daysBetween(from, to);
     if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
 
-    // Try range fetch from providers
-    const providers = this.buildMarketPriceProviders();
+    const providers = this.buildAllProviders();
     for (const provider of providers) {
       try {
-        const results = await provider.getPriceRange?.(symbol, currencyUpper, from, to);
+        const results = await provider.getPriceRange?.(symbol, currency, from, to);
         if (results && results.length > 0) {
           for (const r of results) {
             if (!cachedDates.has(r.date)) {
-              this.cachePriceResult(r);
+              this.cachePrice(r);
             }
           }
           return;
@@ -269,66 +207,16 @@ export class FinancialDataService {
     }
   }
 
-  /**
-   * Ensure exchange_rates has data for (base, quote) over [from, to].
-   * Fetches missing segments via provider range endpoints.
-   */
-  async ensureExchangeRateHistory(
-    base: string,
-    quote: string,
-    from: string,
-    to: string
-  ): Promise<void> {
-    const cached = this.db
-      .select({ date: exchangeRates.date })
-      .from(exchangeRates)
-      .where(
-        and(
-          eq(exchangeRates.base, base),
-          eq(exchangeRates.quote, quote),
-          gte(exchangeRates.date, from),
-          lte(exchangeRates.date, to)
-        )
-      )
-      .all();
-
-    const cachedDates = new Set(cached.map((r) => r.date));
-
-    const expectedDays = daysBetween(from, to);
-    if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
-
-    const providers = this.buildExchangeRateProviders();
-    for (const provider of providers) {
-      try {
-        const results = await provider.getExchangeRateRange?.(base, quote, from, to);
-        if (results && results.length > 0) {
-          for (const r of results) {
-            if (!cachedDates.has(r.date)) {
-              this.cacheRate(r);
-            }
-          }
-          return;
-        }
-      } catch {
-        // continue to next provider
-      }
-    }
-  }
-
-  // ─── Symbol Search ─────────────────────────────────────────────────────────
+  // ─── Symbol Search ────────────────────────────────────────────────────────
 
   /**
    * Search for market symbols across all providers.
-   * Returns matches from CoinGecko (crypto) and AlphaVantage (stocks/ETFs).
    */
   async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
-    const allProviders = [
-      ...this.buildMarketPriceProviders(),
-      ...this.buildExchangeRateProviders(),
-    ];
-
+    const providers = this.buildAllProviders();
     const results: SymbolSearchResult[] = [];
-    const searches = allProviders
+
+    const searches = providers
       .filter((p) => p.searchSymbol)
       .map(async (p) => {
         try {
@@ -345,17 +233,14 @@ export class FinancialDataService {
 
   // ─── Provider Management ───────────────────────────────────────────────────
 
-  /** Store an API key for a provider. */
   setApiKey(provider: string, key: string): void {
     this.settings.set(`provider.${provider}.key`, key);
   }
 
-  /** Retrieve the API key for a provider. Returns null if not set. */
   getApiKey(provider: string): string | null {
     return this.settings.get(`provider.${provider}.key`);
   }
 
-  /** List all known providers with their status. */
   async getProviderStatus(): Promise<ProviderStatus[]> {
     const oerKey = this.getApiKey("open-exchange-rates");
     const cgKey = this.getApiKey("coingecko");
@@ -399,7 +284,6 @@ export class FinancialDataService {
       },
     ];
 
-    // Run health checks in parallel
     const checks = await Promise.allSettled([
       new FrankfurterProvider().healthCheck!(),
       new EcbProvider().healthCheck!(),
@@ -416,58 +300,6 @@ export class FinancialDataService {
   }
 
   // ─── Cache Helpers ─────────────────────────────────────────────────────────
-
-  private getCachedRate(
-    base: string,
-    quote: string,
-    date: string
-  ): typeof schema.exchangeRates.$inferSelect | null {
-    return (
-      this.db
-        .select()
-        .from(exchangeRates)
-        .where(
-          and(
-            eq(exchangeRates.base, base),
-            eq(exchangeRates.quote, quote),
-            eq(exchangeRates.date, date)
-          )
-        )
-        .get() ?? null
-    );
-  }
-
-  private getCachedRatesForBase(
-    base: string,
-    date: string
-  ): (typeof schema.exchangeRates.$inferSelect)[] {
-    return this.db
-      .select()
-      .from(exchangeRates)
-      .where(and(eq(exchangeRates.base, base), eq(exchangeRates.date, date)))
-      .all();
-  }
-
-  private cacheRate(result: ExchangeRateResult): void {
-    this.db
-      .insert(exchangeRates)
-      .values({
-        base: result.base,
-        quote: result.quote,
-        rate: String(result.rate),
-        date: result.date,
-        provider: result.provider,
-      })
-      .onConflictDoUpdate({
-        target: [exchangeRates.base, exchangeRates.quote, exchangeRates.date],
-        set: {
-          rate: String(result.rate),
-          provider: result.provider,
-          fetchedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
-        },
-      })
-      .run();
-  }
 
   private getCachedPrice(
     symbol: string,
@@ -489,7 +321,18 @@ export class FinancialDataService {
     );
   }
 
-  private cachePriceResult(result: MarketPriceResult): void {
+  private getCachedPricesForSymbol(
+    symbol: string,
+    date: string
+  ): (typeof schema.marketPrices.$inferSelect)[] {
+    return this.db
+      .select()
+      .from(marketPrices)
+      .where(and(eq(marketPrices.symbol, symbol), eq(marketPrices.date, date)))
+      .all();
+  }
+
+  private cachePrice(result: PriceResult): void {
     this.db
       .insert(marketPrices)
       .values({
@@ -512,16 +355,15 @@ export class FinancialDataService {
 
   // ─── Provider Builders ─────────────────────────────────────────────────────
 
-  protected buildExchangeRateProviders(): FinancialDataProvider[] {
-    const providers: FinancialDataProvider[] = [new FrankfurterProvider(), new EcbProvider()];
+  protected buildAllProviders(): FinancialDataProvider[] {
+    const cgKey = this.getApiKey("coingecko") ?? undefined;
+    const providers: FinancialDataProvider[] = [
+      new FrankfurterProvider(),
+      new EcbProvider(),
+      new CoinGeckoProvider(cgKey),
+    ];
     const oerKey = this.getApiKey("open-exchange-rates");
     if (oerKey) providers.push(new OpenExchangeRatesProvider(oerKey));
-    return providers;
-  }
-
-  protected buildMarketPriceProviders(): FinancialDataProvider[] {
-    const cgKey = this.getApiKey("coingecko") ?? undefined;
-    const providers: FinancialDataProvider[] = [new CoinGeckoProvider(cgKey)];
     const avKey = this.getApiKey("alpha-vantage");
     if (avKey) providers.push(new AlphaVantageProvider(avKey));
     return providers;
@@ -534,17 +376,7 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function toExchangeRateResult(row: typeof schema.exchangeRates.$inferSelect): ExchangeRateResult {
-  return {
-    base: row.base,
-    quote: row.quote,
-    rate: parseFloat(row.rate),
-    date: row.date,
-    provider: row.provider,
-  };
-}
-
-function toMarketPriceResult(row: typeof schema.marketPrices.$inferSelect): MarketPriceResult {
+function toPriceResult(row: typeof schema.marketPrices.$inferSelect): PriceResult {
   return {
     symbol: row.symbol,
     price: parseFloat(row.price),
@@ -561,4 +393,4 @@ function daysBetween(from: string, to: string): number {
 }
 
 // Re-export for convenience
-export type { ExchangeRateResult, MarketPriceResult };
+export type { PriceResult };

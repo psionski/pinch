@@ -151,28 +151,7 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 });
 
-// ─── Exchange Rates ───────────────────────────────────────────────────────────
-
-export const exchangeRates = sqliteTable(
-  "exchange_rates",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    base: text("base").notNull(), // e.g. 'USD'
-    quote: text("quote").notNull(), // e.g. 'EUR'
-    rate: text("rate").notNull(), // stored as string to avoid float imprecision
-    date: text("date").notNull(), // YYYY-MM-DD
-    provider: text("provider").notNull(),
-    fetchedAt: text("fetched_at")
-      .notNull()
-      .default(sql`(datetime('now'))`),
-  },
-  (table) => [
-    index("idx_exchange_rates_pair").on(table.base, table.quote, table.date),
-    uniqueIndex("uq_exchange_rates_pair_date").on(table.base, table.quote, table.date),
-  ]
-);
-
-// ─── Market Prices ────────────────────────────────────────────────────────────
+// ─── Market Prices (unified: crypto, stocks, exchange rates) ─────────────────
 
 export const marketPrices = sqliteTable(
   "market_prices",
@@ -281,8 +260,6 @@ export type Budget = typeof budgets.$inferSelect;
 export type NewBudget = typeof budgets.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
-export type ExchangeRate = typeof exchangeRates.$inferSelect;
-export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 export type MarketPrice = typeof marketPrices.$inferSelect;
 export type NewMarketPrice = typeof marketPrices.$inferInsert;
 export type Asset = typeof assets.$inferSelect;

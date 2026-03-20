@@ -5,7 +5,7 @@ import { AssetService } from "@/lib/services/assets";
 import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";
 import { resolvePrice, resolveLatestPrice } from "@/lib/services/price-resolver";
-import { marketPrices, exchangeRates } from "@/lib/db/schema";
+import { marketPrices } from "@/lib/db/schema";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type * as schema from "@/lib/db/schema";
 
@@ -179,7 +179,7 @@ describe("resolvePrice", () => {
     expect(result!.price).toBe(8200000);
   });
 
-  it("resolves foreign currency deposit via exchange_rates", () => {
+  it("resolves foreign currency deposit via market_prices", () => {
     const asset = assetService.create({
       name: "USD Savings",
       type: "deposit",
@@ -187,11 +187,11 @@ describe("resolvePrice", () => {
       symbolMap: { frankfurter: "USD" },
     });
 
-    db.insert(exchangeRates)
+    db.insert(marketPrices)
       .values({
-        base: "USD",
-        quote: "EUR",
-        rate: "0.92",
+        symbol: "USD",
+        currency: "EUR",
+        price: "0.92",
         date: "2026-03-20",
         provider: "frankfurter",
       })
@@ -199,7 +199,7 @@ describe("resolvePrice", () => {
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
-    expect(result!.source).toBe("exchange");
+    expect(result!.source).toBe("market");
     expect(result!.price).toBe(92); // 0.92 * 100
   });
 
@@ -212,18 +212,18 @@ describe("resolvePrice", () => {
     });
 
     // Rate from ECB, but asset expects frankfurter
-    db.insert(exchangeRates)
+    db.insert(marketPrices)
       .values({
-        base: "USD",
-        quote: "EUR",
-        rate: "0.92",
+        symbol: "USD",
+        currency: "EUR",
+        price: "0.92",
         date: "2026-03-20",
         provider: "ecb",
       })
       .run();
 
     const result = resolvePrice(db, asset, "2026-03-20");
-    expect(result?.source).not.toBe("exchange");
+    expect(result?.source).not.toBe("market");
   });
 });
 
@@ -270,11 +270,11 @@ describe("resolveLatestPrice", () => {
       symbolMap: { frankfurter: "GBP" },
     });
 
-    db.insert(exchangeRates)
+    db.insert(marketPrices)
       .values({
-        base: "GBP",
-        quote: "EUR",
-        rate: "1.17",
+        symbol: "GBP",
+        currency: "EUR",
+        price: "1.17",
         date: "2026-03-20",
         provider: "frankfurter",
       })
@@ -282,7 +282,7 @@ describe("resolveLatestPrice", () => {
 
     const result = resolveLatestPrice(db, asset);
     expect(result).not.toBeNull();
-    expect(result!.source).toBe("exchange");
+    expect(result!.source).toBe("market");
     expect(result!.price).toBe(117); // 1.17 * 100
   });
 

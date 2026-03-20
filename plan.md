@@ -217,7 +217,7 @@ PRAGMA cache_size = -64000;    -- 64MB cache
 PRAGMA busy_timeout = 5000;
 ```
 
-## MCP Tools (43 tools)
+## MCP Tools (41 tools)
 
 ### Transactions (8 tools)
 | Tool | Description |
@@ -593,90 +593,67 @@ CREATE TABLE settings (
   value TEXT NOT NULL
 );
 
--- Cached exchange rates
-CREATE TABLE exchange_rates (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  base          TEXT NOT NULL,           -- e.g. 'USD'
-  quote         TEXT NOT NULL,           -- e.g. 'EUR'
-  rate          REAL NOT NULL,           -- 1 base = rate quote (e.g. 0.92)
-  date          TEXT NOT NULL,           -- YYYY-MM-DD
-  provider      TEXT NOT NULL,           -- which provider supplied this
-  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(base, quote, date)
-);
-
--- Cached asset/commodity prices (complements asset_prices in Sprint 17)
+-- Unified price cache: market prices, exchange rates, and any other provider data.
+-- Exchange rates are stored as prices too: symbol='USD', currency='EUR', price=0.92 means 1 USD = 0.92 EUR.
 CREATE TABLE market_prices (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', 'SPX'
-  price         REAL NOT NULL,           -- in the asset's native currency
-  currency      TEXT NOT NULL,           -- what currency the price is in
+  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', 'SPX', or currency code: 'USD', 'GBP'
+  price         TEXT NOT NULL,           -- stored as string to avoid float imprecision
+  currency      TEXT NOT NULL,           -- what currency the price is in (e.g. 'EUR')
   date          TEXT NOT NULL,           -- YYYY-MM-DD
-  provider      TEXT NOT NULL,
+  provider      TEXT NOT NULL,           -- which provider supplied this
   fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(symbol, currency, date)
 );
 
-CREATE INDEX idx_exchange_rates_pair ON exchange_rates(base, quote, date);
 CREATE INDEX idx_market_prices_symbol ON market_prices(symbol, date);
 ```
 
-**Why separate from `asset_prices`?** `asset_prices` (Sprint 17) tracks user-specific asset valuations linked to portfolio lots. `market_prices` is a shared cache of raw market data — an asset's price update can be sourced from `market_prices`, but they serve different purposes. The financial data service populates `market_prices`; the asset price service reads from it when updating portfolio valuations.
+**Why one unified table?** Exchange rates and market prices have the same structure: a symbol, a price, a target currency, a date, and a provider. Storing them together eliminates duplicate caching logic, duplicate service methods, and duplicate MCP tools/API endpoints. An exchange rate is just a price: "USD in EUR = 0.92" is the same shape as "bitcoin in EUR = 80000".
+
+**Why separate from `asset_prices`?** `asset_prices` (Sprint 17) tracks user-recorded asset valuations linked to portfolio lots. `market_prices` is a shared cache of raw provider data — crypto prices, stock quotes, and exchange rates alike. The price resolver checks `asset_prices` first (user intent) then `market_prices` (provider data).
 
 #### Provider interface
 
 ```typescript
-interface ExchangeRateResult {
-  base: string;
-  quote: string;
-  rate: number;
-  date: string;         // YYYY-MM-DD
-  provider: string;
-}
-
-interface MarketPriceResult {
-  symbol: string;
-  price: number;
-  currency: string;
-  date: string;
-  provider: string;
+/** Unified result type for all price data — market prices, exchange rates, etc. */
+interface PriceResult {
+  symbol: string;     // 'bitcoin', 'AAPL', 'USD', 'GBP'
+  price: number;      // price in the target currency
+  currency: string;   // target currency: 'EUR', 'USD'
+  date: string;       // YYYY-MM-DD
+  provider: string;   // 'coingecko', 'frankfurter', etc.
 }
 
 interface FinancialDataProvider {
   name: string;
-  supportsExchangeRates: boolean;
-  supportsMarketPrices: boolean;
 
-  // Exchange rates
-  getExchangeRate?(base: string, quote: string, date?: string): Promise<ExchangeRateResult | null>;
-  getExchangeRates?(base: string, date?: string): Promise<ExchangeRateResult[]>;   // all pairs for a base
+  /** Fetch a price. For exchange rate providers: symbol=base currency, currency=quote. */
+  getPrice?(symbol: string, currency: string, date?: string): Promise<PriceResult | null>;
 
-  // Market prices
-  getPrice?(symbol: string, currency: string, date?: string): Promise<MarketPriceResult | null>;
-  getPriceRange?(symbol: string, currency: string, from: string, to: string): Promise<MarketPriceResult[]>;
+  /** Fetch all prices/rates for a symbol (e.g. all currency pairs for "USD"). */
+  getPrices?(symbol: string, date?: string): Promise<PriceResult[]>;
 
-  // Exchange rate time series
-  getExchangeRateRange?(base: string, quote: string, from: string, to: string): Promise<ExchangeRateResult[]>;
+  /** Fetch daily prices over a date range. */
+  getPriceRange?(symbol: string, currency: string, from: string, to: string): Promise<PriceResult[]>;
 
-  // Health check — verify API key is valid, service is reachable
+  /** Search for symbols by name (auto-discovery). */
+  searchSymbol?(query: string): Promise<SymbolSearchResult[]>;
+
   healthCheck?(): Promise<boolean>;
 }
 ```
 
 #### Service layer
 
-- **`FinancialDataService`** — orchestrates providers and cache:
-  - `getExchangeRate(base, quote, date?)` — cache-first lookup. If cached and fresh, return it. Otherwise try providers in priority order, cache result, return it. `date` defaults to today.
-  - `getExchangeRates(base, date?)` — all available pairs for a base currency on a given date.
-  - `getExchangeRateRange(base, quote, from, to)` — fetch a full time series of exchange rates for a date range. Uses provider range endpoints (e.g. Frankfurter `/timeseries`) to get all dates in one API call. Bulk-caches all returned points. Returns array of `ExchangeRateResult`.
-  - `convert(amount, from, to, date?)` — convenience: look up rate + multiply. Returns `{ converted: number, rate: number, date: string, stale: boolean }`.
-  - `getMarketPrice(symbol, currency?, date?)` — same pattern for asset prices. Currency defaults to EUR.
-  - `getMarketPriceRange(symbol, currency, from, to)` — fetch a full time series of market prices. Uses provider range endpoints (e.g. CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`) to get all dates in one API call. Bulk-caches all returned points. Returns array of `MarketPriceResult`.
-  - `ensurePriceHistory(symbol, currency, from, to)` — checks cache for gaps in the date range, fetches only the missing segments via `getMarketPriceRange`. Idempotent — safe to call repeatedly.
-  - `ensureExchangeRateHistory(base, quote, from, to)` — same pattern for exchange rates.
-  - `getProviderStatus()` — list configured providers with health status (reachable, key valid, rate limits).
-  - `setApiKey(provider, key)` — store in `settings` table.
-  - `getApiKey(provider)` — read from `settings` table.
+- **`FinancialDataService`** — orchestrates providers and the unified price cache:
+  - `getPrice(symbol, currency, date?)` — unified cache-first price lookup. Works for market assets (crypto, stocks) and exchange rates alike. Tries all providers in priority order. `date` defaults to today.
+  - `getPrices(symbol, date?)` — all available prices/rates for a symbol (e.g. all currency pairs for "USD"). Primarily useful for exchange rate providers.
+  - `convert(amount, from, to, date?)` — convenience: look up rate + multiply. Returns `{ converted, rate, date, stale }`.
+  - `ensurePriceHistory(symbol, currency, from, to)` — checks `market_prices` cache for gaps in the date range, fetches missing segments via provider range endpoints. Idempotent. Works for both market prices and exchange rates.
+  - `searchSymbol(query)` — search for symbols across all providers (CoinGecko `/search`, AlphaVantage `SYMBOL_SEARCH`). Returns matches with provider, symbol, name, and type.
+  - `getProviderStatus()` — list configured providers with health status.
+  - `setApiKey(provider, key)` / `getApiKey(provider)` — store/read from `settings` table.
 
 - **`SettingsService`** — generic key-value CRUD on the `settings` table. Used by financial data service for API keys, and available for future app settings.
 
@@ -684,17 +661,17 @@ interface FinancialDataProvider {
 
 | Tool | Description |
 |------|-------------|
-| `convert_currency` | Convert an amount between currencies. Params: `amount` (cents), `from`, `to`, `date` (optional, defaults to today). Returns converted amount (cents), rate used, source provider, whether the rate is stale. Primary use case: receipt in foreign currency → EUR. |
-| `get_exchange_rate` | Look up an exchange rate. Params: `base`, `quote`, `date` (optional). Returns rate, date, provider. |
-| `get_market_price` | Look up a market price. Params: `symbol`, `currency` (optional, default EUR), `date` (optional). Returns price, currency, date, provider. |
+| `convert_currency` | Convert an amount between currencies. Params: `amount` (cents), `from`, `to`, `date` (optional). Returns converted amount, rate, provider, stale flag. |
+| `get_price` | Unified price lookup — works for exchange rates, crypto, stocks, ETFs. Params: `symbol` (currency code, CoinGecko ID, or ticker), `currency` (optional, default EUR), `date` (optional). Returns price, currency, date, provider, stale flag. |
+| `search_symbol` | Search for market symbols across all providers. Params: `query`. Returns matches with provider, symbol, name, type. Use before `create_asset` to discover correct symbol mappings. |
 | `list_providers` | List configured financial data providers with status (active, API key set, healthy). |
 | `set_api_key` | Configure an API key for a provider. Params: `provider`, `key`. |
 
 #### API routes
 
-- `GET /api/financial/exchange-rate` — `?base=USD&quote=EUR&date=2025-01-15`
+- `GET /api/financial/price` — `?symbol=bitcoin&currency=EUR&date=2025-01-15` (also works for exchange rates: `?symbol=USD&currency=EUR`)
 - `GET /api/financial/convert` — `?amount=1250&from=USD&to=EUR&date=2025-01-15`
-- `GET /api/financial/market-price` — `?symbol=bitcoin&currency=EUR&date=2025-01-15`
+- `GET /api/financial/search-symbol` — `?query=bitcoin`
 - `GET /api/financial/providers` — list provider status
 - `POST /api/financial/providers/[provider]/key` — set API key
 
@@ -714,24 +691,24 @@ interface FinancialDataProvider {
 src/
 ├── lib/
 │   ├── services/
-│   │   ├── financial-data.ts       # Orchestrator: cache + provider fallback
+│   │   ├── financial-data.ts       # Orchestrator: unified price cache + provider fallback
 │   │   └── settings.ts             # Generic key-value settings CRUD
 │   ├── providers/
-│   │   ├── types.ts                # FinancialDataProvider interface
+│   │   ├── types.ts                # FinancialDataProvider + PriceResult interfaces
 │   │   ├── ecb.ts                  # ECB exchange rates (free, no key)
 │   │   ├── frankfurter.ts          # Frankfurter API (free, no key)
 │   │   ├── open-exchange-rates.ts  # Open Exchange Rates (key required)
-│   │   ├── coingecko.ts            # CoinGecko crypto prices
-│   │   └── alpha-vantage.ts        # Alpha Vantage stock prices
+│   │   ├── coingecko.ts            # CoinGecko crypto prices + search
+│   │   └── alpha-vantage.ts        # Alpha Vantage stock prices + search
 │   ├── mcp/tools/
 │   │   └── financial.ts            # MCP tool registrations
 │   └── validators/
-│       └── financial.ts            # Zod schemas for rate/price queries
+│       └── financial.ts            # Zod schemas for price queries
 ├── app/api/
 │   └── financial/
-│       ├── exchange-rate/route.ts
+│       ├── price/route.ts          # Unified price lookup (exchange rates + market prices)
 │       ├── convert/route.ts
-│       ├── market-price/route.ts
+│       ├── search-symbol/route.ts  # Symbol auto-discovery
 │       └── providers/
 │           ├── route.ts            # GET list providers
 │           └── [provider]/
@@ -744,7 +721,7 @@ src/
 - **Service tests:** Real SQLite (via `makeTestDb()`). Verify cache-first behavior, TTL expiry, provider fallback, stale flag.
 - **Integration tests:** API routes with mocked providers — verify correct responses, error handling, key management.
 
-**Done when:** `convert_currency` MCP tool can answer "what's 15.99 USD in EUR for 2025-01-15?" by hitting ECB/Frankfurter (no API key needed), caching the result, and returning the converted amount. A second call for the same pair+date hits the cache instantly. `get_market_price` can fetch BTC price from CoinGecko. Provider status is visible via `list_providers`. API keys are stored securely in the settings table.
+**Done when:** `convert_currency` MCP tool can answer "what's 15.99 USD in EUR for 2025-01-15?" by hitting ECB/Frankfurter (no API key needed), caching the result, and returning the converted amount. A second call for the same pair+date hits the cache instantly. `get_price` can fetch BTC price from CoinGecko or a USD/EUR exchange rate — both via the same unified tool. `search_symbol` can discover provider-specific symbol IDs. Provider status is visible via `list_providers`. API keys are stored securely in the settings table.
 
 ### Sprint 17: Assets & Net Worth Tracking ✅
 **Goal:** Unified asset model for tracking net worth across savings, investments, crypto, and foreign currencies. Adds a `transfer` transaction type so asset purchases don't pollute spending reports. Replaces the previously planned separate Accounts (old Sprint 18) and Investments (old Sprint 19) sprints with a single, more powerful abstraction.
@@ -934,29 +911,30 @@ A `search_symbol` tool and API endpoint enable auto-discovery: the AI or user se
 
 ##### Unified price resolver
 
-A new utility used by both `attachMetrics()` (current valuation) and `PortfolioReportService` (historical reports):
+A new utility (`src/lib/services/price-resolver.ts`) used by both `attachMetrics()` (current valuation) and `PortfolioReportService` (historical reports):
 
 ```
-resolvePrice(asset, date) → { price: number, source: 'market' | 'user' | 'lot' | 'deposit' } | null
+resolvePrice(db, asset, date) → { price: number, source: 'market' | 'user' | 'lot' | 'deposit' } | null
+resolveLatestPrice(db, asset) → same, but no date constraint (for current valuation)
 ```
 
 Resolution order for a given `(asset, date)`:
 1. **User override** — if an `asset_prices` entry exists within ±1 day of `date`, use it. User-recorded prices are intentional and take precedence (handles NAV overrides, illiquid valuations, corrections).
-2. **Market price** — if the asset has a `symbol`, look up `market_prices` for `(symbol, asset.currency, date)`. Accept exact match or nearest within 7 days (prefer earlier).
+2. **Provider data** — for each `(provider, symbol)` pair in the asset's `symbolMap`, look up `market_prices` for `(symbol, provider, currency, date)`. Scoping by provider prevents collisions between different providers that may use the same symbol string. Accepts exact match or nearest within 7 days. Tries the asset's own currency first (crypto/stocks), then EUR (exchange rates for foreign currency assets).
 3. **Lot cost basis** — fall back to the most recent lot's `price_per_unit` before `date`.
-4. **Deposit identity** — same-currency deposits: price is always 1 (1 unit = 1 currency unit).
+4. **Deposit identity** — EUR deposits only: price is always 1 (100 cents). Foreign currency deposits must use `symbolMap` to link to an exchange rate provider (e.g. `{ frankfurter: "USD" }`).
 
 Why user prices beat market prices: a user who manually records a price is making a deliberate statement ("this is what my asset is actually worth"). For illiquid assets there's no market data at all. For market-linked assets, users rarely record manual prices — so in practice, step 2 handles most lookups.
 
 ##### Autorecord cron upgrade
 
-The daily cron gains a new job: for each asset where `symbol IS NOT NULL`, fetch today's market price via `FinancialDataService.getMarketPrice(asset.symbol, asset.currency)` and write an `asset_prices` snapshot via `AssetPriceService.record()`. This keeps `asset_prices` dense for market-linked assets without manual intervention, and ensures `attachMetrics()` (which reads from `asset_prices`) stays current.
+The daily cron (04:00 UTC) gains a new job: for each asset where `symbol_map IS NOT NULL`, iterate the `(provider, symbol)` pairs, fetch today's price via `FinancialDataService.getPrice(symbol, currency)`, and write an `asset_prices` snapshot via `AssetPriceService.record()`. This keeps `asset_prices` dense for market-linked assets without manual intervention.
 
 ##### Backfill on symbol assignment
 
-When an asset's `symbol` is set (on creation or via update):
-1. Call `ensurePriceHistory(symbol, asset.currency, earliestLotDate, today)` to populate `market_prices`.
-2. For non-EUR assets, also call `ensureExchangeRateHistory(asset.currency, 'EUR', earliestLotDate, today)`.
+When an asset's `symbolMap` is set (on creation or via update), `triggerSymbolBackfill()` fires asynchronously:
+1. For each `symbol` in the map, call `ensurePriceHistory(symbol, asset.currency, earliestLotDate, today)` to populate `market_prices`.
+2. For non-EUR assets, also call `ensurePriceHistory(asset.currency, 'EUR', earliestLotDate, today)` to populate exchange rates.
 3. This is async / best-effort — don't block the API response. If it fails, reports fall back gracefully through the resolver chain.
 
 ##### Validator & API changes
@@ -982,18 +960,17 @@ When an asset's `symbol` is set (on creation or via update):
 
 #### Service layer
 
-- `PortfolioReportService`:
-  - `getNetWorthTimeSeries(window)` — time series of total net worth (cash + assets) at configurable intervals (daily/weekly/monthly)
-  - `getAssetPerformance(dateRange?)` — per-asset P&L table with cost basis, current value, absolute P&L, percentage return, annualized return
-  - `getAllocationHistory(window)` — portfolio allocation at month boundaries over time
+- `PortfolioReportService` (`src/lib/services/portfolio-reports.ts`):
+  - `getNetWorthTimeSeries(window, interval)` — time series of total net worth (cash + assets) at configurable intervals (daily/weekly/monthly)
+  - `getAssetPerformance(from?, to?)` — per-asset P&L table with cost basis, current value, absolute P&L, percentage return, annualized return
+  - `getAllocation()` — current portfolio allocation by asset and by type (deposit/investment/crypto/other)
   - `getCurrencyExposure()` — current value grouped by currency
-  - `getRealizedPnL(dateRange?)` — P&L from completed sells, using weighted-average cost basis
-  - `getAssetHistory(assetId, window)` — combined lot + price timeline for a single asset
+  - `getRealizedPnL(from?, to?)` — P&L from completed sells, using FIFO cost basis
+  - `getAssetHistory(assetId, window)` — combined lot timeline + weekly price/value chart for a single asset
   - `getTransferSummary(month)` — transfer amounts grouped by destination asset/type
 
 - **Extend existing** `ReportService`:
   - `spendingSummary` gains an optional `includeTransfers` flag — when true, returns a separate `transfers` section showing money moved to assets
-  - `trends` gains a `netWorth` mode alongside the existing spending mode
 
 #### MCP tools
 
@@ -1022,20 +999,20 @@ Reports need dense historical price data — a 6-month daily net worth chart for
 
 **How it works:**
 
-1. **Backfill on asset creation.** When an asset is created (or first linked to a market symbol), call `FinancialDataService.ensurePriceHistory()` to populate `market_prices` from the asset's earliest lot date through today. One API call per asset via provider range endpoints (CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`, Frankfurter `/timeseries`). Same for exchange rates on non-EUR assets via `ensureExchangeRateHistory()`.
-2. **Daily cron keeps it current.** The existing autorecord cron fetches today's prices for all tracked assets. Combined with the backfill, `market_prices` stays dense over time.
-3. **Reports read from cache.** `PortfolioReportService` reads directly from `market_prices` and `exchange_rates` — no provider calls at report time. For each (asset, date) pair, find the exact or nearest cached price.
-4. **Gap-fill on report generation.** Before computing a report, call `ensurePriceHistory()` / `ensureExchangeRateHistory()` for each asset's date range. These are idempotent — they check what's already cached and only fetch missing segments. This covers assets created before this feature existed, or gaps from provider outages.
+1. **Backfill on asset creation.** When an asset is created (or first linked via `symbolMap`), call `FinancialDataService.ensurePriceHistory()` to populate `market_prices` from the asset's earliest lot date through today. One API call per symbol via provider range endpoints (CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`, Frankfurter `/timeseries`). Exchange rates for non-EUR assets use the same `ensurePriceHistory()` call (exchange rates are stored in `market_prices` too).
+2. **Daily cron keeps it current.** The autorecord cron (04:00 UTC) fetches today's prices for all tracked assets. Combined with the backfill, `market_prices` stays dense over time.
+3. **Reports read from cache.** `PortfolioReportService` reads from `market_prices` via the unified price resolver — no provider calls at report time. For each (asset, date) pair, find the exact or nearest cached price.
+4. **Gap-fill on report generation.** Before computing a report, call `ensurePriceHistory()` for each asset's symbol + date range. Idempotent — checks what's already cached and only fetches missing segments.
 
-**Price resolution** uses the unified `resolvePrice(asset, date)` from Phase 1 (user override → market price → lot cost basis → deposit identity). Reports call this for each (asset, date) point in the series.
+**Price resolution** uses the unified `resolvePrice(asset, date)` from Phase 1 (user override → provider data → lot cost basis → deposit identity). Reports call this for each (asset, date) point in the series.
 
 #### Key implementation notes
 
 - **Annualized return** uses time-weighted calculation: `((current_value / cost_basis) ^ (365 / days_held)) - 1`. Only meaningful for assets held > 30 days.
-- **Deposit assets** (type `'deposit'`, same currency): price is always 1, so P&L is always 0 and net worth contribution = sum of lots. Skip price lookups for these.
+- **EUR deposit assets** (type `'deposit'`, currency EUR): price is always 1, so P&L is always 0 and net worth contribution = sum of lots. Foreign currency deposits need a `symbolMap` entry pointing to an exchange rate provider (e.g. `{ frankfurter: "USD" }`).
 - All reports should handle the **empty state** gracefully (no assets yet, no prices recorded).
 
-**Done when:** Assets can be linked to market symbols (`create_asset name:"Bitcoin" type:crypto symbol:bitcoin`), prices backfill automatically, and the daily cron keeps them current. The AI can ask "how has my net worth changed over the last 6 months?" and get a time series. "Which of my assets is performing best?" returns a ranked P&L table. All endpoints return correct data tested against known lot + price fixtures. Manual `record_price` overrides market data for assets like real estate or private funds.
+**Done when:** Assets can be linked to market symbols via `symbolMap` (`create_asset name:"Bitcoin" type:crypto symbolMap:{coingecko:"bitcoin"}`), prices backfill automatically, and the daily cron keeps them current. The AI uses `search_symbol` to discover provider-symbol pairs before creating assets. Foreign currency deposits use `symbolMap` to link to exchange rate providers. The AI can ask "how has my net worth changed over the last 6 months?" and get a time series. "Which of my assets is performing best?" returns a ranked P&L table. All endpoints return correct data tested against known lot + price fixtures. Manual `record_price` overrides market data for assets like real estate or private funds.
 
 ---
 

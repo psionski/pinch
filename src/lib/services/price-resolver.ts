@@ -1,7 +1,7 @@
 import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { assetPrices, marketPrices, exchangeRates, assetLots } from "@/lib/db/schema";
+import { assetPrices, marketPrices, assetLots } from "@/lib/db/schema";
 import type { AssetResponse } from "@/lib/validators/assets";
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -9,11 +9,10 @@ type Db = BetterSQLite3Database<typeof schema>;
 /** Base currency for the app. All portfolio-level valuations are in this currency. */
 const BASE_CURRENCY = "EUR";
 
-export type PriceSource = "user" | "market" | "exchange" | "lot" | "deposit";
+export type PriceSource = "user" | "market" | "lot" | "deposit";
 
 export interface ResolvedPrice {
-  /** Price in cents. For same-currency assets this is in the asset's currency;
-   *  for foreign-currency assets resolved via exchange rates this is in EUR. */
+  /** Price in cents. */
   price: number;
   source: PriceSource;
 }
@@ -24,9 +23,9 @@ export interface ResolvedPrice {
  *
  * Resolution order for a given (asset, date):
  * 1. User override — asset_prices entry within ±1 day of date
- * 2. Provider data — for each (provider, symbol) in symbolMap:
- *    a. market_prices (crypto, stocks, ETFs)
- *    b. exchange_rates (foreign currency deposits/assets — symbol is the currency code)
+ * 2. Provider data — for each (provider, symbol) in symbolMap, look up market_prices.
+ *    This covers crypto, stocks, AND exchange rates (all stored in one table).
+ *    For exchange rates the lookup uses (symbol=currency_code, currency=EUR).
  * 3. Lot cost basis — most recent lot's price_per_unit before date
  * 4. Deposit identity — EUR deposits only: price is always 1 (100 cents)
  */
@@ -38,13 +37,15 @@ export function resolvePrice(db: Db, asset: AssetResponse, date: string): Resolv
   // Step 2: Provider data — iterate symbolMap (provider, symbol) pairs
   if (asset.symbolMap) {
     for (const [provider, symbol] of Object.entries(asset.symbolMap)) {
-      // 2a: market_prices (crypto, stocks)
-      const mp = findMarketPrice(db, provider, symbol, asset.currency, date);
+      // Try with asset's own currency first (crypto/stocks priced in that currency)
+      const mp = findCachedPrice(db, provider, symbol, asset.currency, date);
       if (mp !== null) return { price: mp, source: "market" };
 
-      // 2b: exchange_rates (symbol is a currency code, e.g. "USD")
-      const xr = findExchangeRate(db, provider, symbol, BASE_CURRENCY, date);
-      if (xr !== null) return { price: xr, source: "exchange" };
+      // Try with base currency (exchange rates: symbol=USD, currency=EUR)
+      if (asset.currency !== BASE_CURRENCY) {
+        const xr = findCachedPrice(db, provider, symbol, BASE_CURRENCY, date);
+        if (xr !== null) return { price: xr, source: "market" };
+      }
     }
   }
 
@@ -75,62 +76,32 @@ export function resolveLatestPrice(db: Db, asset: AssetResponse): ResolvedPrice 
     .get();
 
   // Latest provider price — try each (provider, symbol) pair
-  let latestProviderPrice: { price: number; source: PriceSource } | null = null;
+  let latestProviderPrice: number | null = null;
   if (asset.symbolMap) {
     for (const [provider, symbol] of Object.entries(asset.symbolMap)) {
-      // Try market_prices
-      const mp = db
-        .select({ price: marketPrices.price })
-        .from(marketPrices)
-        .where(
-          and(
-            eq(marketPrices.symbol, symbol),
-            eq(marketPrices.provider, provider),
-            eq(marketPrices.currency, asset.currency)
-          )
-        )
-        .orderBy(desc(marketPrices.date))
-        .limit(1)
-        .get();
-      if (mp) {
-        latestProviderPrice = {
-          price: Math.round(parseFloat(mp.price) * 100),
-          source: "market",
-        };
+      // Try asset currency
+      const mp = findLatestCachedPrice(db, provider, symbol, asset.currency);
+      if (mp !== null) {
+        latestProviderPrice = mp;
         break;
       }
-
-      // Try exchange_rates
-      const xr = db
-        .select({ rate: exchangeRates.rate })
-        .from(exchangeRates)
-        .where(
-          and(
-            eq(exchangeRates.base, symbol),
-            eq(exchangeRates.quote, BASE_CURRENCY),
-            eq(exchangeRates.provider, provider)
-          )
-        )
-        .orderBy(desc(exchangeRates.date))
-        .limit(1)
-        .get();
-      if (xr) {
-        latestProviderPrice = {
-          price: Math.round(parseFloat(xr.rate) * 100),
-          source: "exchange",
-        };
-        break;
+      // Try base currency (exchange rates)
+      if (asset.currency !== BASE_CURRENCY) {
+        const xr = findLatestCachedPrice(db, provider, symbol, BASE_CURRENCY);
+        if (xr !== null) {
+          latestProviderPrice = xr;
+          break;
+        }
       }
     }
   }
 
   // Pick the most recent between user and provider
-  if (latestUserPrice && latestProviderPrice) {
-    // Both exist — user price takes precedence (deliberate override)
+  if (latestUserPrice && latestProviderPrice !== null) {
     return { price: latestUserPrice.pricePerUnit, source: "user" };
   }
   if (latestUserPrice) return { price: latestUserPrice.pricePerUnit, source: "user" };
-  if (latestProviderPrice) return latestProviderPrice;
+  if (latestProviderPrice !== null) return { price: latestProviderPrice, source: "market" };
 
   // Deposit identity — EUR deposits with no other data
   if (asset.type === "deposit" && asset.currency === BASE_CURRENCY) {
@@ -163,7 +134,8 @@ function findUserPrice(db: Db, assetId: number, date: string): number | null {
   return row?.pricePerUnit ?? null;
 }
 
-function findMarketPrice(
+/** Look up a cached price from the unified market_prices table within a 7-day window. */
+function findCachedPrice(
   db: Db,
   provider: string,
   symbol: string,
@@ -192,32 +164,28 @@ function findMarketPrice(
   return null;
 }
 
-function findExchangeRate(
+/** Look up the latest cached price (no date constraint). */
+function findLatestCachedPrice(
   db: Db,
   provider: string,
-  base: string,
-  quote: string,
-  date: string
+  symbol: string,
+  currency: string
 ): number | null {
-  const weekBefore = offsetDate(date, -7);
-
   const row = db
-    .select({ rate: exchangeRates.rate })
-    .from(exchangeRates)
+    .select({ price: marketPrices.price })
+    .from(marketPrices)
     .where(
       and(
-        eq(exchangeRates.base, base),
-        eq(exchangeRates.quote, quote),
-        eq(exchangeRates.provider, provider),
-        gte(exchangeRates.date, weekBefore),
-        lte(exchangeRates.date, date)
+        eq(marketPrices.symbol, symbol),
+        eq(marketPrices.provider, provider),
+        eq(marketPrices.currency, currency)
       )
     )
-    .orderBy(desc(exchangeRates.date))
+    .orderBy(desc(marketPrices.date))
     .limit(1)
     .get();
 
-  if (row) return Math.round(parseFloat(row.rate) * 100);
+  if (row) return Math.round(parseFloat(row.price) * 100);
   return null;
 }
 

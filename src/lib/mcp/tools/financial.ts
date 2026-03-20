@@ -1,10 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  GetExchangeRateSchema,
-  ConvertCurrencySchema,
-  GetMarketPriceSchema,
-  SetApiKeySchema,
-} from "@/lib/validators/financial";
+import { GetPriceSchema, ConvertCurrencySchema, SetApiKeySchema } from "@/lib/validators/financial";
 import { z } from "zod";
 import { getFinancialDataService } from "@/lib/api/services";
 
@@ -41,42 +36,24 @@ export function registerFinancialTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "get_exchange_rate",
+    "get_price",
     {
       description:
-        "Look up an exchange rate between two currencies. " +
-        "Params: base (e.g. 'USD'), quote (e.g. 'EUR'), date (optional YYYY-MM-DD, defaults to today). " +
-        "Returns rate (1 base = rate quote), date, provider, and stale flag.",
-      inputSchema: GetExchangeRateSchema,
+        "Look up a price for a currency pair, crypto, stock, or ETF. " +
+        "Params: symbol (use search_symbol to find the correct identifier), " +
+        "currency (target currency, optional, defaults to 'EUR'), " +
+        "date (optional YYYY-MM-DD, defaults to today). " +
+        "Works for exchange rates too: symbol='USD', currency='EUR' returns how much 1 USD is worth in EUR. " +
+        "Returns price, date, provider, and stale flag.",
+      inputSchema: GetPriceSchema,
     },
     async (input) => {
-      const result = await getFinancialDataService().getExchangeRate(
-        input.base,
-        input.quote,
-        input.date
-      );
-      if (!result) return notFound(`No exchange rate available for ${input.base}/${input.quote}`);
-      return ok(result);
-    }
-  );
-
-  server.registerTool(
-    "get_market_price",
-    {
-      description:
-        "Look up a market price for a crypto, stock, or ETF. " +
-        "Params: symbol (CoinGecko ID for crypto e.g. 'bitcoin', or ticker for stocks e.g. 'AAPL'), " +
-        "currency (optional, defaults to 'EUR'), date (optional YYYY-MM-DD, defaults to today). " +
-        "Returns price, currency, date, provider, and stale flag.",
-      inputSchema: GetMarketPriceSchema,
-    },
-    async (input) => {
-      const result = await getFinancialDataService().getMarketPrice(
+      const result = await getFinancialDataService().getPrice(
         input.symbol,
         input.currency,
         input.date
       );
-      if (!result) return notFound(`No price available for ${input.symbol}`);
+      if (!result) return notFound(`No price available for ${input.symbol}/${input.currency}`);
       return ok(result);
     }
   );
@@ -99,11 +76,13 @@ export function registerFinancialTools(server: McpServer): void {
     "search_symbol",
     {
       description:
-        "Search for market symbols across all providers (CoinGecko for crypto, AlphaVantage for stocks/ETFs). " +
-        "Use this before create_asset or update_asset to discover the correct provider-symbol pairs. " +
-        "Params: query (e.g. 'bitcoin', 'apple', 'VWCE'). " +
-        "Returns matches with provider, symbol, name, and type. " +
-        "Pass the results as symbolMap to create_asset/update_asset, e.g. { coingecko: 'bitcoin' }.",
+        "Search for a market symbol by name. Use this to discover the correct symbol identifier " +
+        "before creating or updating an asset, or before calling get_price. " +
+        "Params: query (e.g. 'bitcoin', 'apple', 'VWCE', 'S&P 500'). " +
+        "Returns matches with { provider, symbol, name, type }. " +
+        "To enable automatic price tracking on an asset, pick the best match and pass it as " +
+        "symbolMap: { [result.provider]: result.symbol } to create_asset or update_asset. " +
+        "For exchange rates on foreign currency deposits, use the currency code as the query (e.g. 'USD').",
       inputSchema: z.object({
         query: z.string().min(1, "Search query is required"),
       }),

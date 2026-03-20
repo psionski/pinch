@@ -42,7 +42,7 @@ export function triggerSymbolBackfill(
 
       // For non-EUR assets, also backfill exchange rates to EUR
       if (asset.currency !== "EUR") {
-        await financialDataService.ensureExchangeRateHistory(asset.currency, "EUR", from, today);
+        await financialDataService.ensurePriceHistory(asset.currency, "EUR", from, today);
       }
     } catch (err) {
       console.warn(`[backfill] Failed for asset ${asset.id}:`, err);

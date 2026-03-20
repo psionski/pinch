@@ -90,7 +90,7 @@ async function runMarketPriceJob(): Promise<void> {
       try {
         // Try each symbol in the map until one returns a price
         for (const symbol of Object.values(map)) {
-          const result = await fds.getMarketPrice(symbol, asset.currency, today);
+          const result = await fds.getPrice(symbol, asset.currency, today);
           if (result) {
             const priceCents = Math.round(result.price * 100);
             priceService.record(asset.id, {
@@ -117,7 +117,7 @@ async function runMarketPriceJob(): Promise<void> {
 async function warmExchangeRates(): Promise<void> {
   try {
     const svc = getFinancialDataService();
-    await Promise.all([svc.getExchangeRate("USD", "EUR"), svc.getExchangeRate("GBP", "EUR")]);
+    await Promise.all([svc.getPrice("USD", "EUR"), svc.getPrice("GBP", "EUR")]);
     console.log("[cron] Exchange rate cache warmed (USD/EUR, GBP/EUR)");
   } catch (err) {
     console.warn("[cron] Exchange rate warm-up failed (non-fatal):", err);

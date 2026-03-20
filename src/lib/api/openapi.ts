@@ -34,12 +34,10 @@ import {
   DeleteReceiptsBatchSchema,
 } from "@/lib/validators/receipts";
 import {
-  GetExchangeRateSchema,
+  GetPriceSchema,
   ConvertCurrencySchema,
-  GetMarketPriceSchema,
-  ExchangeRateResultSchema,
+  PriceResultSchema,
   ConvertResultSchema,
-  MarketPriceResultSchema,
   ProviderStatusSchema,
   SetApiKeyBodySchema,
 } from "@/lib/validators/financial";
@@ -88,9 +86,8 @@ const AssetWithMetrics = AssetWithMetricsSchema.meta({ id: "AssetWithMetrics" })
 const AssetLot = AssetLotResponseSchema.meta({ id: "AssetLot" });
 const AssetPrice = AssetPriceResponseSchema.meta({ id: "AssetPrice" });
 const Portfolio = PortfolioResponseSchema.meta({ id: "Portfolio" });
-const ExchangeRateResult = ExchangeRateResultSchema.meta({ id: "ExchangeRateResult" });
+const PriceResult = PriceResultSchema.meta({ id: "PriceResult" });
 const ConvertResult = ConvertResultSchema.meta({ id: "ConvertResult" });
-const MarketPriceResult = MarketPriceResultSchema.meta({ id: "MarketPriceResult" });
 const ProviderStatus = ProviderStatusSchema.meta({ id: "ProviderStatus" });
 const SuccessSchema = z.object({ success: z.boolean() }).meta({ id: "SuccessResponse" });
 const Transaction = TransactionResponseSchema.meta({ id: "Transaction" });
@@ -564,13 +561,13 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           errors: [400, 404, 500],
         }),
       },
-      "/api/financial/exchange-rate": {
+      "/api/financial/price": {
         get: op({
-          id: "getExchangeRate",
-          summary: "Get an exchange rate between two currencies",
+          id: "getPrice",
+          summary: "Get a price for a currency pair, crypto, stock, or ETF",
           tags: ["Financial"],
-          query: GetExchangeRateSchema,
-          response: ExchangeRateResult,
+          query: GetPriceSchema,
+          response: PriceResult,
           errors: [400, 404, 500],
         }),
       },
@@ -581,16 +578,6 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           tags: ["Financial"],
           query: ConvertCurrencySchema,
           response: ConvertResult,
-          errors: [400, 404, 500],
-        }),
-      },
-      "/api/financial/market-price": {
-        get: op({
-          id: "getMarketPrice",
-          summary: "Get a market price for a crypto, stock, or ETF",
-          tags: ["Financial"],
-          query: GetMarketPriceSchema,
-          response: MarketPriceResult,
           errors: [400, 404, 500],
         }),
       },

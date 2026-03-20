@@ -33,11 +33,11 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Create a new asset to track in your portfolio. " +
         "Types: 'deposit' (savings/bank accounts), 'investment' (stocks/ETFs), 'crypto', 'other'. " +
-        "Currency defaults to 'EUR'. Optional 'symbolMap' enables automatic price tracking — " +
-        "a JSON object mapping provider names to symbols, e.g. { coingecko: 'bitcoin' } or { 'alpha-vantage': 'AAPL' }. " +
-        "Use search_symbol first to discover the correct provider-symbol pairs. " +
-        "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 100. " +
-        "Example: create_asset({ name: 'Bitcoin', type: 'crypto', symbolMap: { coingecko: 'bitcoin' }, currency: 'EUR' })",
+        "Currency defaults to 'EUR'. " +
+        "To enable automatic price tracking, first call search_symbol with the asset name to discover the " +
+        "correct symbol, then pass the result as symbolMap: { [provider]: [symbol] }. " +
+        "For foreign currency deposits, use search_symbol with the currency code (e.g. 'USD') to find the exchange rate provider mapping. " +
+        "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 100.",
       inputSchema: CreateAssetSchema,
     },
     (input) => {
@@ -80,8 +80,8 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Update asset metadata (name, icon, color, notes, symbolMap). " +
-        "Set 'symbolMap' to enable automatic price tracking, e.g. { coingecko: 'bitcoin' }. " +
-        "Use search_symbol to discover correct symbols. Set symbolMap to null to disable automatic pricing. " +
+        "To enable or change automatic price tracking, use search_symbol first, then set symbolMap " +
+        "to { [provider]: [symbol] } from the search results. Set symbolMap to null to disable automatic pricing. " +
         "Does not affect lots or prices. Use buy_asset/sell_asset to record transactions.",
       inputSchema: IdSchema.merge(UpdateAssetSchema),
     },

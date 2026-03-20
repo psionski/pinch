@@ -13,7 +13,7 @@ afterEach(() => {
 describe("FrankfurterProvider", () => {
   const provider = new FrankfurterProvider();
 
-  it("parses getExchangeRate response correctly", async () => {
+  it("parses getPrice response correctly", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -26,18 +26,18 @@ describe("FrankfurterProvider", () => {
       })
     );
 
-    const result = await provider.getExchangeRate("USD", "EUR", "2026-01-15");
+    const result = await provider.getPrice("USD", "EUR", "2026-01-15");
     expect(result).not.toBeNull();
-    expect(result!.base).toBe("USD");
-    expect(result!.quote).toBe("EUR");
-    expect(result!.rate).toBeCloseTo(0.92);
+    expect(result!.symbol).toBe("USD");
+    expect(result!.currency).toBe("EUR");
+    expect(result!.price).toBeCloseTo(0.92);
     expect(result!.date).toBe("2026-01-15");
     expect(result!.provider).toBe("frankfurter");
   });
 
   it("returns null on HTTP error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
-    const result = await provider.getExchangeRate("USD", "EUR");
+    const result = await provider.getPrice("USD", "EUR");
     expect(result).toBeNull();
   });
 
@@ -49,11 +49,11 @@ describe("FrankfurterProvider", () => {
         json: async () => ({ date: "2026-01-15", base: "USD", rates: { GBP: 0.78 } }),
       })
     );
-    const result = await provider.getExchangeRate("USD", "EUR");
+    const result = await provider.getPrice("USD", "EUR");
     expect(result).toBeNull();
   });
 
-  it("getExchangeRates returns all pairs for a base", async () => {
+  it("getPrices returns all pairs for a base", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -66,10 +66,10 @@ describe("FrankfurterProvider", () => {
       })
     );
 
-    const results = await provider.getExchangeRates("EUR");
+    const results = await provider.getPrices("EUR");
     expect(results).toHaveLength(3);
-    expect(results.map((r) => r.quote).sort()).toEqual(["GBP", "JPY", "USD"]);
-    expect(results.every((r) => r.base === "EUR")).toBe(true);
+    expect(results.map((r) => r.currency).sort()).toEqual(["GBP", "JPY", "USD"]);
+    expect(results.every((r) => r.symbol === "EUR")).toBe(true);
   });
 });
 
@@ -99,11 +99,11 @@ describe("EcbProvider", () => {
       })
     );
 
-    const result = await provider.getExchangeRate("EUR", "USD");
+    const result = await provider.getPrice("EUR", "USD");
     expect(result).not.toBeNull();
-    expect(result!.base).toBe("EUR");
-    expect(result!.quote).toBe("USD");
-    expect(result!.rate).toBeCloseTo(1.087);
+    expect(result!.symbol).toBe("EUR");
+    expect(result!.currency).toBe("USD");
+    expect(result!.price).toBeCloseTo(1.087);
   });
 
   it("converts non-EUR base correctly (USD→GBP)", async () => {
@@ -116,9 +116,9 @@ describe("EcbProvider", () => {
     );
 
     // USD→GBP: GBP_in_EUR / USD_in_EUR = 0.86 / 1.087 ≈ 0.7912
-    const result = await provider.getExchangeRate("USD", "GBP");
+    const result = await provider.getPrice("USD", "GBP");
     expect(result).not.toBeNull();
-    expect(result!.rate).toBeCloseTo(0.86 / 1.087, 3);
+    expect(result!.price).toBeCloseTo(0.86 / 1.087, 3);
   });
 
   it("returns null when base currency not in ECB rates", async () => {
@@ -131,13 +131,13 @@ describe("EcbProvider", () => {
     );
 
     // BTC is not in ECB data
-    const result = await provider.getExchangeRate("BTC", "EUR");
+    const result = await provider.getPrice("BTC", "EUR");
     expect(result).toBeNull();
   });
 
   it("returns empty array on HTTP error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
-    const results = await provider.getExchangeRates("EUR");
+    const results = await provider.getPrices("EUR");
     expect(results).toEqual([]);
   });
 });

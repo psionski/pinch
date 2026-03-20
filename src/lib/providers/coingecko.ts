@@ -1,4 +1,4 @@
-import type { MarketPriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 
 const BASE_URL = "https://api.coingecko.com/api/v3";
 const PRO_URL = "https://pro-api.coingecko.com/api/v3";
@@ -10,8 +10,6 @@ const PRO_URL = "https://pro-api.coingecko.com/api/v3";
  */
 export class CoinGeckoProvider implements FinancialDataProvider {
   readonly name = "coingecko";
-  readonly supportsExchangeRates = false;
-  readonly supportsMarketPrices = true;
 
   private baseUrl: string;
 
@@ -19,11 +17,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
     this.baseUrl = apiKey ? PRO_URL : BASE_URL;
   }
 
-  async getPrice(
-    symbol: string,
-    currency = "eur",
-    date?: string
-  ): Promise<MarketPriceResult | null> {
+  async getPrice(symbol: string, currency = "eur", date?: string): Promise<PriceResult | null> {
     const vs = currency.toLowerCase();
 
     if (date && date < today()) {
@@ -33,7 +27,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
     return this.getCurrentPrice(symbol, vs);
   }
 
-  private async getCurrentPrice(symbol: string, vs: string): Promise<MarketPriceResult | null> {
+  private async getCurrentPrice(symbol: string, vs: string): Promise<PriceResult | null> {
     const url = new URL(`${this.baseUrl}/simple/price`);
     url.searchParams.set("ids", symbol);
     url.searchParams.set("vs_currencies", vs);
@@ -59,7 +53,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
     symbol: string,
     vs: string,
     date: string
-  ): Promise<MarketPriceResult | null> {
+  ): Promise<PriceResult | null> {
     // CoinGecko historical endpoint uses DD-MM-YYYY format
     const [y, mo, d] = date.split("-");
     const cgDate = `${d}-${mo}-${y}`;
@@ -90,7 +84,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
     currency = "eur",
     from: string,
     to: string
-  ): Promise<MarketPriceResult[]> {
+  ): Promise<PriceResult[]> {
     const vs = currency.toLowerCase();
     // CoinGecko /market_chart/range uses unix timestamps
     const fromTs = Math.floor(new Date(from + "T00:00:00Z").getTime() / 1000);
