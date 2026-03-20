@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "41c65188-d5a8-4cbf-be49-16f0984b1c61",
+  "id": "0513e268-4788-447e-8783-a4b76a53dc56",
   "prevId": "8572488e-7f37-47ac-8593-1cfb296f4ad7",
   "tables": {
     "asset_lots": {
@@ -440,85 +440,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "exchange_rates": {
-      "name": "exchange_rates",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "base": {
-          "name": "base",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "quote": {
-          "name": "quote",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "rate": {
-          "name": "rate",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "date": {
-          "name": "date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(datetime('now'))"
-        }
-      },
-      "indexes": {
-        "idx_exchange_rates_pair": {
-          "name": "idx_exchange_rates_pair",
-          "columns": [
-            "base",
-            "quote",
-            "date"
-          ],
-          "isUnique": false
-        },
-        "uq_exchange_rates_pair_date": {
-          "name": "uq_exchange_rates_pair_date",
-          "columns": [
-            "base",
-            "quote",
-            "date"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
