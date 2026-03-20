@@ -121,6 +121,6 @@ export class AssetService {
     const currentValue = pricePerUnit !== null ? Math.round(currentHoldings * pricePerUnit) : null;
     const pnl = currentValue !== null ? currentValue - costBasis : null;
 
-    return { ...asset, currentHoldings, costBasis, currentValue, pnl };
+    return { ...asset, currentHoldings, costBasis, currentValue, pnl, latestPrice: pricePerUnit };
   }
 }

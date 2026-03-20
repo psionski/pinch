@@ -46,6 +46,7 @@ export const AssetWithMetricsSchema = AssetResponseSchema.extend({
   costBasis: z.number().int(),
   currentValue: z.number().int().nullable(),
   pnl: z.number().int().nullable(),
+  latestPrice: z.number().int().nullable(),
 });
 export type AssetWithMetrics = z.infer<typeof AssetWithMetricsSchema>;
 

@@ -30,8 +30,8 @@ export function RecordPriceDialog({
   loading,
 }: RecordPriceDialogProps): React.ReactElement {
   const currentDisplay =
-    asset.currentValue !== null
-      ? `Current: ${(asset.currentValue / 100).toFixed(2)} ${asset.currency}`
+    asset.latestPrice !== null
+      ? `Current: ${(asset.latestPrice / 100).toFixed(2)} ${asset.currency} per unit`
       : "No price recorded yet";
 
   const [price, setPrice] = useState("");
