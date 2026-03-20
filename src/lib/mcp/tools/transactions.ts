@@ -7,6 +7,7 @@ import {
   UpdateTransactionsBatchSchema,
   ListTransactionsSchema,
 } from "@/lib/validators/transactions";
+import { IdSchema } from "@/lib/validators/common";
 import { getTransactionService } from "@/lib/api/services";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
@@ -41,7 +42,7 @@ export function registerTransactionTools(server: McpServer): void {
     {
       description:
         "Update fields on an existing transaction by ID. Only supplied fields are changed.",
-      inputSchema: z.object({ id: z.number().int().positive(), ...UpdateTransactionSchema.shape }),
+      inputSchema: IdSchema.merge(UpdateTransactionSchema),
     },
     ({ id, ...updates }) => {
       const svc = getTransactionService();
@@ -81,7 +82,7 @@ export function registerTransactionTools(server: McpServer): void {
     "get_transaction",
     {
       description: "Get a single transaction by ID with all fields.",
-      inputSchema: z.object({ id: z.number().int().positive() }),
+      inputSchema: IdSchema,
     },
     ({ id }) => {
       const result = getTransactionService().getById(id);

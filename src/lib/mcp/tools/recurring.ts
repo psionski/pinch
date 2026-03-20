@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { CreateRecurringSchema, UpdateRecurringSchema } from "@/lib/validators/recurring";
+import { IdSchema } from "@/lib/validators/common";
 import { getRecurringService } from "@/lib/api/services";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
@@ -25,7 +26,7 @@ export function registerRecurringTools(server: McpServer): void {
     "get_recurring",
     {
       description: "Get a single recurring transaction template by ID with next occurrence date.",
-      inputSchema: z.object({ id: z.number().int().positive() }),
+      inputSchema: IdSchema,
     },
     ({ id }) => {
       const result = getRecurringService().getById(id);
@@ -47,7 +48,7 @@ export function registerRecurringTools(server: McpServer): void {
     "update_recurring",
     {
       description: "Modify a recurring template. Use isActive: false to pause it.",
-      inputSchema: z.object({ id: z.number().int().positive(), ...UpdateRecurringSchema.shape }),
+      inputSchema: IdSchema.merge(UpdateRecurringSchema),
     },
     ({ id, ...updates }) => {
       const result = getRecurringService().update(id, updates);
@@ -62,7 +63,7 @@ export function registerRecurringTools(server: McpServer): void {
       description:
         "Delete a recurring template. " +
         "Already-generated transactions are kept as normal transaction history.",
-      inputSchema: z.object({ id: z.number().int().positive() }),
+      inputSchema: IdSchema,
     },
     ({ id }) => {
       const deleted = getRecurringService().delete(id);

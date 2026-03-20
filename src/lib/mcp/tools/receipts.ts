@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getReceiptService } from "@/lib/api/services";
 import { ListReceiptsSchema } from "@/lib/validators/receipts";
-import { PaginationSchema } from "@/lib/validators/common";
+import { IdSchema, PaginationSchema } from "@/lib/validators/common";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -15,7 +15,7 @@ export function registerReceiptTools(server: McpServer): void {
       description:
         "Get a single receipt by ID. Returns metadata (merchant, date, total, rawText) and " +
         "an imageUrl (absolute URL, ready to fetch) to view the uploaded image.",
-      inputSchema: z.object({ id: z.number().int().positive() }),
+      inputSchema: IdSchema,
     },
     ({ id }) => {
       const receipt = getReceiptService().getById(id);

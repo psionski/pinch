@@ -6,6 +6,7 @@ import {
   RecategorizeSchema,
   MergeCategoriesSchema,
 } from "@/lib/validators/categories";
+import { IdSchema } from "@/lib/validators/common";
 import { getCategoryService } from "@/lib/api/services";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
@@ -27,7 +28,7 @@ export function registerCategoryTools(server: McpServer): void {
     "get_category",
     {
       description: "Get a single category by ID with hierarchy info and metadata.",
-      inputSchema: z.object({ id: z.number().int().positive() }),
+      inputSchema: IdSchema,
     },
     ({ id }) => {
       const result = getCategoryService().getById(id);
@@ -49,7 +50,7 @@ export function registerCategoryTools(server: McpServer): void {
     "update_category",
     {
       description: "Rename, reparent, or change icon/color of a category.",
-      inputSchema: z.object({ id: z.number().int().positive(), ...UpdateCategorySchema.shape }),
+      inputSchema: IdSchema.merge(UpdateCategorySchema),
     },
     ({ id, ...updates }) => {
       const result = getCategoryService().update(id, updates);
@@ -63,7 +64,7 @@ export function registerCategoryTools(server: McpServer): void {
     {
       description:
         "Delete a category. Transactions in this category will become uncategorized (categoryId set to NULL).",
-      inputSchema: z.object({ id: z.number().int().positive() }),
+      inputSchema: IdSchema,
     },
     ({ id }) => {
       const deleted = getCategoryService().delete(id);

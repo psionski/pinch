@@ -6,6 +6,7 @@ import {
   SellAssetSchema,
   RecordPriceSchema,
 } from "@/lib/validators/assets";
+import { IdSchema } from "@/lib/validators/common";
 import { z } from "zod";
 import {
   getAssetService,
@@ -21,8 +22,6 @@ function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
 function notFound(msg: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
 }
-
-const AssetIdSchema = z.object({ id: z.number().int().positive() });
 
 export function registerAssetTools(server: McpServer): void {
   server.registerTool(
@@ -56,7 +55,7 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Get a single asset with full metrics (holdings, cost basis, current value, P&L).",
-      inputSchema: AssetIdSchema,
+      inputSchema: IdSchema,
     },
     (input) => {
       const asset = getAssetService().getById(input.id);
@@ -71,7 +70,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Update asset metadata (name, icon, color, notes). " +
         "Does not affect lots or prices. Use buy_asset/sell_asset to record transactions.",
-      inputSchema: AssetIdSchema.merge(UpdateAssetSchema),
+      inputSchema: IdSchema.merge(UpdateAssetSchema),
     },
     (input) => {
       const { id, ...rest } = input;
@@ -87,7 +86,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Delete an asset and all its lots and price history. " +
         "The linked transfer transactions are kept (they record the cash flow).",
-      inputSchema: AssetIdSchema,
+      inputSchema: IdSchema,
     },
     (input) => {
       const deleted = getAssetService().delete(input.id);
@@ -107,7 +106,7 @@ export function registerAssetTools(server: McpServer): void {
         "IMPORTANT for EUR deposits: pricePerUnit must be 100 (€1.00 per unit). Use quantity to represent the EUR amount " +
         "(e.g. quantity: 5000, pricePerUnit: 100 for a €5,000 deposit). " +
         "Returns { lot, transaction }.",
-      inputSchema: AssetIdSchema.merge(BuyAssetSchema),
+      inputSchema: IdSchema.merge(BuyAssetSchema),
     },
     (input) => {
       const { id, ...rest } = input;
@@ -128,7 +127,7 @@ export function registerAssetTools(server: McpServer): void {
         "Params: id (asset ID), quantity (positive number to sell), pricePerUnit (cents), date (YYYY-MM-DD). " +
         "Returns error if quantity exceeds current holdings. " +
         "Returns { lot, transaction }.",
-      inputSchema: AssetIdSchema.merge(SellAssetSchema),
+      inputSchema: IdSchema.merge(SellAssetSchema),
     },
     (input) => {
       const { id, ...rest } = input;
@@ -149,7 +148,7 @@ export function registerAssetTools(server: McpServer): void {
         "Use get_market_price first to fetch the latest price, then call this to persist it. " +
         "Params: id (asset ID), pricePerUnit (cents), recordedAt (optional ISO datetime, defaults to now). " +
         "This updates currentValue and P&L calculations.",
-      inputSchema: AssetIdSchema.merge(RecordPriceSchema),
+      inputSchema: IdSchema.merge(RecordPriceSchema),
     },
     (input) => {
       const { id, ...rest } = input;
@@ -179,7 +178,7 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Get the price history (time series) for a single asset, ordered oldest to newest. Useful for charting.",
-      inputSchema: AssetIdSchema,
+      inputSchema: IdSchema,
     },
     (input) => ok(getAssetPriceService().getHistory(input.id))
   );
@@ -190,7 +189,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "List all buy/sell events (lots) for an asset, ordered newest first. " +
         "Positive quantity = buy/deposit, negative = sell/withdrawal.",
-      inputSchema: AssetIdSchema,
+      inputSchema: IdSchema,
     },
     (input) => ok(getAssetLotService().listLots(input.id))
   );

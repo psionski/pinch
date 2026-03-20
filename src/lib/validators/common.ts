@@ -14,6 +14,9 @@ export const TransactionTypeSchema = z.enum(["income", "expense", "transfer"]);
 
 export const FrequencySchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
 
+/** Generic integer ID parameter for MCP tools and API routes */
+export const IdSchema = z.object({ id: z.number().int().positive() });
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 export const PaginationSchema = z.object({
