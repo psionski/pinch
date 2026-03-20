@@ -1,0 +1,1 @@
+ALTER TABLE `assets` ADD `symbol_map` text;

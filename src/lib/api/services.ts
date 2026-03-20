@@ -11,6 +11,7 @@ import { AssetService } from "@/lib/services/assets";
 import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";
 import { PortfolioService } from "@/lib/services/portfolio";
+import { PortfolioReportService } from "@/lib/services/portfolio-reports";
 
 export function getTransactionService(): TransactionService {
   return new TransactionService(getDb());
@@ -60,4 +61,8 @@ export function getAssetPriceService(): AssetPriceService {
 
 export function getPortfolioService(): PortfolioService {
   return new PortfolioService(getDb());
+}
+
+export function getPortfolioReportService(): PortfolioReportService {
+  return new PortfolioReportService(getDb());
 }

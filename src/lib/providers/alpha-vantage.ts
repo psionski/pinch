@@ -1,4 +1,4 @@
-import type { MarketPriceResult, FinancialDataProvider } from "./types";
+import type { MarketPriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 
 const BASE_URL = "https://www.alphavantage.co/query";
 
@@ -92,6 +92,26 @@ export class AlphaVantageProvider implements FinancialDataProvider {
     };
   }
 
+  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
+    const url = new URL(BASE_URL);
+    url.searchParams.set("function", "SYMBOL_SEARCH");
+    url.searchParams.set("keywords", query);
+    url.searchParams.set("apikey", this.apiKey);
+
+    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as AlphaVantageSearchResponse;
+    if (!data.bestMatches?.length) return [];
+
+    return data.bestMatches.slice(0, 10).map((m) => ({
+      provider: this.name,
+      symbol: m["1. symbol"],
+      name: `${m["2. name"]} (${m["1. symbol"]})`,
+      type: m["3. type"]?.toLowerCase() ?? "stock",
+    }));
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       const url = new URL(BASE_URL);
@@ -106,6 +126,10 @@ export class AlphaVantageProvider implements FinancialDataProvider {
       return false;
     }
   }
+}
+
+interface AlphaVantageSearchResponse {
+  bestMatches?: Array<Record<string, string>>;
 }
 
 interface AlphaVantageQuoteResponse {

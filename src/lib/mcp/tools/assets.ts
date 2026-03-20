@@ -13,7 +13,10 @@ import {
   getAssetLotService,
   getAssetPriceService,
   getPortfolioService,
+  getFinancialDataService,
 } from "@/lib/api/services";
+import { getDb } from "@/lib/db";
+import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -30,12 +33,20 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Create a new asset to track in your portfolio. " +
         "Types: 'deposit' (savings/bank accounts), 'investment' (stocks/ETFs), 'crypto', 'other'. " +
-        "Currency defaults to 'EUR'. " +
+        "Currency defaults to 'EUR'. Optional 'symbolMap' enables automatic price tracking — " +
+        "a JSON object mapping provider names to symbols, e.g. { coingecko: 'bitcoin' } or { 'alpha-vantage': 'AAPL' }. " +
+        "Use search_symbol first to discover the correct provider-symbol pairs. " +
         "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 100. " +
-        "Example: create_asset({ name: 'Emergency Fund', type: 'deposit', currency: 'EUR' })",
+        "Example: create_asset({ name: 'Bitcoin', type: 'crypto', symbolMap: { coingecko: 'bitcoin' }, currency: 'EUR' })",
       inputSchema: CreateAssetSchema,
     },
-    (input) => ok(getAssetService().create(input))
+    (input) => {
+      const asset = getAssetService().create(input);
+      if (asset.symbolMap) {
+        triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
+      }
+      return ok(asset);
+    }
   );
 
   server.registerTool(
@@ -68,7 +79,9 @@ export function registerAssetTools(server: McpServer): void {
     "update_asset",
     {
       description:
-        "Update asset metadata (name, icon, color, notes). " +
+        "Update asset metadata (name, icon, color, notes, symbolMap). " +
+        "Set 'symbolMap' to enable automatic price tracking, e.g. { coingecko: 'bitcoin' }. " +
+        "Use search_symbol to discover correct symbols. Set symbolMap to null to disable automatic pricing. " +
         "Does not affect lots or prices. Use buy_asset/sell_asset to record transactions.",
       inputSchema: IdSchema.merge(UpdateAssetSchema),
     },
@@ -76,6 +89,9 @@ export function registerAssetTools(server: McpServer): void {
       const { id, ...rest } = input;
       const asset = getAssetService().update(id, rest);
       if (!asset) return notFound(`Asset ${id} not found`);
+      if (rest.symbolMap) {
+        triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
+      }
       return ok(asset);
     }
   );

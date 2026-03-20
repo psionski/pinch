@@ -206,6 +206,7 @@ export const assets = sqliteTable(
     name: text("name").notNull(),
     type: text("type").notNull(), // 'deposit' | 'investment' | 'crypto' | 'other'
     currency: text("currency").notNull().default("EUR"),
+    symbolMap: text("symbol_map"), // JSON: {"coingecko":"bitcoin","alpha-vantage":"BTC"}. NULL = manual pricing
     icon: text("icon"),
     color: text("color"),
     notes: text("notes"),

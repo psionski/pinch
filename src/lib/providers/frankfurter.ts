@@ -55,6 +55,28 @@ export class FrankfurterProvider implements FinancialDataProvider {
     }));
   }
 
+  async getExchangeRateRange(
+    base: string,
+    quote: string,
+    from: string,
+    to: string
+  ): Promise<ExchangeRateResult[]> {
+    const url = `${BASE_URL}/${from}..${to}?from=${encodeURIComponent(base)}&to=${encodeURIComponent(quote)}`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as FrankfurterTimeseriesResponse;
+    if (!data.rates) return [];
+
+    return Object.entries(data.rates).map(([date, rates]) => ({
+      base,
+      quote,
+      rate: rates[quote],
+      date,
+      provider: this.name,
+    }));
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       const res = await fetch(`${BASE_URL}/latest?from=EUR&to=USD`, {
@@ -71,4 +93,11 @@ interface FrankfurterResponse {
   date: string;
   base: string;
   rates: Record<string, number>;
+}
+
+interface FrankfurterTimeseriesResponse {
+  base: string;
+  start_date: string;
+  end_date: string;
+  rates: Record<string, Record<string, number>>;
 }

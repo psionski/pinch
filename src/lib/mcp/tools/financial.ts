@@ -5,6 +5,7 @@ import {
   GetMarketPriceSchema,
   SetApiKeySchema,
 } from "@/lib/validators/financial";
+import { z } from "zod";
 import { getFinancialDataService } from "@/lib/api/services";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
@@ -91,6 +92,26 @@ export function registerFinancialTools(server: McpServer): void {
     async () => {
       const statuses = await getFinancialDataService().getProviderStatus();
       return ok(statuses);
+    }
+  );
+
+  server.registerTool(
+    "search_symbol",
+    {
+      description:
+        "Search for market symbols across all providers (CoinGecko for crypto, AlphaVantage for stocks/ETFs). " +
+        "Use this before create_asset or update_asset to discover the correct provider-symbol pairs. " +
+        "Params: query (e.g. 'bitcoin', 'apple', 'VWCE'). " +
+        "Returns matches with provider, symbol, name, and type. " +
+        "Pass the results as symbolMap to create_asset/update_asset, e.g. { coingecko: 'bitcoin' }.",
+      inputSchema: z.object({
+        query: z.string().min(1, "Search query is required"),
+      }),
+    },
+    async (input) => {
+      const results = await getFinancialDataService().searchSymbol(input.query);
+      if (results.length === 0) return notFound(`No symbols found for "${input.query}"`);
+      return ok(results);
     }
   );
 

@@ -19,6 +19,7 @@ export default function ReportsPage(): React.ReactElement {
     type: "expense",
     compareDateFrom: computed.compareDateFrom,
     compareDateTo: computed.compareDateTo,
+    includeTransfers: false,
   });
   const topMerchants = reportService.topMerchants({
     dateFrom,

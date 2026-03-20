@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { exchangeRates, marketPrices } from "@/lib/db/schema";
@@ -6,6 +6,7 @@ import type {
   FinancialDataProvider,
   ExchangeRateResult,
   MarketPriceResult,
+  SymbolSearchResult,
 } from "@/lib/providers/types";
 import type { SettingsService } from "./settings";
 import { EcbProvider } from "@/lib/providers/ecb";
@@ -212,6 +213,134 @@ export class FinancialDataService {
     }
 
     return null;
+  }
+
+  // ─── Range Backfill ────────────────────────────────────────────────────────
+
+  /**
+   * Ensure market_prices has data for (symbol, currency) over [from, to].
+   * Checks which dates are cached and fetches only missing segments.
+   * Idempotent — safe to call multiple times for the same range.
+   */
+  async ensurePriceHistory(
+    symbol: string,
+    currency: string,
+    from: string,
+    to: string
+  ): Promise<void> {
+    const currencyUpper = currency.toUpperCase();
+
+    // Check what we already have
+    const cached = this.db
+      .select({ date: marketPrices.date })
+      .from(marketPrices)
+      .where(
+        and(
+          eq(marketPrices.symbol, symbol),
+          eq(marketPrices.currency, currencyUpper),
+          gte(marketPrices.date, from),
+          lte(marketPrices.date, to)
+        )
+      )
+      .all();
+
+    const cachedDates = new Set(cached.map((r) => r.date));
+
+    // If we have a reasonable density (>80% of expected days), skip fetch
+    const expectedDays = daysBetween(from, to);
+    if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
+
+    // Try range fetch from providers
+    const providers = this.buildMarketPriceProviders();
+    for (const provider of providers) {
+      try {
+        const results = await provider.getPriceRange?.(symbol, currencyUpper, from, to);
+        if (results && results.length > 0) {
+          for (const r of results) {
+            if (!cachedDates.has(r.date)) {
+              this.cachePriceResult(r);
+            }
+          }
+          return;
+        }
+      } catch {
+        // continue to next provider
+      }
+    }
+  }
+
+  /**
+   * Ensure exchange_rates has data for (base, quote) over [from, to].
+   * Fetches missing segments via provider range endpoints.
+   */
+  async ensureExchangeRateHistory(
+    base: string,
+    quote: string,
+    from: string,
+    to: string
+  ): Promise<void> {
+    const cached = this.db
+      .select({ date: exchangeRates.date })
+      .from(exchangeRates)
+      .where(
+        and(
+          eq(exchangeRates.base, base),
+          eq(exchangeRates.quote, quote),
+          gte(exchangeRates.date, from),
+          lte(exchangeRates.date, to)
+        )
+      )
+      .all();
+
+    const cachedDates = new Set(cached.map((r) => r.date));
+
+    const expectedDays = daysBetween(from, to);
+    if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
+
+    const providers = this.buildExchangeRateProviders();
+    for (const provider of providers) {
+      try {
+        const results = await provider.getExchangeRateRange?.(base, quote, from, to);
+        if (results && results.length > 0) {
+          for (const r of results) {
+            if (!cachedDates.has(r.date)) {
+              this.cacheRate(r);
+            }
+          }
+          return;
+        }
+      } catch {
+        // continue to next provider
+      }
+    }
+  }
+
+  // ─── Symbol Search ─────────────────────────────────────────────────────────
+
+  /**
+   * Search for market symbols across all providers.
+   * Returns matches from CoinGecko (crypto) and AlphaVantage (stocks/ETFs).
+   */
+  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
+    const allProviders = [
+      ...this.buildMarketPriceProviders(),
+      ...this.buildExchangeRateProviders(),
+    ];
+
+    const results: SymbolSearchResult[] = [];
+    const searches = allProviders
+      .filter((p) => p.searchSymbol)
+      .map(async (p) => {
+        try {
+          const matches = await p.searchSymbol!(query);
+          results.push(...matches);
+        } catch {
+          // provider failed — skip
+        }
+      });
+
+    await Promise.allSettled(searches);
+    return results;
   }
 
   // ─── Provider Management ───────────────────────────────────────────────────
@@ -423,6 +552,12 @@ function toMarketPriceResult(row: typeof schema.marketPrices.$inferSelect): Mark
     date: row.date,
     provider: row.provider,
   };
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = new Date(from + "T00:00:00Z");
+  const b = new Date(to + "T00:00:00Z");
+  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
 }
 
 // Re-export for convenience

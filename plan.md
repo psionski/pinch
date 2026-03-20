@@ -217,7 +217,7 @@ PRAGMA cache_size = -64000;    -- 64MB cache
 PRAGMA busy_timeout = 5000;
 ```
 
-## MCP Tools (36 tools)
+## MCP Tools (43 tools)
 
 ### Transactions (8 tools)
 | Tool | Description |
@@ -276,6 +276,16 @@ PRAGMA busy_timeout = 5000;
 | `get_trends` | Monthly totals time series (up to 24 months), optionally filtered by category |
 | `get_top_merchants` | Highest-spend merchants with transaction counts and averages |
 | `get_net_balance` | Income minus expenses, optionally filtered by date range |
+
+### Portfolio Reports (6 tools)
+| Tool | Description |
+|------|-------------|
+| `get_net_worth_history` | Net worth time series. Params: window (3m/6m/12m/ytd/all), interval (daily/weekly/monthly). Returns date + cash + assets + total per point. |
+| `get_asset_performance` | All assets ranked by performance. Returns cost basis, current value, P&L, P&L %, annualized return per asset. |
+| `get_allocation` | Current portfolio allocation by asset and by type. |
+| `get_currency_exposure` | Net worth breakdown by currency. |
+| `get_realized_pnl` | Realized P&L from sells in a date range, using FIFO cost basis. |
+| `get_asset_history` | Combined lot + price + value timeline for one asset. Params: asset ID, window. |
 
 ### Escape Hatch (2 tools)
 | Tool | Description |
@@ -548,7 +558,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 
 ---
 
-### Sprint 16: Financial Data Service
+### Sprint 16: Financial Data Service ✅
 **Goal:** A provider-based service for fetching exchange rates and asset prices from public APIs, with SQLite caching. The UI and MCP clients use this to convert currencies (e.g. a receipt in USD → EUR) and update asset valuations. Historical queries supported. Users configure API keys via a settings table.
 
 #### The problem
@@ -736,7 +746,7 @@ src/
 
 **Done when:** `convert_currency` MCP tool can answer "what's 15.99 USD in EUR for 2025-01-15?" by hitting ECB/Frankfurter (no API key needed), caching the result, and returning the converted amount. A second call for the same pair+date hits the cache instantly. `get_market_price` can fetch BTC price from CoinGecko. Provider status is visible via `list_providers`. API keys are stored securely in the settings table.
 
-### Sprint 17: Assets & Net Worth Tracking
+### Sprint 17: Assets & Net Worth Tracking ✅
 **Goal:** Unified asset model for tracking net worth across savings, investments, crypto, and foreign currencies. Adds a `transfer` transaction type so asset purchases don't pollute spending reports. Replaces the previously planned separate Accounts (old Sprint 18) and Investments (old Sprint 19) sprints with a single, more powerful abstraction.
 
 #### Design principles
@@ -903,7 +913,7 @@ src/
 
 ---
 
-### Sprint 18: Portfolio & Asset Reports — Backend
+### Sprint 18: Portfolio & Asset Reports — Backend ✅
 **Goal:** Service layer, API routes, and MCP tools for common portfolio/asset analytics. All computed from lots + prices — no snapshots.
 
 #### Phase 1: Asset–market price linking
@@ -912,13 +922,15 @@ Today `assets` and `market_prices` are completely disconnected. An asset like "B
 
 ##### Schema change
 
-Add a nullable `symbol` column to `assets`:
+Add a nullable `symbol_map` column to `assets`:
 
 ```sql
-ALTER TABLE assets ADD COLUMN symbol TEXT;  -- nullable: NULL = manual/no market data
+ALTER TABLE assets ADD COLUMN symbol_map TEXT;  -- JSON: {"coingecko":"bitcoin","alpha-vantage":"BTC"}. NULL = manual/no market data
 ```
 
-`symbol` holds the provider-specific identifier: `'bitcoin'` for CoinGecko, `'AAPL'` for AlphaVantage, etc. When set, the system can automatically fetch and resolve prices. When `NULL`, the asset relies on user-provided `asset_prices` snapshots only (e.g. real estate, private funds, collectibles).
+`symbol_map` is a JSON object mapping provider names to their specific identifiers (e.g. `{"coingecko": "bitcoin"}` or `{"alpha-vantage": "AAPL"}`). Different providers use different symbol namespaces (CoinGecko uses IDs like `bitcoin`, AlphaVantage uses tickers like `AAPL`), so we store per-provider mappings. When set, the system can automatically fetch and resolve prices from the correct provider. When `NULL`, the asset relies on user-provided `asset_prices` snapshots only.
+
+A `search_symbol` tool and API endpoint enable auto-discovery: the AI or user searches by name (e.g. "bitcoin", "apple"), and the system queries provider search endpoints (CoinGecko `/search`, AlphaVantage `SYMBOL_SEARCH`) to find the correct provider-symbol pairs.
 
 ##### Unified price resolver
 
@@ -949,9 +961,11 @@ When an asset's `symbol` is set (on creation or via update):
 
 ##### Validator & API changes
 
-- `CreateAssetInput` / `UpdateAssetInput`: add optional `symbol: z.string().optional()`
-- `AssetResponse`: include `symbol: string | null`
-- MCP `create_asset` / `update_asset` tool descriptions updated to mention the symbol field
+- `CreateAssetInput` / `UpdateAssetInput`: add optional `symbolMap: Record<string, string>` (provider → symbol mapping)
+- `AssetResponse`: include `symbolMap: Record<string, string> | null`
+- MCP `create_asset` / `update_asset` tool descriptions updated to mention the symbolMap field
+- MCP `search_symbol` tool added for auto-discovery of provider-symbol pairs
+- `GET /api/financial/search-symbol?query=...` API endpoint for UI symbol search
 - MCP `instructions` updated: "When creating an investment or crypto asset, ask the user for the ticker/symbol so prices can be tracked automatically."
 
 #### Reports

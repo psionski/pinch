@@ -6,12 +6,19 @@ import { IsoDateSchema } from "./common";
 export const AssetTypeSchema = z.enum(["deposit", "investment", "crypto", "other"]);
 export type AssetType = z.infer<typeof AssetTypeSchema>;
 
+// ─── Symbol Map ──────────────────────────────────────────────────────────────
+
+/** Provider → symbol mapping, e.g. { coingecko: "bitcoin", "alpha-vantage": "BTC" } */
+export const SymbolMapSchema = z.record(z.string(), z.string());
+export type SymbolMap = z.infer<typeof SymbolMapSchema>;
+
 // ─── Asset CRUD ───────────────────────────────────────────────────────────────
 
 export const CreateAssetSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   type: AssetTypeSchema,
   currency: z.string().min(1).max(10).default("EUR"),
+  symbolMap: SymbolMapSchema.optional(),
   icon: z.string().max(100).optional(),
   color: z.string().max(20).optional(),
   notes: z.string().max(2000).optional(),
@@ -22,6 +29,7 @@ export const UpdateAssetSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   type: AssetTypeSchema.optional(),
   currency: z.string().min(1).max(10).optional(),
+  symbolMap: SymbolMapSchema.nullable().optional(),
   icon: z.string().max(100).nullable().optional(),
   color: z.string().max(20).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
@@ -33,6 +41,7 @@ export const AssetResponseSchema = z.object({
   name: z.string(),
   type: AssetTypeSchema,
   currency: z.string(),
+  symbolMap: SymbolMapSchema.nullable(),
   icon: z.string().nullable(),
   color: z.string().nullable(),
   notes: z.string().nullable(),

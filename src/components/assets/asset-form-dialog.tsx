@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
+import type { SymbolMap } from "@/lib/validators/assets";
 
 interface AssetFormDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface AssetFormDialogProps {
     name: string;
     type: "deposit" | "investment" | "crypto" | "other";
     currency: string;
+    symbolMap?: SymbolMap;
     icon?: string;
     color?: string;
   }) => void;
@@ -41,6 +43,19 @@ const ASSET_TYPES = [
   { value: "other", label: "Other" },
 ] as const;
 
+/** Infer the default provider for a given asset type. */
+function defaultProvider(type: string): string {
+  if (type === "crypto") return "coingecko";
+  return "alpha-vantage";
+}
+
+/** Extract the first symbol value from a symbolMap, or empty string. */
+function symbolFromMap(map: Record<string, string> | null | undefined): string {
+  if (!map) return "";
+  const values = Object.values(map);
+  return values[0] ?? "";
+}
+
 export function AssetFormDialog({
   open,
   onOpenChange,
@@ -52,6 +67,7 @@ export function AssetFormDialog({
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState<string>(initialData?.type ?? "deposit");
   const [currency, setCurrency] = useState(initialData?.currency ?? "EUR");
+  const [symbol, setSymbol] = useState(symbolFromMap(initialData?.symbolMap));
   const [icon, setIcon] = useState(initialData?.icon ?? "");
   const [error, setError] = useState("");
 
@@ -66,10 +82,15 @@ export function AssetFormDialog({
       setError("Currency is required.");
       return;
     }
+
+    const trimmedSymbol = symbol.trim();
+    const symbolMap = trimmedSymbol ? { [defaultProvider(type)]: trimmedSymbol } : undefined;
+
     onSubmit({
       name: name.trim(),
       type: type as "deposit" | "investment" | "crypto" | "other",
       currency: currency.trim().toUpperCase(),
+      symbolMap,
       icon: icon.trim() || undefined,
     });
   }
@@ -117,6 +138,21 @@ export function AssetFormDialog({
               disabled={loading}
             />
           </div>
+          {type !== "deposit" && (
+            <div className="space-y-1">
+              <Label htmlFor="asset-symbol">Market Symbol (optional)</Label>
+              <Input
+                id="asset-symbol"
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                placeholder={type === "crypto" ? "e.g. bitcoin" : "e.g. AAPL"}
+                disabled={loading}
+              />
+              <p className="text-muted-foreground text-xs">
+                Enables automatic price tracking. CoinGecko ID for crypto, ticker for stocks.
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="asset-icon">Icon (emoji, optional)</Label>
             <Input

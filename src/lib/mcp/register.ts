@@ -8,6 +8,7 @@ import { registerQueryTool } from "./tools/query";
 import { registerReceiptTools } from "./tools/receipts";
 import { registerFinancialTools } from "./tools/financial";
 import { registerAssetTools } from "./tools/assets";
+import { registerPortfolioReportTools } from "./tools/portfolio-reports";
 
 export function registerTools(server: McpServer): void {
   registerTransactionTools(server);
@@ -19,4 +20,5 @@ export function registerTools(server: McpServer): void {
   registerQueryTool(server);
   registerFinancialTools(server);
   registerAssetTools(server);
+  registerPortfolioReportTools(server);
 }

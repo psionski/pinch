@@ -32,6 +32,7 @@ export default function DashboardPage(): React.ReactElement {
     type: "expense",
     compareDateFrom: prevMonthStart,
     compareDateTo: prevMonthEnd,
+    includeTransfers: false,
   });
 
   const breakdown = reportService.getCategoryStats({

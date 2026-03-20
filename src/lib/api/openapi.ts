@@ -67,6 +67,18 @@ import {
   TopMerchantSchema,
   BudgetStatusItemSchema,
 } from "@/lib/validators/reports";
+import {
+  NetWorthQuerySchema,
+  NetWorthPointSchema,
+  AssetPerformanceQuerySchema,
+  AssetPerformanceItemSchema,
+  AllocationResultSchema,
+  CurrencyExposureItemSchema,
+  RealizedPnlQuerySchema,
+  RealizedPnlResultSchema,
+  AssetHistoryQuerySchema,
+  AssetHistoryResultSchema,
+} from "@/lib/validators/portfolio-reports";
 import { ErrorResponseSchema } from "@/lib/validators/common";
 
 // ─── Named component schemas ────────────────────────────────────────────────
@@ -91,6 +103,12 @@ const Budget = BudgetResponseSchema.meta({ id: "Budget" });
 const BudgetStatus = BudgetStatusItemSchema.meta({ id: "BudgetStatusItem" });
 const Recurring = RecurringResponseSchema.meta({ id: "RecurringTemplate" });
 const ReceiptRecord = ReceiptResponseSchema.meta({ id: "Receipt" });
+const NetWorthPoint = NetWorthPointSchema.meta({ id: "NetWorthPoint" });
+const AssetPerformanceItem = AssetPerformanceItemSchema.meta({ id: "AssetPerformanceItem" });
+const AllocationResult = AllocationResultSchema.meta({ id: "AllocationResult" });
+const CurrencyExposureItem = CurrencyExposureItemSchema.meta({ id: "CurrencyExposureItem" });
+const RealizedPnlResult = RealizedPnlResultSchema.meta({ id: "RealizedPnlResult" });
+const AssetHistoryResult = AssetHistoryResultSchema.meta({ id: "AssetHistoryResult" });
 const SummaryResult = SpendingSummaryResultSchema.meta({ id: "SpendingSummaryResult" });
 const CategorySpendingItem = CategorySpendingItemSchema.meta({ id: "CategorySpendingItem" });
 const BudgetStatsItem = BudgetStatsItemSchema.meta({ id: "BudgetStatsItem" });
@@ -728,6 +746,101 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           response: Portfolio,
           errors: [500],
         }),
+      },
+      "/api/portfolio/net-worth": {
+        get: {
+          operationId: "getNetWorthHistory",
+          summary: "Net worth time series",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            query: NetWorthQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Net worth time series",
+              content: { "application/json": { schema: z.array(NetWorthPoint) } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/performance": {
+        get: {
+          operationId: "getAssetPerformance",
+          summary: "All assets ranked by performance",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            query: AssetPerformanceQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Asset performance table",
+              content: { "application/json": { schema: z.array(AssetPerformanceItem) } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/allocation": {
+        get: {
+          operationId: "getAllocation",
+          summary: "Portfolio allocation by asset and type",
+          tags: ["Portfolio Reports"],
+          responses: {
+            "200": {
+              description: "Allocation breakdown",
+              content: { "application/json": { schema: AllocationResult } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/currency-exposure": {
+        get: {
+          operationId: "getCurrencyExposure",
+          summary: "Net worth by currency",
+          tags: ["Portfolio Reports"],
+          responses: {
+            "200": {
+              description: "Currency exposure breakdown",
+              content: { "application/json": { schema: z.array(CurrencyExposureItem) } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/realized-pnl": {
+        get: {
+          operationId: "getRealizedPnl",
+          summary: "Realized P&L from sells",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            query: RealizedPnlQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Realized P&L breakdown",
+              content: { "application/json": { schema: RealizedPnlResult } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/assets/{id}/history": {
+        get: {
+          operationId: "getAssetHistory",
+          summary: "Combined lot + price timeline for one asset",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            path: z.object({ id: z.string().meta({ description: "Asset ID" }) }),
+            query: AssetHistoryQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Asset history with lots and price timeline",
+              content: { "application/json": { schema: AssetHistoryResult } },
+            },
+            "404": {
+              description: "Asset not found",
+              content: { "application/json": { schema: ErrorSchema } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
       },
       "/api/receipts/{id}/image": {
         get: {

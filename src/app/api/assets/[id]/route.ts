@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAssetService } from "@/lib/api/services";
+import { getAssetService, getFinancialDataService } from "@/lib/api/services";
 import {
   parseBody,
   parseId,
@@ -8,6 +8,8 @@ import {
   handleServiceError,
 } from "@/lib/api/helpers";
 import { UpdateAssetSchema } from "@/lib/validators/assets";
+import { getDb } from "@/lib/db";
+import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -32,6 +34,9 @@ export async function PATCH(req: Request, ctx: RouteContext): Promise<NextRespon
   try {
     const asset = getAssetService().update(id, input);
     if (!asset) return errorResponse("Asset not found", "NOT_FOUND", 404);
+    if (input.symbolMap) {
+      triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
+    }
     return NextResponse.json(asset);
   } catch (err) {
     return handleServiceError(err);

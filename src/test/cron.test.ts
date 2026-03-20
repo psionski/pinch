@@ -6,9 +6,18 @@ vi.mock("node-cron", () => ({
 }));
 vi.mock("@/lib/api/services", () => ({
   getRecurringService: vi.fn(),
+  getFinancialDataService: vi.fn(),
+  getAssetPriceService: vi.fn(),
 }));
 vi.mock("@/lib/services/backup", () => ({
   runBackup: vi.fn(),
+}));
+vi.mock("@/lib/db", () => ({
+  getDb: vi.fn(() => ({
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({ where: vi.fn(() => ({ all: vi.fn(() => []) })) })),
+    })),
+  })),
 }));
 
 describe("initCronJobs singleton guard", () => {
@@ -23,7 +32,7 @@ describe("initCronJobs singleton guard", () => {
     delete g.__pinchCronInit;
   });
 
-  it("sets the global flag and schedules two jobs on first call", async () => {
+  it("sets the global flag and schedules three jobs on first call", async () => {
     const { initCronJobs } = await import("@/lib/cron");
     const cron = (await import("node-cron")).default;
 
@@ -31,10 +40,11 @@ describe("initCronJobs singleton guard", () => {
 
     const g = globalThis as unknown as { __pinchCronInit?: boolean };
     expect(g.__pinchCronInit).toBe(true);
-    expect(cron.schedule).toHaveBeenCalledTimes(2);
+    expect(cron.schedule).toHaveBeenCalledTimes(3);
 
     expect(cron.schedule).toHaveBeenCalledWith("0 2 * * *", expect.any(Function));
     expect(cron.schedule).toHaveBeenCalledWith("0 3 * * *", expect.any(Function));
+    expect(cron.schedule).toHaveBeenCalledWith("0 4 * * *", expect.any(Function));
   });
 
   it("does not schedule duplicate jobs on second call", async () => {
@@ -44,7 +54,7 @@ describe("initCronJobs singleton guard", () => {
     initCronJobs();
     initCronJobs();
 
-    expect(cron.schedule).toHaveBeenCalledTimes(2);
+    expect(cron.schedule).toHaveBeenCalledTimes(3);
   });
 });
 

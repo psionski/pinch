@@ -32,6 +32,32 @@ export interface FinancialDataProvider {
   /** Fetch price for a symbol. Returns null if unavailable. */
   getPrice?(symbol: string, currency: string, date?: string): Promise<MarketPriceResult | null>;
 
+  /** Fetch daily prices for a symbol over a date range. */
+  getPriceRange?(
+    symbol: string,
+    currency: string,
+    from: string,
+    to: string
+  ): Promise<MarketPriceResult[]>;
+
+  /** Fetch exchange rates for a pair over a date range. */
+  getExchangeRateRange?(
+    base: string,
+    quote: string,
+    from: string,
+    to: string
+  ): Promise<ExchangeRateResult[]>;
+
+  /** Search for a symbol by name/query. Returns matching symbols for auto-discovery. */
+  searchSymbol?(query: string): Promise<SymbolSearchResult[]>;
+
   /** Verify API key is valid and service is reachable. */
   healthCheck?(): Promise<boolean>;
+}
+
+export interface SymbolSearchResult {
+  provider: string;
+  symbol: string;
+  name: string;
+  type?: string; // "crypto", "stock", "etf", etc.
 }

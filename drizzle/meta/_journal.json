@@ -36,6 +36,13 @@
       "when": 1773967724447,
       "tag": "0004_tan_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774017444480,
+      "tag": "0005_jazzy_slipstream",
+      "breakpoints": true
     }
   ]
 }
