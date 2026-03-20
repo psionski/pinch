@@ -143,6 +143,29 @@ describe("AssetLotService", () => {
     expect(transaction.description).toContain("Buy");
   });
 
+  it("buy auto-generates 'Deposit' description for deposit assets", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    const { transaction } = lotService.buy(asset.id, {
+      quantity: 5000,
+      pricePerUnit: 100,
+      date: "2026-03-01",
+    });
+    expect(transaction.description).toContain("Deposit");
+    expect(transaction.description).not.toContain("Buy");
+  });
+
+  it("sell auto-generates 'Withdraw' description for deposit assets", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 5000, pricePerUnit: 100, date: "2026-01-01" });
+    const { transaction } = lotService.sell(asset.id, {
+      quantity: 1000,
+      pricePerUnit: 100,
+      date: "2026-03-01",
+    });
+    expect(transaction.description).toContain("Withdraw");
+    expect(transaction.description).not.toContain("Sell");
+  });
+
   it("sell creates a transfer transaction and negative lot", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-01-01" });
@@ -184,14 +207,22 @@ describe("AssetLotService", () => {
 
   it("buy accepts EUR deposit with pricePerUnit === 100", () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    const { lot } = lotService.buy(asset.id, { quantity: 5000, pricePerUnit: 100, date: "2026-01-01" });
+    const { lot } = lotService.buy(asset.id, {
+      quantity: 5000,
+      pricePerUnit: 100,
+      date: "2026-01-01",
+    });
     expect(lot.quantity).toBe(5000);
     expect(lot.pricePerUnit).toBe(100);
   });
 
   it("buy does NOT enforce pricePerUnit for non-EUR deposits", () => {
     const asset = assetService.create({ name: "USD Account", type: "deposit", currency: "USD" });
-    const { lot } = lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 110, date: "2026-01-01" });
+    const { lot } = lotService.buy(asset.id, {
+      quantity: 1000,
+      pricePerUnit: 110,
+      date: "2026-01-01",
+    });
     expect(lot.pricePerUnit).toBe(110);
   });
 

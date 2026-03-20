@@ -47,9 +47,10 @@ export class AssetLotService {
       }
 
       const totalCents = Math.round(input.quantity * input.pricePerUnit);
+      const verb = asset.type === "deposit" ? "Deposit" : "Buy";
       const description =
         input.description ??
-        `Buy ${input.quantity} ${asset.name} @ ${(input.pricePerUnit / 100).toFixed(2)} ${asset.currency}`;
+        `${verb} ${input.quantity} ${asset.name} @ ${(input.pricePerUnit / 100).toFixed(2)} ${asset.currency}`;
 
       const [txRow] = this.db
         .insert(transactions)
@@ -102,9 +103,10 @@ export class AssetLotService {
       }
 
       const totalCents = Math.round(input.quantity * input.pricePerUnit);
+      const verb = asset.type === "deposit" ? "Withdraw" : "Sell";
       const description =
         input.description ??
-        `Sell ${input.quantity} ${asset.name} @ ${(input.pricePerUnit / 100).toFixed(2)} ${asset.currency}`;
+        `${verb} ${input.quantity} ${asset.name} @ ${(input.pricePerUnit / 100).toFixed(2)} ${asset.currency}`;
 
       const [txRow] = this.db
         .insert(transactions)

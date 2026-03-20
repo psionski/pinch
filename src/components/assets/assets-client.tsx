@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AssetFormDialog } from "./asset-form-dialog";
 import { BuySellDialog } from "./buy-sell-dialog";
+import { DepositWithdrawDialog } from "./deposit-withdraw-dialog";
 import { RecordPriceDialog } from "./record-price-dialog";
 import { formatCurrency } from "@/lib/format";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
@@ -43,6 +44,8 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
   const [showCreate, setShowCreate] = useState(false);
   const [buyingAsset, setBuyingAsset] = useState<AssetWithMetrics | null>(null);
   const [sellingAsset, setSellingAsset] = useState<AssetWithMetrics | null>(null);
+  const [depositingAsset, setDepositingAsset] = useState<AssetWithMetrics | null>(null);
+  const [withdrawingAsset, setWithdrawingAsset] = useState<AssetWithMetrics | null>(null);
   const [pricingAsset, setPricingAsset] = useState<AssetWithMetrics | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -77,7 +80,8 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
 
   async function handleBuy(
     asset: AssetWithMetrics,
-    data: { quantity: number; pricePerUnit: number; date: string; description?: string }
+    data: { quantity: number; pricePerUnit: number; date: string; description?: string },
+    closeDialog: () => void
   ): Promise<void> {
     setLoading(true);
     try {
@@ -86,7 +90,7 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      setBuyingAsset(null);
+      closeDialog();
       await refresh();
     } finally {
       setLoading(false);
@@ -95,7 +99,8 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
 
   async function handleSell(
     asset: AssetWithMetrics,
-    data: { quantity: number; pricePerUnit: number; date: string; description?: string }
+    data: { quantity: number; pricePerUnit: number; date: string; description?: string },
+    closeDialog: () => void
   ): Promise<void> {
     setLoading(true);
     try {
@@ -109,7 +114,7 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
         alert(err.error);
         return;
       }
-      setSellingAsset(null);
+      closeDialog();
       await refresh();
     } finally {
       setLoading(false);
@@ -197,22 +202,45 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
                 </div>
 
                 <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setBuyingAsset(asset)}
-                  >
-                    Buy
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setSellingAsset(asset)}
-                  >
-                    Sell
-                  </Button>
+                  {asset.type === "deposit" ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setDepositingAsset(asset)}
+                      >
+                        Deposit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setWithdrawingAsset(asset)}
+                      >
+                        Withdraw
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setBuyingAsset(asset)}
+                      >
+                        Buy
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setSellingAsset(asset)}
+                      >
+                        Sell
+                      </Button>
+                    </>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => setPricingAsset(asset)}>
                     Price
                   </Button>
@@ -238,7 +266,7 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
           }}
           mode="buy"
           asset={buyingAsset}
-          onSubmit={(data) => void handleBuy(buyingAsset, data)}
+          onSubmit={(data) => void handleBuy(buyingAsset, data, () => setBuyingAsset(null))}
           loading={loading}
         />
       )}
@@ -251,7 +279,35 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
           }}
           mode="sell"
           asset={sellingAsset}
-          onSubmit={(data) => void handleSell(sellingAsset, data)}
+          onSubmit={(data) => void handleSell(sellingAsset, data, () => setSellingAsset(null))}
+          loading={loading}
+        />
+      )}
+
+      {depositingAsset && (
+        <DepositWithdrawDialog
+          open={!!depositingAsset}
+          onOpenChange={(o) => {
+            if (!o) setDepositingAsset(null);
+          }}
+          mode="deposit"
+          asset={depositingAsset}
+          onSubmit={(data) => void handleBuy(depositingAsset, data, () => setDepositingAsset(null))}
+          loading={loading}
+        />
+      )}
+
+      {withdrawingAsset && (
+        <DepositWithdrawDialog
+          open={!!withdrawingAsset}
+          onOpenChange={(o) => {
+            if (!o) setWithdrawingAsset(null);
+          }}
+          mode="withdraw"
+          asset={withdrawingAsset}
+          onSubmit={(data) =>
+            void handleSell(withdrawingAsset, data, () => setWithdrawingAsset(null))
+          }
           loading={loading}
         />
       )}

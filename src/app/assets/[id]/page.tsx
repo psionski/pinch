@@ -116,7 +116,7 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
           <CardTitle className="text-base">Transaction History</CardTitle>
         </CardHeader>
         <CardContent>
-          <LotHistoryTable lots={lots} currency={asset.currency} />
+          <LotHistoryTable lots={lots} currency={asset.currency} assetType={asset.type} />
         </CardContent>
       </Card>
 

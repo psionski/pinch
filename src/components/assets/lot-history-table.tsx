@@ -4,9 +4,14 @@ import type { AssetLotResponse } from "@/lib/validators/assets";
 interface LotHistoryTableProps {
   lots: AssetLotResponse[];
   currency: string;
+  assetType?: "deposit" | "investment" | "crypto" | "other";
 }
 
-export function LotHistoryTable({ lots, currency }: LotHistoryTableProps): React.ReactElement {
+export function LotHistoryTable({
+  lots,
+  currency,
+  assetType,
+}: LotHistoryTableProps): React.ReactElement {
   if (lots.length === 0) {
     return <p className="text-muted-foreground text-sm">No transactions recorded yet.</p>;
   }
@@ -38,7 +43,13 @@ export function LotHistoryTable({ lots, currency }: LotHistoryTableProps): React
                         : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                     }`}
                   >
-                    {isBuy ? "Buy" : "Sell"}
+                    {assetType === "deposit"
+                      ? isBuy
+                        ? "Deposit"
+                        : "Withdrawal"
+                      : isBuy
+                        ? "Buy"
+                        : "Sell"}
                   </span>
                 </td>
                 <td className="py-2 pr-4 text-right font-mono">
