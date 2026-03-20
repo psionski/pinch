@@ -72,7 +72,7 @@ export function registerRecurringTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "generate_recurring",
+    "generate_pending_recurring",
     {
       description:
         "Manually trigger generation of pending recurring transactions up to today. " +

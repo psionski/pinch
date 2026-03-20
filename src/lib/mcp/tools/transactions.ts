@@ -15,7 +15,7 @@ function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
 
 export function registerTransactionTools(server: McpServer): void {
   server.registerTool(
-    "add_transaction",
+    "create_transaction",
     {
       description:
         "Add a single transaction. Amounts are in cents (e.g. 1210 = €12.10). " +
@@ -26,7 +26,7 @@ export function registerTransactionTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "add_transactions",
+    "create_transactions",
     {
       description:
         "Batch-add multiple transactions in one call. Optionally link all of them " +

@@ -14,7 +14,7 @@ function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
 
 export function registerReportTools(server: McpServer): void {
   server.registerTool(
-    "spending_summary",
+    "get_spending_summary",
     {
       description:
         "Total spend for a period, grouped by category, month, or merchant. " +
@@ -25,7 +25,7 @@ export function registerReportTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "category_stats",
+    "get_category_stats",
     {
       description:
         "Per-category spending stats. Returns amounts, percentages, hierarchy rollups, " +
@@ -38,7 +38,7 @@ export function registerReportTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "trends",
+    "get_trends",
     {
       description:
         "Monthly totals time series for the last N months (default 6, max 24). " +
@@ -61,7 +61,7 @@ export function registerReportTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "top_merchants",
+    "get_top_merchants",
     {
       description:
         "Highest-spend merchants, with transaction counts and average amounts. " +

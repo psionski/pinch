@@ -117,7 +117,7 @@ describe("MCP infrastructure", () => {
     expect(res.status).toBe(200);
     const result = await parseResult(res);
     const tools = (result as { tools: { name: string }[] }).tools.map((t) => t.name);
-    expect(tools).toContain("add_transaction");
+    expect(tools).toContain("create_transaction");
     expect(tools).toContain("list_categories");
     expect(tools).toContain("query");
     expect(tools).toContain("delete_receipt");

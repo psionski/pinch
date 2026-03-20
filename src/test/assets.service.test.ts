@@ -317,7 +317,7 @@ describe("AssetPriceService", () => {
 
 describe("PortfolioService", () => {
   it("returns zero net worth when no transactions or assets", () => {
-    const portfolio = portfolioService.getNetWorth();
+    const portfolio = portfolioService.getPortfolio();
     expect(portfolio.cashBalance).toBe(0);
     expect(portfolio.totalAssetValue).toBe(0);
     expect(portfolio.netWorth).toBe(0);
@@ -336,7 +336,7 @@ describe("PortfolioService", () => {
       date: "2026-03-01",
     });
 
-    const portfolio = portfolioService.getNetWorth();
+    const portfolio = portfolioService.getPortfolio();
     expect(portfolio.cashBalance).toBe(70000); // 100000 - 30000 (transfer excluded)
   });
 
@@ -348,7 +348,7 @@ describe("PortfolioService", () => {
     lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-03-01" });
     priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T10:00:00Z" });
 
-    const portfolio = portfolioService.getNetWorth();
+    const portfolio = portfolioService.getPortfolio();
     // cashBalance = income − purchases = 500000 − 345630 = 154370
     expect(portfolio.cashBalance).toBe(154370);
     expect(portfolio.totalAssetValue).toBe(360000); // 10 * 36000
@@ -364,12 +364,12 @@ describe("PortfolioService", () => {
     lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-03-01" });
     priceService.record(asset.id, { pricePerUnit: 34563, recordedAt: "2026-03-20T10:00:00Z" });
 
-    const before = portfolioService.getNetWorth();
+    const before = portfolioService.getPortfolio();
 
     // Sell 4 at the same price — net worth must not change
     lotService.sell(asset.id, { quantity: 4, pricePerUnit: 34563, date: "2026-03-20" });
 
-    const after = portfolioService.getNetWorth();
+    const after = portfolioService.getPortfolio();
     expect(after.netWorth).toBe(before.netWorth);
     // Cash went up by the sale proceeds
     expect(after.cashBalance).toBe(before.cashBalance + 4 * 34563);
@@ -382,9 +382,8 @@ describe("PortfolioService", () => {
     lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-03-01" });
     priceService.record(asset.id, { pricePerUnit: 9000000, recordedAt: "2026-03-20T00:00:00Z" });
 
-    const portfolio = portfolioService.getNetWorth();
+    const portfolio = portfolioService.getPortfolio();
     expect(portfolio.allocation).toHaveLength(1);
     expect(portfolio.allocation[0].pct).toBe(100);
   });
-
 });

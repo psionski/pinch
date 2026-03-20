@@ -58,7 +58,7 @@ export default function DashboardPage(): React.ReactElement {
     allCategories.map((c) => [c.id, c])
   );
 
-  const portfolio = getPortfolioService().getNetWorth();
+  const portfolio = getPortfolioService().getPortfolio();
 
   const allRecurring = getRecurringService().list();
   const upcomingRecurring = allRecurring

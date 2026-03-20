@@ -14,7 +14,7 @@ export class PortfolioService {
     this.assetService = new AssetService(db);
   }
 
-  getNetWorth(): PortfolioResponse {
+  getPortfolio(): PortfolioResponse {
     // Cash balance: income − expenses − asset purchases + asset sales.
     // Asset buy/sell transactions are type='transfer' and excluded from income/expense
     // totals, but we explicitly account for them here so that moving money into/out of

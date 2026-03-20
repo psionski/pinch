@@ -171,7 +171,7 @@ export function registerAssetTools(server: McpServer): void {
         "Transfers are excluded from the cash balance calculation.",
       inputSchema: z.object({}),
     },
-    () => ok(getPortfolioService().getNetWorth())
+    () => ok(getPortfolioService().getPortfolio())
   );
 
   server.registerTool(

@@ -222,8 +222,8 @@ PRAGMA busy_timeout = 5000;
 ### Transactions (8 tools)
 | Tool | Description |
 |------|-------------|
-| `add_transaction` | Add a single transaction |
-| `add_transactions` | Batch add, optionally linked to an uploaded receipt via `receipt_id` |
+| `create_transaction` | Add a single transaction |
+| `create_transactions` | Batch add, optionally linked to an uploaded receipt via `receipt_id` |
 | `get_transaction` | Get a single transaction by ID |
 | `list_transactions` | List/filter by date range, category, amount range, merchant, text search, tags, type. Pagination via limit+offset. |
 | `update_transaction` | Update fields on an existing transaction by ID |
@@ -258,7 +258,7 @@ PRAGMA busy_timeout = 5000;
 | `list_recurring` | List all templates with next occurrence and status |
 | `update_recurring` | Modify a template (or pause with `isActive: false`) |
 | `delete_recurring` | Delete a template (past transactions kept) |
-| `generate_recurring` | Manually trigger generation of pending recurring transactions up to today |
+| `generate_pending_recurring` | Manually trigger generation of pending recurring transactions up to today |
 
 ### Receipts (4 tools)
 | Tool | Description |
@@ -271,10 +271,10 @@ PRAGMA busy_timeout = 5000;
 ### Reporting (5 tools)
 | Tool | Description |
 |------|-------------|
-| `spending_summary` | Total spend for a period, grouped by category/month/merchant, with optional period comparison |
-| `category_stats` | Per-category spending with amounts, percentages, and hierarchy rollups |
-| `trends` | Monthly totals time series (up to 24 months), optionally filtered by category |
-| `top_merchants` | Highest-spend merchants with transaction counts and averages |
+| `get_spending_summary` | Total spend for a period, grouped by category/month/merchant, with optional period comparison |
+| `get_category_stats` | Per-category spending with amounts, percentages, and hierarchy rollups |
+| `get_trends` | Monthly totals time series (up to 24 months), optionally filtered by category |
+| `get_top_merchants` | Highest-spend merchants with transaction counts and averages |
 | `get_net_balance` | Income minus expenses, optionally filtered by date range |
 
 ### Escape Hatch (2 tools)
@@ -325,7 +325,7 @@ export function initCronJobs(): void {
 
 1. Each recurring template defines: amount, description, category, frequency (daily/weekly/monthly/yearly), schedule details, start/end date
 2. The engine tracks `last_generated` — the last date it created a transaction for this template
-3. Runs daily at 02:00 via cron (see above) + on first request after startup via middleware. Also manually triggerable via `generate_recurring` MCP tool.
+3. Runs daily at 02:00 via cron (see above) + on first request after startup via middleware. Also manually triggerable via `generate_pending_recurring` MCP tool.
 4. Generated transactions link back to their template via `recurring_id`
 5. Generated transactions are normal transactions — editable, deletable, recategorizable independently
 6. Deactivating a template stops future generation but doesn't touch already-generated transactions
@@ -341,7 +341,7 @@ The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint a
 - **JSON responses:** `enableJsonResponse: true` — returns plain JSON instead of SSE. Simpler to debug, no streaming needed for our tool calls.
 - **Request/Response compatibility:** Uses `WebStandardStreamableHTTPServerTransport` which works natively with Next.js App Router's Web `Request`/`Response` — no Node.js shim needed.
 - **Tool registration:** Factor tool registration into a shared `registerTools(server)` function so the per-request server setup is minimal.
-- **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt image uploads. This is how unknown AI clients discover that binary uploads go through REST, not MCP. Tool descriptions on `add_transactions` reference `receipt_id` and point to the instructions for the upload flow.
+- **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt image uploads. This is how unknown AI clients discover that binary uploads go through REST, not MCP. Tool descriptions on `create_transactions` reference `receipt_id` and point to the instructions for the upload flow.
 
 ```typescript
 // Simplified pattern for /api/mcp/route.ts
@@ -355,7 +355,7 @@ export async function POST(req: Request): Promise<Response> {
       "Receipt images: upload via POST /api/receipts/upload",
       "(multipart/form-data, field: 'image', optional fields: 'merchant', 'date', 'total', 'raw_text')",
       "→ returns { receipt_id }.",
-      "Then pass receipt_id to add_transactions to link line items to the receipt.",
+      "Then pass receipt_id to create_transactions to link line items to the receipt.",
       "All monetary amounts are integers in cents (e.g. 1210 = €12.10).",
     ].join(" "),
   });
@@ -422,16 +422,16 @@ export async function POST(req: Request): Promise<Response> {
 Receipt images are binary data. MCP tools accept JSON parameters — no native binary upload. Rather than bloating MCP payloads with base64-encoded images, receipt uploads go through a **companion REST endpoint**:
 
 - `POST /api/receipts/upload` — multipart/form-data. Accepts `image` file field + optional metadata fields (`merchant`, `date`, `total`, `raw_text`). Saves image to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, creates a `receipts` row, returns `{ receipt_id }`.
-- MCP `add_transactions` then accepts `receipt_id` to link line items to the uploaded receipt.
+- MCP `create_transactions` then accepts `receipt_id` to link line items to the uploaded receipt.
 
-**Discovery:** AI clients learn about this REST endpoint via the MCP server's `instructions` field (see MCP Integration Details). Any MCP-compatible agent that reads server instructions on connect will know the upload flow. Tool descriptions on `add_transactions` also reference `receipt_id`.
+**Discovery:** AI clients learn about this REST endpoint via the MCP server's `instructions` field (see MCP Integration Details). Any MCP-compatible agent that reads server instructions on connect will know the upload flow. Tool descriptions on `create_transactions` also reference `receipt_id`.
 
 ### From an AI client (e.g., via Telegram)
 
 1. User sends receipt photo to the AI assistant via Telegram
 2. AI uses vision model to extract: merchant name, date, line items (description + amount per item), total
 3. AI uploads the image via `POST /api/receipts/upload` (multipart) → gets `{ receipt_id }`
-4. AI calls MCP `add_transactions` with line items + `receipt_id`
+4. AI calls MCP `create_transactions` with line items + `receipt_id`
 5. Each transaction linked via `receipt_id` — a single receipt can span multiple categories (e.g. eggs → Groceries, cigarettes → Tobacco on the same Kaufland receipt)
 6. AI confirms: "Added 7 items from Kaufland (€43.20) — 5× Groceries, 1× Tobacco, 1× Household"
 
@@ -818,7 +818,7 @@ CHECK(type IN ('income', 'expense', 'transfer'))
 - `AssetService`: `create`, `list` (with current holdings + latest price + P&L), `getById`, `update`, `delete`
 - `AssetLotService`: `buy` (atomic — creates transfer transaction + lot in one DB transaction), `sell` (atomic — creates transfer transaction + negative lot), `listLots` (history for an asset)
 - `AssetPriceService`: `record` (insert price snapshot), `getLatest` (per asset), `getHistory` (time series for charting)
-- `PortfolioService`: `getNetWorth` (cash + all assets), `getPnL` (aggregate P&L across all assets), `getAllocation` (percentage breakdown by asset)
+- `PortfolioService`: `getPortfolio` (cash + all assets), `getPnL` (aggregate P&L across all assets), `getAllocation` (percentage breakdown by asset)
 - **Existing report updates:** `ReportService.spendingSummary`, `categoryBreakdown`, `trends` — add `WHERE type != 'transfer'` filter. `get_net_balance` tool — transfers still count (cash moved is cash moved).
 - **Existing budget updates:** `BudgetService.getForMonth` — exclude transfers from spend calculations.
 
@@ -908,7 +908,7 @@ src/
 | **Asset history** | "What happened with this specific asset?" | Per asset: lot timeline (buys/sells with quantities, prices, running total), price chart overlay, value over time. |
 | **Currency exposure** | "How exposed am I to each currency?" | Group all assets by currency, sum current values, show as percentages of total net worth. |
 | **Realized vs unrealized P&L** | "What have I actually locked in vs what's on paper?" | Realized: P&L from sell lots (sell price − average cost basis at time of sell). Unrealized: current value − remaining cost basis. |
-| **Income/expense/transfer summary** | "Where did my money go this month, including transfers?" | Extends existing `spending_summary` with a transfer breakdown: how much went to each asset type, net cash flow after transfers. |
+| **Income/expense/transfer summary** | "Where did my money go this month, including transfers?" | Extends existing `get_spending_summary` with a transfer breakdown: how much went to each asset type, net cash flow after transfers. |
 
 #### Service layer
 
