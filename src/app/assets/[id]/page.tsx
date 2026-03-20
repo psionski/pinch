@@ -1,17 +1,23 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
-import { getAssetService, getAssetLotService, getAssetPriceService } from "@/lib/api/services";
+import {
+  getAssetService,
+  getAssetLotService,
+  getAssetPriceService,
+  getPortfolioReportService,
+} from "@/lib/api/services";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LotHistoryTable } from "@/components/assets/lot-history-table";
+import { AssetDetailCharts } from "@/components/assets/asset-detail-charts";
 import { formatCurrency } from "@/lib/format";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-function PnlDisplay({ pnl }: { pnl: number | null }): React.ReactElement {
+function PnlDisplay({ pnl, label }: { pnl: number | null; label?: string }): React.ReactElement {
   if (pnl === null) return <span className="text-muted-foreground">—</span>;
   const positive = pnl >= 0;
   return (
@@ -19,6 +25,7 @@ function PnlDisplay({ pnl }: { pnl: number | null }): React.ReactElement {
       className={`flex items-center gap-1 font-semibold ${positive ? "text-emerald-600" : "text-destructive"}`}
     >
       {positive ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
+      {label && <span className="text-muted-foreground mr-1 text-xs font-normal">{label}</span>}
       {positive ? "+" : ""}
       {formatCurrency(pnl)}
     </span>
@@ -36,6 +43,14 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
   const lots = getAssetLotService().listLots(id);
   const priceHistory = getAssetPriceService().getHistory(id);
   const latestPrice = priceHistory.at(-1);
+
+  // Realized P&L for this specific asset
+  const reportService = getPortfolioReportService();
+  const realizedPnlResult = reportService.getRealizedPnL();
+  const assetRealizedPnl = realizedPnlResult.items.find((item) => item.assetId === id);
+  const realizedPnl = assetRealizedPnl?.realizedPnl ?? null;
+  const unrealizedPnl =
+    asset.pnl !== null && realizedPnl !== null ? asset.pnl - realizedPnl : asset.pnl;
 
   return (
     <div className="space-y-6">
@@ -102,13 +117,32 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
               P&amp;L
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-1">
             <p className="text-xl font-bold">
               <PnlDisplay pnl={asset.pnl} />
             </p>
+            <div className="space-y-0.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground text-xs">Unrealized</span>
+                <PnlDisplay pnl={unrealizedPnl} />
+              </div>
+              {realizedPnl !== null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground text-xs">Realized</span>
+                  <PnlDisplay pnl={realizedPnl} />
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Charts */}
+      <AssetDetailCharts
+        assetId={id}
+        currency={asset.currency}
+        initialPriceHistory={priceHistory}
+      />
 
       {/* Lot history */}
       <Card>
@@ -119,35 +153,6 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
           <LotHistoryTable lots={lots} currency={asset.currency} assetType={asset.type} />
         </CardContent>
       </Card>
-
-      {/* Price history */}
-      {priceHistory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Price History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {[...priceHistory]
-                .reverse()
-                .slice(0, 10)
-                .map((p) => (
-                  <div key={p.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{p.recordedAt.slice(0, 10)}</span>
-                    <span className="font-mono">
-                      {(p.pricePerUnit / 100).toFixed(2)} {asset.currency}
-                    </span>
-                  </div>
-                ))}
-              {priceHistory.length > 10 && (
-                <p className="text-muted-foreground pt-1 text-xs">
-                  Showing last 10 of {priceHistory.length} price snapshots.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

@@ -1033,7 +1033,15 @@ Reports need dense historical price data — a 6-month daily net worth chart for
 - **P&L card**: cost basis, current value, unrealized P&L, realized P&L (from sells)
 - **Price history chart**: standalone price line chart with "record price" quick action
 
-#### New page: Portfolio Reports (`/portfolio`)
+#### Reports navigation restructure
+
+The sidebar "Reports" item is now a collapsible menu with two sub-pages:
+- **Cash Flow** (`/reports/cash-flow`) — existing income/expense reports, savings rate, spending trends, merchants
+- **Portfolio** (`/reports/portfolio`) — new portfolio and asset reports (below)
+
+`/reports` redirects to `/reports/cash-flow`.
+
+#### New page: Portfolio Reports (`/reports/portfolio`)
 
 - **Net worth over time**: area chart (stacked: cash + each asset, or grouped by asset type). Date range picker with presets.
 - **Allocation over time**: stacked area or stacked bar chart showing allocation % shifts month-over-month
@@ -1059,22 +1067,34 @@ Reports need dense historical price data — a 6-month daily net worth chart for
 ```
 src/
 ├── app/
-│   └── portfolio/
-│       └── page.tsx                  # Portfolio reports page
+│   └── reports/
+│       ├── page.tsx                   # Redirects to /reports/cash-flow
+│       ├── cash-flow/
+│       │   └── page.tsx               # Existing income/expense reports (moved from /reports)
+│       └── portfolio/
+│           └── page.tsx               # Portfolio reports page
 ├── components/
-│   ├── portfolio/                    # Portfolio-specific charts and widgets
+│   ├── portfolio/                     # Portfolio-specific charts and widgets
 │   │   ├── net-worth-chart.tsx
 │   │   ├── allocation-chart.tsx
 │   │   ├── performance-table.tsx
 │   │   ├── currency-exposure.tsx
 │   │   ├── pnl-summary.tsx
 │   │   └── transfer-flow.tsx
-│   └── assets/                       # Enhanced asset components
-│       ├── value-chart.tsx           # Asset value over time with lot markers
-│       └── price-chart.tsx           # Price history with record action
+│   └── assets/                        # Enhanced asset components
+│       ├── value-chart.tsx            # Asset value over time with lot markers
+│       └── price-chart.tsx            # Price history with record action
 ```
 
 **Done when:** Portfolio page shows net worth over time, allocation breakdown, and performance ranking with real data. Asset detail pages show value charts with buy/sell markers. Dashboard includes net worth card with sparkline. All charts are responsive.
+
+**Status: COMPLETE** — All deliverables implemented:
+- Reports sidebar restructured with collapsible Cash Flow / Portfolio sub-pages
+- `/reports/portfolio` page with net worth chart, allocation donut, performance table, currency exposure, P&L summary, transfer flow
+- `/assets` page enhanced with summary cards, allocation chart, currency exposure bar, sortable performance table
+- `/assets/[id]` page enhanced with value-over-time chart (with buy/sell markers), price history chart, and unrealized/realized P&L breakdown
+- Dashboard: net worth sparkline, top movers widget, allocation mini-donut
+- API: added `/api/portfolio/transfer-summary` endpoint
 
 ---
 ### Sprint 20: Onboarding & Initial Setup

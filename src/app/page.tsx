@@ -5,6 +5,7 @@ import {
   getCategoryService,
   getRecurringService,
   getPortfolioService,
+  getPortfolioReportService,
 } from "@/lib/api/services";
 import { getCurrentMonthInfo, getPreviousMonthRange } from "@/lib/date-ranges";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
@@ -14,6 +15,9 @@ import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingRecurring } from "@/components/dashboard/upcoming-recurring";
 import { NetWorthCard } from "@/components/dashboard/net-worth-card";
+import { NetWorthSparkline } from "@/components/dashboard/net-worth-sparkline";
+import { TopMovers } from "@/components/dashboard/top-movers";
+import { AllocationMiniDonut } from "@/components/dashboard/allocation-mini-donut";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 export default function DashboardPage(): React.ReactElement {
@@ -60,6 +64,9 @@ export default function DashboardPage(): React.ReactElement {
   );
 
   const portfolio = getPortfolioService().getPortfolio();
+  const portfolioReportService = getPortfolioReportService();
+  const netWorthTimeSeries = portfolioReportService.getNetWorthTimeSeries("6m", "monthly");
+  const allocation = portfolioReportService.getAllocation();
 
   const allRecurring = getRecurringService().list();
   const upcomingRecurring = allRecurring
@@ -67,13 +74,26 @@ export default function DashboardPage(): React.ReactElement {
     .sort((a, b) => a.nextOccurrence!.localeCompare(b.nextOccurrence!))
     .slice(0, 5);
 
+  const allocationData = allocation.byAsset.map((a) => ({
+    name: a.name,
+    value: a.currentValue,
+    pct: a.pct,
+  }));
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
 
       <KpiCards summary={summary} budgetStatus={budgetStatus} />
 
-      <NetWorthCard portfolio={portfolio} />
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-2">
+          <NetWorthCard portfolio={portfolio} />
+          <NetWorthSparkline data={netWorthTimeSeries} />
+        </div>
+        <TopMovers assets={portfolio.assets} />
+        <AllocationMiniDonut data={allocationData} />
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <SpendingTrendChart data={trends} />
