@@ -41,9 +41,6 @@ cd pinch
 # Install dependencies
 npm install
 
-# Run database migrations
-npm run db:migrate
-
 # (Optional) Seed with sample data (recommended for new users)
 npm run db:seed
 

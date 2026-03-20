@@ -58,7 +58,8 @@ export function TransactionFormDialog({
 }: TransactionFormProps): React.ReactElement {
   const isEdit = !!initialData;
 
-  const [type, setType] = useState<"income" | "expense">(initialData?.type ?? "expense");
+  const initialType: "income" | "expense" = initialData?.type === "income" ? "income" : "expense";
+  const [type, setType] = useState<"income" | "expense">(initialType);
   const [amountStr, setAmountStr] = useState(
     initialData ? (initialData.amount / 100).toFixed(2) : ""
   );

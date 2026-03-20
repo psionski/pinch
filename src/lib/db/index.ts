@@ -1,7 +1,8 @@
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { mkdirSync } from "fs";
-import { dirname } from "path";
+import { dirname, join } from "path";
 import * as schema from "./schema";
 
 export type AppDb = BetterSQLite3Database<typeof schema>;
@@ -57,12 +58,14 @@ function initClient(path: string): InstanceType<typeof Database> {
 // In tests, use createDb() directly with a separate path/in-memory DB.
 let _db: AppDb | null = null;
 
-/** App-level singleton. Assumes the DB is already migrated. */
+/** App-level singleton. Runs pending migrations on first call. */
 export function getDb(): AppDb {
   if (!_db) {
     const client = initClient(DB_PATH);
+    const db = drizzle({ client, schema });
+    migrate(db, { migrationsFolder: join(process.cwd(), "drizzle") });
     ensureFtsTriggers(client);
-    _db = drizzle({ client, schema });
+    _db = db;
   }
   return _db;
 }

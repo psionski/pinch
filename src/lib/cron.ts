@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { getRecurringService } from "@/lib/api/services";
+import { getRecurringService, getFinancialDataService } from "@/lib/api/services";
 import { runBackup } from "@/lib/services/backup";
 
 const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
@@ -48,4 +48,17 @@ export function initCronJobs(): void {
   cron.schedule("0 3 * * *", () => void runBackupJob());
 
   console.log("[cron] Scheduled jobs: recurring generation (02:00), backup (03:00)");
+
+  // Startup warm: proactively cache common exchange rates for today
+  void warmExchangeRates();
+}
+
+async function warmExchangeRates(): Promise<void> {
+  try {
+    const svc = getFinancialDataService();
+    await Promise.all([svc.getExchangeRate("USD", "EUR"), svc.getExchangeRate("GBP", "EUR")]);
+    console.log("[cron] Exchange rate cache warmed (USD/EUR, GBP/EUR)");
+  } catch (err) {
+    console.warn("[cron] Exchange rate warm-up failed (non-fatal):", err);
+  }
 }

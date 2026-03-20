@@ -57,8 +57,8 @@ export type TrendsInput = z.infer<typeof TrendsSchema>;
 // ─── Top Merchants ────────────────────────────────────────────────────────────
 
 export const TopMerchantsSchema = z.object({
-  dateFrom: IsoDateSchema,
-  dateTo: IsoDateSchema,
+  dateFrom: IsoDateSchema.optional(),
+  dateTo: IsoDateSchema.optional(),
   limit: z.number().int().min(1).max(100).default(10),
   type: z.enum(["income", "expense", "all"]).default("expense"),
 });

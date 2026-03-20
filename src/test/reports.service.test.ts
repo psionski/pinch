@@ -543,4 +543,63 @@ describe("topMerchants", () => {
     const aldi = result.find((r) => r.merchant === "ALDI");
     expect(aldi?.avgAmount).toBe(750); // (1000 + 500) / 2
   });
+
+  it("returns all-time results when no dates are provided", () => {
+    const result = reports.topMerchants(TopMerchantsSchema.parse({}));
+    expect(result).toHaveLength(2);
+    expect(result[0].merchant).toBe("ALDI");
+    expect(result[0].total).toBe(1500);
+  });
+});
+
+// ─── Transfer exclusion ───────────────────────────────────────────────────────
+
+describe("transfer exclusion from spending reports", () => {
+  beforeEach(() => {
+    txService.create(tx({ amount: 5000, type: "expense", description: "Rent" }));
+    txService.create(tx({ amount: 10000, type: "income", description: "Salary" }));
+    txService.create(
+      tx({ amount: 3000, type: "transfer", description: "Buy ETF", merchant: "Broker" })
+    );
+  });
+
+  it("spendingSummary type=all excludes transfers", () => {
+    const result = reports.spendingSummary(
+      SpendingSummarySchema.parse({
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-31",
+        groupBy: "category",
+        type: "all",
+      })
+    );
+    expect(result.period.total).toBe(15000); // expense + income, not transfer
+    expect(result.period.count).toBe(2);
+  });
+
+  it("spendingSummary type=expense excludes transfers", () => {
+    const result = reports.spendingSummary(
+      SpendingSummarySchema.parse({
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-31",
+        groupBy: "category",
+        type: "expense",
+      })
+    );
+    expect(result.period.total).toBe(5000);
+  });
+
+  it("trends type=all excludes transfers", () => {
+    const result = reports.trends(TrendsSchema.parse({ months: 1, type: "all" }));
+    const march = result.find((r) => r.month === "2026-03");
+    expect(march?.total).toBe(15000); // expense + income only
+  });
+
+  it("topMerchants excludes transfer transactions", () => {
+    const result = reports.topMerchants(
+      TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31", type: "all" })
+    );
+    // Broker transaction is a transfer — should not appear
+    const broker = result.find((r) => r.merchant === "Broker");
+    expect(broker).toBeUndefined();
+  });
 });

@@ -454,3 +454,23 @@ describe("listTags", () => {
     expect(service.listTags()).toEqual(["food"]);
   });
 });
+
+describe("transfer type", () => {
+  it("creates a transfer transaction successfully", () => {
+    const result = service.create(tx({ amount: 50000, type: "transfer", description: "Buy SPX" }));
+    expect(result.type).toBe("transfer");
+    expect(result.amount).toBe(50000);
+  });
+
+  it("lists transfer transactions with type filter", () => {
+    service.create(tx({ type: "expense" }));
+    service.create(tx({ type: "transfer", description: "Asset purchase" }));
+
+    const all = service.list(ListTransactionsSchema.parse({}));
+    expect(all.total).toBe(2);
+
+    const transfers = service.list(ListTransactionsSchema.parse({ type: "transfer" }));
+    expect(transfers.total).toBe(1);
+    expect(transfers.data[0].type).toBe("transfer");
+  });
+});

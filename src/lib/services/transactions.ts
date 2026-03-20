@@ -43,7 +43,7 @@ function parseTags(raw: string | null): string[] | null {
 function parseTransaction(row: Transaction): TransactionResponse {
   return {
     ...row,
-    type: row.type as "income" | "expense",
+    type: row.type as "income" | "expense" | "transfer",
     tags: parseTags(row.tags),
   };
 }

@@ -4,6 +4,7 @@ import {
   getTransactionService,
   getCategoryService,
   getRecurringService,
+  getPortfolioService,
 } from "@/lib/api/services";
 import { getCurrentMonthInfo, getPreviousMonthRange } from "@/lib/date-ranges";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
@@ -12,6 +13,7 @@ import { CategoryDonutChart } from "@/components/charts/category-donut-chart";
 import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingRecurring } from "@/components/dashboard/upcoming-recurring";
+import { NetWorthCard } from "@/components/dashboard/net-worth-card";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 export default function DashboardPage(): React.ReactElement {
@@ -56,6 +58,8 @@ export default function DashboardPage(): React.ReactElement {
     allCategories.map((c) => [c.id, c])
   );
 
+  const portfolio = getPortfolioService().getNetWorth();
+
   const allRecurring = getRecurringService().list();
   const upcomingRecurring = allRecurring
     .filter((r) => r.isActive === 1 && r.nextOccurrence !== null)
@@ -67,6 +71,8 @@ export default function DashboardPage(): React.ReactElement {
       <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
 
       <KpiCards summary={summary} budgetStatus={budgetStatus} />
+
+      <NetWorthCard portfolio={portfolio} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <SpendingTrendChart data={trends} />

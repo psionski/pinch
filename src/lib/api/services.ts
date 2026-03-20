@@ -7,6 +7,10 @@ import { RecurringService } from "@/lib/services/recurring";
 import { ReceiptService } from "@/lib/services/receipts";
 import { SettingsService } from "@/lib/services/settings";
 import { FinancialDataService } from "@/lib/services/financial-data";
+import { AssetService } from "@/lib/services/assets";
+import { AssetLotService } from "@/lib/services/asset-lots";
+import { AssetPriceService } from "@/lib/services/asset-prices";
+import { PortfolioService } from "@/lib/services/portfolio";
 
 export function getTransactionService(): TransactionService {
   return new TransactionService(getDb());
@@ -40,4 +44,20 @@ export function getSettingsService(): SettingsService {
 export function getFinancialDataService(): FinancialDataService {
   const db = getDb();
   return new FinancialDataService(db, new SettingsService(db));
+}
+
+export function getAssetService(): AssetService {
+  return new AssetService(getDb());
+}
+
+export function getAssetLotService(): AssetLotService {
+  return new AssetLotService(getDb());
+}
+
+export function getAssetPriceService(): AssetPriceService {
+  return new AssetPriceService(getDb());
+}
+
+export function getPortfolioService(): PortfolioService {
+  return new PortfolioService(getDb());
 }

@@ -10,7 +10,7 @@ export const IsoDateSchema = z
 /** YYYY-MM month format */
 export const YearMonthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format");
 
-export const TransactionTypeSchema = z.enum(["income", "expense"]);
+export const TransactionTypeSchema = z.enum(["income", "expense", "transfer"]);
 
 export const FrequencySchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
 

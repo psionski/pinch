@@ -1,5 +1,6 @@
 import {
   integer,
+  real,
   sqliteTable,
   text,
   index,
@@ -88,7 +89,7 @@ export const transactions = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     amount: integer("amount").notNull(), // cents, always positive
-    type: text("type").notNull().default("expense"), // 'income' | 'expense'
+    type: text("type").notNull().default("expense"), // 'income' | 'expense' | 'transfer'
     description: text("description").notNull(),
     merchant: text("merchant"),
     categoryId: integer("category_id").references(() => categories.id, {
@@ -119,7 +120,7 @@ export const transactions = sqliteTable(
     index("idx_transactions_type_date").on(table.type, table.date),
     index("idx_transactions_receipt").on(table.receiptId),
     index("idx_transactions_recurring").on(table.recurringId),
-    check("transactions_type_check", sql`${table.type} IN ('income', 'expense')`),
+    check("transactions_type_check", sql`${table.type} IN ('income', 'expense', 'transfer')`),
   ]
 );
 
@@ -196,6 +197,75 @@ export const marketPrices = sqliteTable(
   ]
 );
 
+// ─── Assets ───────────────────────────────────────────────────────────────────
+
+export const assets = sqliteTable(
+  "assets",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    type: text("type").notNull(), // 'deposit' | 'investment' | 'crypto' | 'other'
+    currency: text("currency").notNull().default("EUR"),
+    icon: text("icon"),
+    color: text("color"),
+    notes: text("notes"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    check("assets_type_check", sql`${table.type} IN ('deposit', 'investment', 'crypto', 'other')`),
+  ]
+);
+
+// ─── Asset Lots ───────────────────────────────────────────────────────────────
+
+export const assetLots = sqliteTable(
+  "asset_lots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    assetId: integer("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    quantity: real("quantity").notNull(), // positive = buy/deposit, negative = sell/withdraw
+    pricePerUnit: integer("price_per_unit").notNull(), // cents, in asset's currency
+    date: text("date").notNull(), // ISO 8601 date
+    transactionId: integer("transaction_id").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_asset_lots_asset").on(table.assetId),
+    index("idx_asset_lots_date").on(table.assetId, table.date),
+    index("idx_asset_lots_transaction").on(table.transactionId),
+  ]
+);
+
+// ─── Asset Prices ─────────────────────────────────────────────────────────────
+
+export const assetPrices = sqliteTable(
+  "asset_prices",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    assetId: integer("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    pricePerUnit: integer("price_per_unit").notNull(), // cents, in asset's currency
+    recordedAt: text("recorded_at").notNull(), // ISO 8601 datetime
+  },
+  (table) => [
+    index("idx_asset_prices_asset").on(table.assetId),
+    index("idx_asset_prices_latest").on(table.assetId, table.recordedAt),
+  ]
+);
+
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 
 export type Category = typeof categories.$inferSelect;
@@ -214,3 +284,9 @@ export type ExchangeRate = typeof exchangeRates.$inferSelect;
 export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 export type MarketPrice = typeof marketPrices.$inferSelect;
 export type NewMarketPrice = typeof marketPrices.$inferInsert;
+export type Asset = typeof assets.$inferSelect;
+export type NewAsset = typeof assets.$inferInsert;
+export type AssetLot = typeof assetLots.$inferSelect;
+export type NewAssetLot = typeof assetLots.$inferInsert;
+export type AssetPrice = typeof assetPrices.$inferSelect;
+export type NewAssetPrice = typeof assetPrices.$inferInsert;

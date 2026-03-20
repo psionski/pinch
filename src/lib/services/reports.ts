@@ -27,7 +27,7 @@ function dateFilters(dateFrom: string, dateTo: string): SQL[] {
 }
 
 function typeFilter(type: "income" | "expense" | "all"): SQL | undefined {
-  if (type === "all") return undefined;
+  if (type === "all") return sql`${transactions.type} != 'transfer'`;
   return eq(transactions.type, type);
 }
 
@@ -354,8 +354,6 @@ export class ReportService {
   }
 
   trends(input: TrendsInput): TrendPoint[] {
-    const tf = typeFilter(input.type);
-
     // Build month series for the last N months using a recursive CTE
     const rows = this.db.all<{ month: string; total: number; count: number }>(
       sql`
@@ -374,7 +372,7 @@ export class ReportService {
         LEFT JOIN transactions t
           ON strftime('%Y-%m', t.date) = months.m
           ${input.categoryId !== undefined ? sql`AND t.category_id = ${input.categoryId}` : sql``}
-          ${tf ? sql`AND t.type = ${input.type}` : sql``}
+          ${input.type === "all" ? sql`AND t.type != 'transfer'` : sql`AND t.type = ${input.type}`}
         GROUP BY months.m
         ORDER BY months.m ASC
       `
@@ -421,7 +419,9 @@ export class ReportService {
   }
 
   topMerchants(input: TopMerchantsInput): TopMerchant[] {
-    const filters: SQL[] = [...dateFilters(input.dateFrom, input.dateTo)];
+    const filters: SQL[] = [];
+    if (input.dateFrom) filters.push(gte(transactions.date, input.dateFrom));
+    if (input.dateTo) filters.push(lte(transactions.date, input.dateTo));
     const tf = typeFilter(input.type);
     if (tf) filters.push(tf);
     // Only include transactions that have a merchant

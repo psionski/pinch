@@ -121,7 +121,7 @@ describe("CreateTransactionSchema", () => {
   });
 
   it("rejects invalid type", () => {
-    expect(() => CreateTransactionSchema.parse({ ...valid, type: "transfer" })).toThrow();
+    expect(() => CreateTransactionSchema.parse({ ...valid, type: "invalid" })).toThrow();
   });
 });
 

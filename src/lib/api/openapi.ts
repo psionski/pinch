@@ -44,6 +44,17 @@ import {
   SetApiKeyBodySchema,
 } from "@/lib/validators/financial";
 import {
+  CreateAssetSchema,
+  UpdateAssetSchema,
+  BuyAssetSchema,
+  SellAssetSchema,
+  RecordPriceSchema,
+  AssetWithMetricsSchema,
+  AssetLotResponseSchema,
+  AssetPriceResponseSchema,
+  PortfolioResponseSchema,
+} from "@/lib/validators/assets";
+import {
   SpendingSummarySchema,
   CategoryStatsSchema,
   BudgetStatsSchema,
@@ -61,6 +72,10 @@ import { ErrorResponseSchema } from "@/lib/validators/common";
 // ─── Named component schemas ────────────────────────────────────────────────
 
 const ErrorSchema = ErrorResponseSchema.meta({ id: "ErrorResponse" });
+const AssetWithMetrics = AssetWithMetricsSchema.meta({ id: "AssetWithMetrics" });
+const AssetLot = AssetLotResponseSchema.meta({ id: "AssetLot" });
+const AssetPrice = AssetPriceResponseSchema.meta({ id: "AssetPrice" });
+const Portfolio = PortfolioResponseSchema.meta({ id: "Portfolio" });
 const ExchangeRateResult = ExchangeRateResultSchema.meta({ id: "ExchangeRateResult" });
 const ConvertResult = ConvertResultSchema.meta({ id: "ConvertResult" });
 const MarketPriceResult = MarketPriceResultSchema.meta({ id: "MarketPriceResult" });
@@ -172,6 +187,10 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       { name: "Recurring", description: "Recurring transaction templates" },
       { name: "Receipts", description: "Receipt management and image serving" },
       { name: "Financial", description: "Exchange rates, currency conversion, and market prices" },
+      {
+        name: "Assets",
+        description: "Asset and portfolio tracking (savings, investments, crypto)",
+      },
     ],
     paths: {
       "/api/transactions": {
@@ -601,6 +620,114 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
             },
           },
         },
+      },
+      "/api/assets": {
+        get: op({
+          id: "listAssets",
+          summary: "List all assets with metrics",
+          tags: ["Assets"],
+          response: z.array(AssetWithMetrics),
+          errors: [500],
+        }),
+        post: op({
+          id: "createAsset",
+          summary: "Create a new asset",
+          tags: ["Assets"],
+          body: CreateAssetSchema,
+          response: AssetWithMetrics,
+          status: 201,
+          errors: [400, 500],
+        }),
+      },
+      "/api/assets/{id}": {
+        get: op({
+          id: "getAssetById",
+          summary: "Get an asset by ID with metrics",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          response: AssetWithMetrics,
+          errors: [400, 404, 500],
+        }),
+        patch: op({
+          id: "updateAsset",
+          summary: "Update asset metadata",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          body: UpdateAssetSchema,
+          response: AssetWithMetrics,
+          errors: [400, 404, 500],
+        }),
+        delete: op({
+          id: "deleteAsset",
+          summary: "Delete an asset and its lots and prices",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          response: SuccessSchema,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/assets/{id}/buy": {
+        post: op({
+          id: "buyAsset",
+          summary: "Record an asset purchase — creates a transfer transaction + lot",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          body: BuyAssetSchema,
+          response: z.object({ lot: AssetLot, transaction: Transaction }),
+          status: 201,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/assets/{id}/sell": {
+        post: op({
+          id: "sellAsset",
+          summary: "Record an asset sale — creates a transfer transaction + negative lot",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          body: SellAssetSchema,
+          response: z.object({ lot: AssetLot, transaction: Transaction }),
+          status: 201,
+          errors: [400, 404, 409, 500],
+        }),
+      },
+      "/api/assets/{id}/lots": {
+        get: op({
+          id: "listAssetLots",
+          summary: "List buy/sell lot history for an asset",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          response: z.array(AssetLot),
+          errors: [400, 500],
+        }),
+      },
+      "/api/assets/{id}/prices": {
+        get: op({
+          id: "getAssetPriceHistory",
+          summary: "Get price history for an asset",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          response: z.array(AssetPrice),
+          errors: [400, 500],
+        }),
+        post: op({
+          id: "recordAssetPrice",
+          summary: "Record a price snapshot for an asset",
+          tags: ["Assets"],
+          pathId: "Asset ID",
+          body: RecordPriceSchema,
+          response: AssetPrice,
+          status: 201,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/portfolio": {
+        get: op({
+          id: "getPortfolio",
+          summary: "Get net worth, asset allocation, and aggregate P&L",
+          tags: ["Assets"],
+          response: Portfolio,
+          errors: [500],
+        }),
       },
       "/api/receipts/{id}/image": {
         get: {

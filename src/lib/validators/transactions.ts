@@ -6,7 +6,7 @@ import { PaginationSchema, IsoDateSchema, TransactionTypeSchema } from "./common
 export const TransactionResponseSchema = z.object({
   id: z.number().int(),
   amount: z.number().int(),
-  type: z.enum(["income", "expense"]),
+  type: z.enum(["income", "expense", "transfer"]),
   description: z.string(),
   merchant: z.string().nullable(),
   categoryId: z.number().int().nullable(),

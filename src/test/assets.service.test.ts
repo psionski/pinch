@@ -1,0 +1,362 @@
+// @vitest-environment node
+import { describe, it, expect, beforeEach } from "vitest";
+import { makeTestDb } from "./helpers";
+import { AssetService } from "@/lib/services/assets";
+import { AssetLotService } from "@/lib/services/asset-lots";
+import { AssetPriceService } from "@/lib/services/asset-prices";
+import { PortfolioService } from "@/lib/services/portfolio";
+import { TransactionService } from "@/lib/services/transactions";
+
+let assetService: AssetService;
+let lotService: AssetLotService;
+let priceService: AssetPriceService;
+let portfolioService: PortfolioService;
+let txService: TransactionService;
+
+beforeEach(() => {
+  const db = makeTestDb();
+  assetService = new AssetService(db);
+  lotService = new AssetLotService(db);
+  priceService = new AssetPriceService(db);
+  portfolioService = new PortfolioService(db);
+  txService = new TransactionService(db);
+});
+
+// ─── AssetService ─────────────────────────────────────────────────────────────
+
+describe("AssetService", () => {
+  it("creates an asset and retrieves it", () => {
+    const asset = assetService.create({
+      name: "Emergency Fund",
+      type: "deposit",
+      currency: "EUR",
+    });
+    expect(asset.id).toBeGreaterThan(0);
+    expect(asset.name).toBe("Emergency Fund");
+    expect(asset.type).toBe("deposit");
+    expect(asset.currency).toBe("EUR");
+  });
+
+  it("list returns assets with zero metrics when no lots", () => {
+    // Investment with no price snapshot → currentValue/pnl are null
+    assetService.create({ name: "My Stocks", type: "investment", currency: "EUR" });
+    const list = assetService.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].currentHoldings).toBe(0);
+    expect(list[0].costBasis).toBe(0);
+    expect(list[0].currentValue).toBeNull();
+    expect(list[0].pnl).toBeNull();
+  });
+
+  it("getById returns null for missing asset", () => {
+    expect(assetService.getById(999)).toBeNull();
+  });
+
+  it("update changes asset metadata", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    const updated = assetService.update(asset.id, { name: "Bitcoin", icon: "₿" });
+    expect(updated?.name).toBe("Bitcoin");
+    expect(updated?.icon).toBe("₿");
+  });
+
+  it("delete removes asset and returns true", () => {
+    const asset = assetService.create({ name: "To Delete", type: "other", currency: "EUR" });
+    expect(assetService.delete(asset.id)).toBe(true);
+    expect(assetService.getById(asset.id)).toBeNull();
+  });
+
+  it("delete returns false for missing asset", () => {
+    expect(assetService.delete(999)).toBe(false);
+  });
+
+  it("EUR deposit with no price uses €1 fallback for currentValue", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    // Buy 1000 units (€1000)
+    lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 100, date: "2026-01-01" });
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentHoldings).toBe(1000);
+    expect(retrieved?.currentValue).toBe(100000); // 1000 * 100 = 100000 cents = €1000
+    expect(retrieved?.pnl).toBe(0); // cost = value for €1 deposits
+  });
+
+  it("non-EUR asset with no price has null currentValue and pnl", () => {
+    const asset = assetService.create({ name: "USD Savings", type: "deposit", currency: "USD" });
+    lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 100, date: "2026-01-01" });
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentValue).toBeNull();
+    expect(retrieved?.pnl).toBeNull();
+  });
+
+  it("computes correct metrics with price snapshot", () => {
+    const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-01-01" });
+    priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T10:00:00Z" });
+
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentHoldings).toBe(10);
+    expect(retrieved?.costBasis).toBe(345630); // 10 * 34563
+    expect(retrieved?.currentValue).toBe(360000); // 10 * 36000
+    expect(retrieved?.pnl).toBe(14370); // 360000 - 345630
+  });
+});
+
+// ─── AssetLotService ─────────────────────────────────────────────────────────
+
+describe("AssetLotService", () => {
+  it("buy creates a transfer transaction and an asset lot atomically", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    const { lot, transaction } = lotService.buy(asset.id, {
+      quantity: 0.5,
+      pricePerUnit: 8000000,
+      date: "2026-03-01",
+    });
+
+    expect(lot.assetId).toBe(asset.id);
+    expect(lot.quantity).toBe(0.5);
+    expect(lot.pricePerUnit).toBe(8000000);
+    expect(lot.transactionId).toBe(transaction.id);
+
+    expect(transaction.type).toBe("transfer");
+    expect(transaction.amount).toBe(4000000); // 0.5 * 8000000
+    expect(transaction.date).toBe("2026-03-01");
+  });
+
+  it("buy uses custom description when provided", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    const { transaction } = lotService.buy(asset.id, {
+      quantity: 5,
+      pricePerUnit: 10000,
+      date: "2026-03-01",
+      description: "Monthly ETF purchase",
+    });
+    expect(transaction.description).toBe("Monthly ETF purchase");
+  });
+
+  it("buy auto-generates description when none provided", () => {
+    const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
+    const { transaction } = lotService.buy(asset.id, {
+      quantity: 2,
+      pricePerUnit: 34563,
+      date: "2026-03-01",
+    });
+    expect(transaction.description).toContain("SPX");
+    expect(transaction.description).toContain("Buy");
+  });
+
+  it("sell creates a transfer transaction and negative lot", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-01-01" });
+
+    const { lot, transaction } = lotService.sell(asset.id, {
+      quantity: 0.3,
+      pricePerUnit: 9000000,
+      date: "2026-03-01",
+    });
+
+    expect(lot.quantity).toBe(-0.3);
+    expect(transaction.type).toBe("transfer");
+    expect(transaction.amount).toBe(2700000); // 0.3 * 9000000
+  });
+
+  it("sell throws when quantity exceeds holdings", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 10000, date: "2026-01-01" });
+
+    expect(() =>
+      lotService.sell(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2026-03-01" })
+    ).toThrow("Insufficient");
+  });
+
+  it("sell throws for unknown asset", () => {
+    expect(() =>
+      lotService.sell(999, { quantity: 1, pricePerUnit: 100, date: "2026-03-01" })
+    ).toThrow("not found");
+  });
+
+  // ── Regression: EUR deposit pricePerUnit guard ──────────────────────────────
+
+  it("buy throws for EUR deposit with pricePerUnit !== 100", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    expect(() =>
+      lotService.buy(asset.id, { quantity: 1, pricePerUnit: 500000, date: "2026-01-01" })
+    ).toThrow("pricePerUnit must be 100");
+  });
+
+  it("buy accepts EUR deposit with pricePerUnit === 100", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    const { lot } = lotService.buy(asset.id, { quantity: 5000, pricePerUnit: 100, date: "2026-01-01" });
+    expect(lot.quantity).toBe(5000);
+    expect(lot.pricePerUnit).toBe(100);
+  });
+
+  it("buy does NOT enforce pricePerUnit for non-EUR deposits", () => {
+    const asset = assetService.create({ name: "USD Account", type: "deposit", currency: "USD" });
+    const { lot } = lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 110, date: "2026-01-01" });
+    expect(lot.pricePerUnit).toBe(110);
+  });
+
+  // ── Regression: average-cost basis after partial sell ───────────────────────
+
+  it("costBasis uses average cost and adjusts for partial sells", () => {
+    const asset = assetService.create({ name: "VWCE", type: "investment", currency: "EUR" });
+    // Buy 5 at €102.50
+    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 10250, date: "2026-03-01" });
+    // Sell 2 — remaining: 3 units, avg cost still €102.50
+    lotService.sell(asset.id, { quantity: 2, pricePerUnit: 11200, date: "2026-03-15" });
+
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentHoldings).toBe(3);
+    // Average cost = 51250 / 5 = 10250; remaining cost basis = 10250 * 3 = 30750
+    expect(retrieved?.costBasis).toBe(30750);
+  });
+
+  it("costBasis handles multiple buy lots with different prices (weighted average)", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    // Buy 1 at €80,000 and 1 at €90,000 → avg = €85,000
+    lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-01-01" });
+    lotService.buy(asset.id, { quantity: 1, pricePerUnit: 9000000, date: "2026-02-01" });
+    // Sell 1 — remaining: 1 at avg cost of €85,000
+    lotService.sell(asset.id, { quantity: 1, pricePerUnit: 9500000, date: "2026-03-01" });
+
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentHoldings).toBe(1);
+    expect(retrieved?.costBasis).toBe(8500000); // (8000000 + 9000000) / 2
+  });
+
+  it("listLots returns lots ordered by date descending", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 1, pricePerUnit: 10000, date: "2026-01-01" });
+    lotService.buy(asset.id, { quantity: 2, pricePerUnit: 10500, date: "2026-03-01" });
+
+    const lots = lotService.listLots(asset.id);
+    expect(lots).toHaveLength(2);
+    expect(lots[0].date).toBe("2026-03-01");
+    expect(lots[1].date).toBe("2026-01-01");
+  });
+});
+
+// ─── AssetPriceService ────────────────────────────────────────────────────────
+
+describe("AssetPriceService", () => {
+  it("records a price and retrieves it as latest", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    priceService.record(asset.id, { pricePerUnit: 8000000, recordedAt: "2026-03-20T12:00:00Z" });
+
+    const latest = priceService.getLatest(asset.id);
+    expect(latest?.pricePerUnit).toBe(8000000);
+    expect(latest?.assetId).toBe(asset.id);
+  });
+
+  it("getLatest returns the most recent price", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    priceService.record(asset.id, { pricePerUnit: 7000000, recordedAt: "2026-01-01T00:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 8000000, recordedAt: "2026-03-20T00:00:00Z" });
+
+    const latest = priceService.getLatest(asset.id);
+    expect(latest?.pricePerUnit).toBe(8000000);
+  });
+
+  it("getHistory returns prices ordered ascending", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    priceService.record(asset.id, { pricePerUnit: 30000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 28000, recordedAt: "2026-01-01T00:00:00Z" });
+
+    const history = priceService.getHistory(asset.id);
+    expect(history[0].pricePerUnit).toBe(28000);
+    expect(history[1].pricePerUnit).toBe(30000);
+  });
+
+  it("getLatest returns null when no prices recorded", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    expect(priceService.getLatest(asset.id)).toBeNull();
+  });
+});
+
+// ─── PortfolioService ─────────────────────────────────────────────────────────
+
+describe("PortfolioService", () => {
+  it("returns zero net worth when no transactions or assets", () => {
+    const portfolio = portfolioService.getNetWorth();
+    expect(portfolio.cashBalance).toBe(0);
+    expect(portfolio.totalAssetValue).toBe(0);
+    expect(portfolio.netWorth).toBe(0);
+    expect(portfolio.assets).toHaveLength(0);
+    expect(portfolio.pnl).toBe(0);
+  });
+
+  it("cash balance is income minus expenses, transfers excluded", () => {
+    txService.create({ amount: 100000, type: "income", description: "Salary", date: "2026-03-01" });
+    txService.create({ amount: 30000, type: "expense", description: "Rent", date: "2026-03-01" });
+    // Transfer — should not affect cash balance
+    txService.create({
+      amount: 50000,
+      type: "transfer",
+      description: "Buy ETF",
+      date: "2026-03-01",
+    });
+
+    const portfolio = portfolioService.getNetWorth();
+    expect(portfolio.cashBalance).toBe(70000); // 100000 - 30000 (transfer excluded)
+  });
+
+  it("net worth includes asset values and buying is net-worth-neutral", () => {
+    txService.create({ amount: 500000, type: "income", description: "Salary", date: "2026-03-01" });
+
+    const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
+    // Buy 10 SPX @ €345.63 = €3,456.30 total
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-03-01" });
+    priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T10:00:00Z" });
+
+    const portfolio = portfolioService.getNetWorth();
+    // cashBalance = income − purchases = 500000 − 345630 = 154370
+    expect(portfolio.cashBalance).toBe(154370);
+    expect(portfolio.totalAssetValue).toBe(360000); // 10 * 36000
+    // netWorth = cashBalance + assetValue = income + unrealised gain = 500000 + 14370
+    expect(portfolio.netWorth).toBe(514370);
+    expect(portfolio.pnl).toBe(14370); // 360000 − 345630
+  });
+
+  it("selling an asset is net-worth-neutral at the same price", () => {
+    txService.create({ amount: 500000, type: "income", description: "Salary", date: "2026-03-01" });
+
+    const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-03-01" });
+    priceService.record(asset.id, { pricePerUnit: 34563, recordedAt: "2026-03-20T10:00:00Z" });
+
+    const before = portfolioService.getNetWorth();
+
+    // Sell 4 at the same price — net worth must not change
+    lotService.sell(asset.id, { quantity: 4, pricePerUnit: 34563, date: "2026-03-20" });
+
+    const after = portfolioService.getNetWorth();
+    expect(after.netWorth).toBe(before.netWorth);
+    // Cash went up by the sale proceeds
+    expect(after.cashBalance).toBe(before.cashBalance + 4 * 34563);
+    // Asset value went down by the same amount
+    expect(after.totalAssetValue).toBe(before.totalAssetValue - 4 * 34563);
+  });
+
+  it("allocation percentages sum to 100 for a single asset", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-03-01" });
+    priceService.record(asset.id, { pricePerUnit: 9000000, recordedAt: "2026-03-20T00:00:00Z" });
+
+    const portfolio = portfolioService.getNetWorth();
+    expect(portfolio.allocation).toHaveLength(1);
+    expect(portfolio.allocation[0].pct).toBe(100);
+  });
+
+  it("pnl is null when any asset lacks a price", () => {
+    const a1 = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
+    lotService.buy(a1.id, { quantity: 1, pricePerUnit: 34563, date: "2026-03-01" });
+    priceService.record(a1.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T00:00:00Z" });
+
+    // USD asset with no price — null value
+    const a2 = assetService.create({ name: "USD Bond", type: "investment", currency: "USD" });
+    lotService.buy(a2.id, { quantity: 1000, pricePerUnit: 100, date: "2026-03-01" });
+    // No price recorded for a2
+
+    const portfolio = portfolioService.getNetWorth();
+    expect(portfolio.pnl).toBeNull();
+  });
+});

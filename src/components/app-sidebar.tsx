@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, Tags, BarChart3, Wallet, Repeat } from "lucide-react";
+import {
+  LayoutDashboard,
+  ArrowLeftRight,
+  Tags,
+  BarChart3,
+  Wallet,
+  Repeat,
+  TrendingUp,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -21,6 +29,7 @@ const navItems = [
   { href: "/categories", label: "Categories", icon: Tags },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/budgets", label: "Budgets", icon: Wallet },
+  { href: "/assets", label: "Assets", icon: TrendingUp },
   { href: "/recurring", label: "Recurring", icon: Repeat },
 ];
 

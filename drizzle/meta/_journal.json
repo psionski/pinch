@@ -29,6 +29,13 @@
       "when": 1773965714151,
       "tag": "0003_financial_data",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1773967724447,
+      "tag": "0004_tan_dragon_lord",
+      "breakpoints": true
     }
   ]
 }
