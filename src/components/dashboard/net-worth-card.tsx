@@ -15,15 +15,11 @@ export function NetWorthCard({ portfolio }: NetWorthCardProps): React.ReactEleme
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium">Net Worth</CardTitle>
+        <CardTitle className="text-muted-foreground text-sm font-medium">Cash</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-2xl font-bold">{formatCurrency(netWorth)}</p>
+        <p className="text-2xl font-bold">{formatCurrency(cashBalance)}</p>
         <div className="space-y-1 text-sm">
-          <div className="text-muted-foreground flex justify-between">
-            <span>Cash</span>
-            <span className="font-mono">{formatCurrency(cashBalance)}</span>
-          </div>
           <div className="text-muted-foreground flex justify-between">
             <span>
               <Link href="/assets" className="hover:underline">
@@ -32,9 +28,13 @@ export function NetWorthCard({ portfolio }: NetWorthCardProps): React.ReactEleme
             </span>
             <span className="font-mono">{formatCurrency(totalAssetValue)}</span>
           </div>
+          <div className="flex justify-between border-t pt-1">
+            <span className="text-muted-foreground">Net Worth</span>
+            <span className="font-mono font-medium">{formatCurrency(netWorth)}</span>
+          </div>
           {pnl !== null && (
-            <div className="flex justify-between border-t pt-1">
-              <span className="text-muted-foreground">P&amp;L</span>
+            <div className="text-muted-foreground flex justify-between">
+              <span>P&amp;L</span>
               <span
                 className={`flex items-center gap-1 font-medium ${pnlPositive ? "text-emerald-600" : "text-destructive"}`}
               >

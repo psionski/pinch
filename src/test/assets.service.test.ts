@@ -228,30 +228,40 @@ describe("AssetLotService", () => {
 
   // ── Regression: average-cost basis after partial sell ───────────────────────
 
-  it("costBasis uses average cost and adjusts for partial sells", () => {
+  it("costBasis (FIFO): partial sell consumes oldest lot first", () => {
     const asset = assetService.create({ name: "VWCE", type: "investment", currency: "EUR" });
     // Buy 5 at €102.50
     lotService.buy(asset.id, { quantity: 5, pricePerUnit: 10250, date: "2026-03-01" });
-    // Sell 2 — remaining: 3 units, avg cost still €102.50
+    // Sell 2 — FIFO consumes 2 from the single lot, remaining 3 @ €102.50
     lotService.sell(asset.id, { quantity: 2, pricePerUnit: 11200, date: "2026-03-15" });
 
     const retrieved = assetService.getById(asset.id);
     expect(retrieved?.currentHoldings).toBe(3);
-    // Average cost = 51250 / 5 = 10250; remaining cost basis = 10250 * 3 = 30750
-    expect(retrieved?.costBasis).toBe(30750);
+    expect(retrieved?.costBasis).toBe(30750); // 3 * 10250
   });
 
-  it("costBasis handles multiple buy lots with different prices (weighted average)", () => {
+  it("costBasis (FIFO): sell consumes the first buy lot, leaving second", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    // Buy 1 at €80,000 and 1 at €90,000 → avg = €85,000
     lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-01-01" });
     lotService.buy(asset.id, { quantity: 1, pricePerUnit: 9000000, date: "2026-02-01" });
-    // Sell 1 — remaining: 1 at avg cost of €85,000
+    // Sell 1 — FIFO consumes the first lot (€80k), leaving 1 @ €90k
     lotService.sell(asset.id, { quantity: 1, pricePerUnit: 9500000, date: "2026-03-01" });
 
     const retrieved = assetService.getById(asset.id);
     expect(retrieved?.currentHoldings).toBe(1);
-    expect(retrieved?.costBasis).toBe(8500000); // (8000000 + 9000000) / 2
+    expect(retrieved?.costBasis).toBe(9000000); // second lot remains
+  });
+
+  it("costBasis (FIFO): fully closed position then re-buy resets cost basis", () => {
+    const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
+    // Buy 15, sell all 15, then buy 1 cheaply
+    lotService.buy(asset.id, { quantity: 15, pricePerUnit: 30000, date: "2026-01-01" });
+    lotService.sell(asset.id, { quantity: 15, pricePerUnit: 32000, date: "2026-01-15" });
+    lotService.buy(asset.id, { quantity: 1, pricePerUnit: 2000, date: "2026-02-01" });
+
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentHoldings).toBe(1);
+    expect(retrieved?.costBasis).toBe(2000); // only the new €20 lot remains
   });
 
   it("listLots returns lots ordered by date descending", () => {
@@ -312,7 +322,7 @@ describe("PortfolioService", () => {
     expect(portfolio.totalAssetValue).toBe(0);
     expect(portfolio.netWorth).toBe(0);
     expect(portfolio.assets).toHaveLength(0);
-    expect(portfolio.pnl).toBe(0);
+    expect(portfolio.pnl).toBeNull();
   });
 
   it("cash balance is income minus expenses, transfers excluded", () => {

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { assets, assetLots, assetPrices } from "@/lib/db/schema";
@@ -82,30 +82,37 @@ export class AssetService {
   }
 
   private attachMetrics(asset: AssetResponse): AssetWithMetrics {
-    // Single query: current holdings + buy-side totals for average-cost basis.
-    // Average cost = totalBuyCost / totalBoughtQty.
-    // costBasis = avgCostPerUnit * currentHoldings — correctly shrinks on partial sells.
-    const [lotsMetrics] = this.db
-      .select({
-        currentHoldings: sql<number>`coalesce(sum(${assetLots.quantity}), 0)`.mapWith(Number),
-        totalBoughtQty:
-          sql<number>`coalesce(sum(case when ${assetLots.quantity} > 0 then ${assetLots.quantity} else 0 end), 0)`.mapWith(
-            Number
-          ),
-        totalBuyCost:
-          sql<number>`coalesce(sum(case when ${assetLots.quantity} > 0 then cast(${assetLots.quantity} * ${assetLots.pricePerUnit} as real) else 0 end), 0)`.mapWith(
-            Number
-          ),
-      })
+    // FIFO cost basis: fetch all lots chronologically and simulate the queue.
+    // Each sell consumes the oldest buy lots first, so the remaining queue
+    // represents the actual cost of current holdings.
+    const lots = this.db
+      .select({ quantity: assetLots.quantity, pricePerUnit: assetLots.pricePerUnit })
       .from(assetLots)
       .where(eq(assetLots.assetId, asset.id))
+      .orderBy(asc(assetLots.date), asc(assetLots.id))
       .all();
 
-    const currentHoldings = lotsMetrics?.currentHoldings ?? 0;
-    const totalBoughtQty = lotsMetrics?.totalBoughtQty ?? 0;
-    const totalBuyCost = lotsMetrics?.totalBuyCost ?? 0;
-    const avgCostPerUnit = totalBoughtQty > 0 ? totalBuyCost / totalBoughtQty : 0;
-    const costBasis = Math.round(avgCostPerUnit * currentHoldings);
+    const queue: Array<{ qty: number; price: number }> = [];
+    for (const lot of lots) {
+      if (lot.quantity > 0) {
+        queue.push({ qty: lot.quantity, price: lot.pricePerUnit });
+      } else {
+        let toConsume = -lot.quantity;
+        while (toConsume > 0 && queue.length > 0) {
+          const front = queue[0];
+          if (front.qty <= toConsume) {
+            toConsume -= front.qty;
+            queue.shift();
+          } else {
+            front.qty -= toConsume;
+            toConsume = 0;
+          }
+        }
+      }
+    }
+
+    const currentHoldings = queue.reduce((sum, e) => sum + e.qty, 0);
+    const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0));
 
     // Latest price
     const latestPrice = this.db

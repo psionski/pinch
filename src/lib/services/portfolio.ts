@@ -59,24 +59,22 @@ export class PortfolioService {
     const allAssets = this.assetService.list();
 
     let totalAssetValue = 0;
-    let hasAllPrices = true;
     let pnlTotal = 0;
+    let hasSomePnl = false;
 
     for (const a of allAssets) {
       if (a.currentValue !== null) {
         totalAssetValue += a.currentValue;
-      } else {
-        hasAllPrices = false;
       }
       if (a.pnl !== null) {
         pnlTotal += a.pnl;
-      } else {
-        hasAllPrices = false;
+        hasSomePnl = true;
       }
     }
 
     const netWorth = cashBalance + totalAssetValue;
-    const pnl = hasAllPrices ? pnlTotal : null;
+    // Show partial P&L from assets that have a known price; null if none do (incl. no assets).
+    const pnl = hasSomePnl ? pnlTotal : null;
 
     // Allocation percentages
     const allocation = allAssets
