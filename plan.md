@@ -643,6 +643,10 @@ interface FinancialDataProvider {
 
   // Market prices
   getPrice?(symbol: string, currency: string, date?: string): Promise<MarketPriceResult | null>;
+  getPriceRange?(symbol: string, currency: string, from: string, to: string): Promise<MarketPriceResult[]>;
+
+  // Exchange rate time series
+  getExchangeRateRange?(base: string, quote: string, from: string, to: string): Promise<ExchangeRateResult[]>;
 
   // Health check — verify API key is valid, service is reachable
   healthCheck?(): Promise<boolean>;
@@ -654,8 +658,12 @@ interface FinancialDataProvider {
 - **`FinancialDataService`** — orchestrates providers and cache:
   - `getExchangeRate(base, quote, date?)` — cache-first lookup. If cached and fresh, return it. Otherwise try providers in priority order, cache result, return it. `date` defaults to today.
   - `getExchangeRates(base, date?)` — all available pairs for a base currency on a given date.
+  - `getExchangeRateRange(base, quote, from, to)` — fetch a full time series of exchange rates for a date range. Uses provider range endpoints (e.g. Frankfurter `/timeseries`) to get all dates in one API call. Bulk-caches all returned points. Returns array of `ExchangeRateResult`.
   - `convert(amount, from, to, date?)` — convenience: look up rate + multiply. Returns `{ converted: number, rate: number, date: string, stale: boolean }`.
   - `getMarketPrice(symbol, currency?, date?)` — same pattern for asset prices. Currency defaults to EUR.
+  - `getMarketPriceRange(symbol, currency, from, to)` — fetch a full time series of market prices. Uses provider range endpoints (e.g. CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`) to get all dates in one API call. Bulk-caches all returned points. Returns array of `MarketPriceResult`.
+  - `ensurePriceHistory(symbol, currency, from, to)` — checks cache for gaps in the date range, fetches only the missing segments via `getMarketPriceRange`. Idempotent — safe to call repeatedly.
+  - `ensureExchangeRateHistory(base, quote, from, to)` — same pattern for exchange rates.
   - `getProviderStatus()` — list configured providers with health status (reachable, key valid, rate limits).
   - `setApiKey(provider, key)` — store in `settings` table.
   - `getApiKey(provider)` — read from `settings` table.
@@ -898,6 +906,54 @@ src/
 ### Sprint 18: Portfolio & Asset Reports — Backend
 **Goal:** Service layer, API routes, and MCP tools for common portfolio/asset analytics. All computed from lots + prices — no snapshots.
 
+#### Phase 1: Asset–market price linking
+
+Today `assets` and `market_prices` are completely disconnected. An asset like "Bitcoin" has no way to know its market symbol is `'bitcoin'` (CoinGecko) or that prices should come from `market_prices`. Everything relies on manual `record_price` calls. This phase bridges the gap.
+
+##### Schema change
+
+Add a nullable `symbol` column to `assets`:
+
+```sql
+ALTER TABLE assets ADD COLUMN symbol TEXT;  -- nullable: NULL = manual/no market data
+```
+
+`symbol` holds the provider-specific identifier: `'bitcoin'` for CoinGecko, `'AAPL'` for AlphaVantage, etc. When set, the system can automatically fetch and resolve prices. When `NULL`, the asset relies on user-provided `asset_prices` snapshots only (e.g. real estate, private funds, collectibles).
+
+##### Unified price resolver
+
+A new utility used by both `attachMetrics()` (current valuation) and `PortfolioReportService` (historical reports):
+
+```
+resolvePrice(asset, date) → { price: number, source: 'market' | 'user' | 'lot' | 'deposit' } | null
+```
+
+Resolution order for a given `(asset, date)`:
+1. **User override** — if an `asset_prices` entry exists within ±1 day of `date`, use it. User-recorded prices are intentional and take precedence (handles NAV overrides, illiquid valuations, corrections).
+2. **Market price** — if the asset has a `symbol`, look up `market_prices` for `(symbol, asset.currency, date)`. Accept exact match or nearest within 7 days (prefer earlier).
+3. **Lot cost basis** — fall back to the most recent lot's `price_per_unit` before `date`.
+4. **Deposit identity** — same-currency deposits: price is always 1 (1 unit = 1 currency unit).
+
+Why user prices beat market prices: a user who manually records a price is making a deliberate statement ("this is what my asset is actually worth"). For illiquid assets there's no market data at all. For market-linked assets, users rarely record manual prices — so in practice, step 2 handles most lookups.
+
+##### Autorecord cron upgrade
+
+The daily cron gains a new job: for each asset where `symbol IS NOT NULL`, fetch today's market price via `FinancialDataService.getMarketPrice(asset.symbol, asset.currency)` and write an `asset_prices` snapshot via `AssetPriceService.record()`. This keeps `asset_prices` dense for market-linked assets without manual intervention, and ensures `attachMetrics()` (which reads from `asset_prices`) stays current.
+
+##### Backfill on symbol assignment
+
+When an asset's `symbol` is set (on creation or via update):
+1. Call `ensurePriceHistory(symbol, asset.currency, earliestLotDate, today)` to populate `market_prices`.
+2. For non-EUR assets, also call `ensureExchangeRateHistory(asset.currency, 'EUR', earliestLotDate, today)`.
+3. This is async / best-effort — don't block the API response. If it fails, reports fall back gracefully through the resolver chain.
+
+##### Validator & API changes
+
+- `CreateAssetInput` / `UpdateAssetInput`: add optional `symbol: z.string().optional()`
+- `AssetResponse`: include `symbol: string | null`
+- MCP `create_asset` / `update_asset` tool descriptions updated to mention the symbol field
+- MCP `instructions` updated: "When creating an investment or crypto asset, ask the user for the ticker/symbol so prices can be tracked automatically."
+
 #### Reports
 
 | Report | What it answers | How it's computed |
@@ -946,14 +1002,26 @@ src/
 - `GET /api/assets/[id]/history` — `?window=12m`
 - `GET /api/reports/summary` — extended with `?includeTransfers=true`
 
+#### Price data strategy
+
+Reports need dense historical price data — a 6-month daily net worth chart for N assets needs up to 180 × N price points plus exchange rates for non-EUR assets. Fetching these one-by-one would be slow and blow API rate limits. Instead, we use **range queries + backfill**.
+
+**How it works:**
+
+1. **Backfill on asset creation.** When an asset is created (or first linked to a market symbol), call `FinancialDataService.ensurePriceHistory()` to populate `market_prices` from the asset's earliest lot date through today. One API call per asset via provider range endpoints (CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`, Frankfurter `/timeseries`). Same for exchange rates on non-EUR assets via `ensureExchangeRateHistory()`.
+2. **Daily cron keeps it current.** The existing autorecord cron fetches today's prices for all tracked assets. Combined with the backfill, `market_prices` stays dense over time.
+3. **Reports read from cache.** `PortfolioReportService` reads directly from `market_prices` and `exchange_rates` — no provider calls at report time. For each (asset, date) pair, find the exact or nearest cached price.
+4. **Gap-fill on report generation.** Before computing a report, call `ensurePriceHistory()` / `ensureExchangeRateHistory()` for each asset's date range. These are idempotent — they check what's already cached and only fetch missing segments. This covers assets created before this feature existed, or gaps from provider outages.
+
+**Price resolution** uses the unified `resolvePrice(asset, date)` from Phase 1 (user override → market price → lot cost basis → deposit identity). Reports call this for each (asset, date) point in the series.
+
 #### Key implementation notes
 
-- **Net worth at a past date** requires finding the nearest recorded price for each asset held at that date. If no price exists before a date for an asset, use the lot's `price_per_unit` (cost basis) as a fallback — better than `null`.
 - **Annualized return** uses time-weighted calculation: `((current_value / cost_basis) ^ (365 / days_held)) - 1`. Only meaningful for assets held > 30 days.
 - **Deposit assets** (type `'deposit'`, same currency): price is always 1, so P&L is always 0 and net worth contribution = sum of lots. Skip price lookups for these.
 - All reports should handle the **empty state** gracefully (no assets yet, no prices recorded).
 
-**Done when:** The AI can ask "how has my net worth changed over the last 6 months?" and get a time series. "Which of my assets is performing best?" returns a ranked P&L table. All endpoints return correct data tested against known lot + price fixtures.
+**Done when:** Assets can be linked to market symbols (`create_asset name:"Bitcoin" type:crypto symbol:bitcoin`), prices backfill automatically, and the daily cron keeps them current. The AI can ask "how has my net worth changed over the last 6 months?" and get a time series. "Which of my assets is performing best?" returns a ranked P&L table. All endpoints return correct data tested against known lot + price fixtures. Manual `record_price` overrides market data for assets like real estate or private funds.
 
 ---
 
@@ -1041,8 +1109,9 @@ Triggered on first visit when no transactions exist. Multi-step flow:
 3. **Cash balance** — "How much cash do you have right now?" Single input → creates opening balance transfer transaction
 4. **Savings** (optional) — "Do you have any savings accounts?" → for each: name, current balance → creates deposit asset + opening lot
 5. **Investments** (optional) — "Do you own any stocks, ETFs, or crypto?" → for each: name, type (stock/crypto), quantity, approximate cost basis → creates asset + opening lot
-6. **Categories** — show default categories, let user toggle on/off, rename, add custom ones. Quick and visual (checkboxes + inline edit).
-7. **Done** — summary of what was created, link to dashboard
+6. **Data providers** (optional) — "Set up market data for automatic price tracking." Show available providers (CoinGecko, Alpha Vantage, Open Exchange Rates) with brief descriptions and free-tier info. For each, an API key input field. Skip-friendly — free providers (Frankfurter, ECB, CoinGecko without key) work out of the box, so this step is only needed for premium providers or to unlock higher rate limits.
+7. **Categories** — show default categories, let user toggle on/off, rename, add custom ones. Quick and visual (checkboxes + inline edit).
+8. **Done** — summary of what was created, link to dashboard
 
 The wizard should be **skippable** ("I'll set this up later") and **re-runnable** (accessible from settings, not just first-run — in case someone wants to add a new asset opening balance later).
 
@@ -1054,7 +1123,7 @@ The wizard should be **skippable** ("I'll set this up later") and **re-runnable*
 | `add_opening_asset` | Add an existing asset holding. Params: name, type, currency, quantity, cost_basis_total (cents, optional — defaults to current value if price provided, or quantity × price_per_unit). Creates asset + lot with no transaction link. |
 | `get_onboarding_status` | Returns what's been set up: has opening cash balance, list of assets with opening lots, category count. Helps the AI know what to ask next. |
 
-This lets the AI run the same onboarding conversationally: "What's your current bank balance?" → "Do you have any savings or investments?" → enters everything via MCP.
+This lets the AI run the same onboarding conversationally: "What's your current bank balance?" → "Do you have any savings or investments?" → "Do you have API keys for any market data providers?" → enters everything via MCP. The AI should mention that free providers (Frankfurter, CoinGecko) work without keys, and suggest setting up Alpha Vantage (free key, 25 req/day) if the user tracks stocks/ETFs.
 
 #### Interactive tutorial
 
