@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { assets, assetLots, transactions } from "@/lib/db/schema";
+import { assets, assetLots, assetPrices, transactions } from "@/lib/db/schema";
 import type { BuyAssetInput, SellAssetInput, AssetLotResponse } from "@/lib/validators/assets";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 
@@ -30,6 +30,18 @@ function parseTransaction(row: schema.Transaction): TransactionResponse {
 
 export class AssetLotService {
   constructor(private db: Db) {}
+
+  /** Record a price snapshot from a transaction — every buy/sell is a price observation. */
+  private recordPriceSnapshot(assetId: number, pricePerUnit: number, date: string): void {
+    this.db
+      .insert(assetPrices)
+      .values({
+        assetId,
+        pricePerUnit,
+        recordedAt: new Date(date).toISOString(),
+      })
+      .run();
+  }
 
   buy(
     assetId: number,
@@ -76,6 +88,8 @@ export class AssetLotService {
         })
         .returning()
         .all();
+
+      this.recordPriceSnapshot(assetId, input.pricePerUnit, input.date);
 
       return { lot: parseLot(lotRow), transaction: parseTransaction(txRow) };
     });
@@ -132,6 +146,8 @@ export class AssetLotService {
         })
         .returning()
         .all();
+
+      this.recordPriceSnapshot(assetId, input.pricePerUnit, input.date);
 
       return { lot: parseLot(lotRow), transaction: parseTransaction(txRow) };
     });

@@ -79,12 +79,12 @@ describe("AssetService", () => {
     expect(retrieved?.pnl).toBe(0); // cost = value for €1 deposits
   });
 
-  it("non-EUR asset with no price has null currentValue and pnl", () => {
-    const asset = assetService.create({ name: "USD Savings", type: "deposit", currency: "USD" });
-    lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 100, date: "2026-01-01" });
+  it("buy auto-records price snapshot, so currentValue is available", () => {
+    const asset = assetService.create({ name: "USD Bond", type: "investment", currency: "USD" });
+    lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 110, date: "2026-01-01" });
     const retrieved = assetService.getById(asset.id);
-    expect(retrieved?.currentValue).toBeNull();
-    expect(retrieved?.pnl).toBeNull();
+    expect(retrieved?.latestPrice).toBe(110);
+    expect(retrieved?.currentValue).toBe(110000); // 1000 * 110
   });
 
   it("computes correct metrics with price snapshot", () => {
@@ -377,17 +377,4 @@ describe("PortfolioService", () => {
     expect(portfolio.allocation[0].pct).toBe(100);
   });
 
-  it("pnl is null when any asset lacks a price", () => {
-    const a1 = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
-    lotService.buy(a1.id, { quantity: 1, pricePerUnit: 34563, date: "2026-03-01" });
-    priceService.record(a1.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T00:00:00Z" });
-
-    // USD asset with no price — null value
-    const a2 = assetService.create({ name: "USD Bond", type: "investment", currency: "USD" });
-    lotService.buy(a2.id, { quantity: 1000, pricePerUnit: 100, date: "2026-03-01" });
-    // No price recorded for a2
-
-    const portfolio = portfolioService.getNetWorth();
-    expect(portfolio.pnl).toBeNull();
-  });
 });
