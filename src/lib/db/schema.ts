@@ -143,6 +143,59 @@ export const budgets = sqliteTable(
   ]
 );
 
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+// ─── Exchange Rates ───────────────────────────────────────────────────────────
+
+export const exchangeRates = sqliteTable(
+  "exchange_rates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    base: text("base").notNull(), // e.g. 'USD'
+    quote: text("quote").notNull(), // e.g. 'EUR'
+    rate: text("rate").notNull(), // stored as string to avoid float imprecision
+    date: text("date").notNull(), // YYYY-MM-DD
+    provider: text("provider").notNull(),
+    fetchedAt: text("fetched_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_exchange_rates_pair").on(table.base, table.quote, table.date),
+    uniqueIndex("uq_exchange_rates_pair_date").on(table.base, table.quote, table.date),
+  ]
+);
+
+// ─── Market Prices ────────────────────────────────────────────────────────────
+
+export const marketPrices = sqliteTable(
+  "market_prices",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    symbol: text("symbol").notNull(), // ticker/id: 'AAPL', 'bitcoin', 'SPX'
+    price: text("price").notNull(), // stored as string to avoid float imprecision
+    currency: text("currency").notNull(), // what currency the price is in
+    date: text("date").notNull(), // YYYY-MM-DD
+    provider: text("provider").notNull(),
+    fetchedAt: text("fetched_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_market_prices_symbol").on(table.symbol, table.date),
+    uniqueIndex("uq_market_prices_symbol_currency_date").on(
+      table.symbol,
+      table.currency,
+      table.date
+    ),
+  ]
+);
+
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 
 export type Category = typeof categories.$inferSelect;
@@ -155,3 +208,9 @@ export type Transaction = typeof transactions.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
 export type Budget = typeof budgets.$inferSelect;
 export type NewBudget = typeof budgets.$inferInsert;
+export type Setting = typeof settings.$inferSelect;
+export type NewSetting = typeof settings.$inferInsert;
+export type ExchangeRate = typeof exchangeRates.$inferSelect;
+export type NewExchangeRate = typeof exchangeRates.$inferInsert;
+export type MarketPrice = typeof marketPrices.$inferSelect;
+export type NewMarketPrice = typeof marketPrices.$inferInsert;

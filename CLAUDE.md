@@ -102,7 +102,7 @@ Documentation and unit tests are part of the deliverable (read the relevant sect
 This is intended to be a public open-source project. Maintain documentation accordingly:
 
 - **README.md** — project overview, screenshots, features, setup/install instructions, usage guide, tech stack, contributing guidelines. Keep it up to date as features land.
-- **plan.md** — the project plan and sprint tracker.
+- **plan.md** — the project plan and sprint tracker. The plan.md will give you context about this project. Read it and keep it up to date.
 - **API docs** — document REST API endpoints (Swagger, from [openapi.ts](src\lib\api\openapi.ts)) and MCP tools (in their tool descriptions).
 - **When adding a new API endpoint**, also: add it to OpenAPI spec (`src/lib/api/openapi.ts`), add a corresponding MCP tool if the AI should be able to call it (`src/lib/mcp/tools/`), and add/update validators (`src/lib/validators/`).
 - Keep docs concise and practical. Don't write walls of text — developers should be able to get running in under 5 minutes.

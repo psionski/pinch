@@ -5,6 +5,8 @@ import { ReportService } from "@/lib/services/reports";
 import { BudgetService } from "@/lib/services/budgets";
 import { RecurringService } from "@/lib/services/recurring";
 import { ReceiptService } from "@/lib/services/receipts";
+import { SettingsService } from "@/lib/services/settings";
+import { FinancialDataService } from "@/lib/services/financial-data";
 
 export function getTransactionService(): TransactionService {
   return new TransactionService(getDb());
@@ -29,4 +31,13 @@ export function getRecurringService(): RecurringService {
 
 export function getReceiptService(): ReceiptService {
   return new ReceiptService(getDb());
+}
+
+export function getSettingsService(): SettingsService {
+  return new SettingsService(getDb());
+}
+
+export function getFinancialDataService(): FinancialDataService {
+  const db = getDb();
+  return new FinancialDataService(db, new SettingsService(db));
 }

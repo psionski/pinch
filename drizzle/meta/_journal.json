@@ -22,6 +22,13 @@
       "when": 1773944001700,
       "tag": "0002_melted_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773965714151,
+      "tag": "0003_financial_data",
+      "breakpoints": true
     }
   ]
 }

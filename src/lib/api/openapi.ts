@@ -34,6 +34,16 @@ import {
   DeleteReceiptsBatchSchema,
 } from "@/lib/validators/receipts";
 import {
+  GetExchangeRateSchema,
+  ConvertCurrencySchema,
+  GetMarketPriceSchema,
+  ExchangeRateResultSchema,
+  ConvertResultSchema,
+  MarketPriceResultSchema,
+  ProviderStatusSchema,
+  SetApiKeyBodySchema,
+} from "@/lib/validators/financial";
+import {
   SpendingSummarySchema,
   CategoryStatsSchema,
   BudgetStatsSchema,
@@ -51,6 +61,10 @@ import { ErrorResponseSchema } from "@/lib/validators/common";
 // ─── Named component schemas ────────────────────────────────────────────────
 
 const ErrorSchema = ErrorResponseSchema.meta({ id: "ErrorResponse" });
+const ExchangeRateResult = ExchangeRateResultSchema.meta({ id: "ExchangeRateResult" });
+const ConvertResult = ConvertResultSchema.meta({ id: "ConvertResult" });
+const MarketPriceResult = MarketPriceResultSchema.meta({ id: "MarketPriceResult" });
+const ProviderStatus = ProviderStatusSchema.meta({ id: "ProviderStatus" });
 const SuccessSchema = z.object({ success: z.boolean() }).meta({ id: "SuccessResponse" });
 const Transaction = TransactionResponseSchema.meta({ id: "Transaction" });
 const PaginatedTransactions = PaginatedTransactionsResponseSchema.meta({
@@ -157,6 +171,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       { name: "Budgets", description: "Monthly budget management" },
       { name: "Recurring", description: "Recurring transaction templates" },
       { name: "Receipts", description: "Receipt management and image serving" },
+      { name: "Financial", description: "Exchange rates, currency conversion, and market prices" },
     ],
     paths: {
       "/api/transactions": {
@@ -511,6 +526,81 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           response: SuccessSchema,
           errors: [400, 404, 500],
         }),
+      },
+      "/api/financial/exchange-rate": {
+        get: op({
+          id: "getExchangeRate",
+          summary: "Get an exchange rate between two currencies",
+          tags: ["Financial"],
+          query: GetExchangeRateSchema,
+          response: ExchangeRateResult,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/financial/convert": {
+        get: op({
+          id: "convertCurrency",
+          summary: "Convert an amount between currencies",
+          tags: ["Financial"],
+          query: ConvertCurrencySchema,
+          response: ConvertResult,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/financial/market-price": {
+        get: op({
+          id: "getMarketPrice",
+          summary: "Get a market price for a crypto, stock, or ETF",
+          tags: ["Financial"],
+          query: GetMarketPriceSchema,
+          response: MarketPriceResult,
+          errors: [400, 404, 500],
+        }),
+      },
+      "/api/financial/providers": {
+        get: op({
+          id: "listProviders",
+          summary: "List financial data providers with their status",
+          tags: ["Financial"],
+          response: z.array(ProviderStatus),
+          errors: [500],
+        }),
+      },
+      "/api/financial/providers/{provider}/key": {
+        post: {
+          operationId: "setProviderApiKey",
+          summary: "Set an API key for a financial data provider",
+          tags: ["Financial"],
+          requestParams: {
+            path: z.object({
+              provider: z.string().meta({
+                description: "Provider name (open-exchange-rates, coingecko, alpha-vantage)",
+              }),
+            }),
+          },
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: SetApiKeyBodySchema } },
+          },
+          responses: {
+            "200": {
+              description: "API key set",
+              content: {
+                "application/json": {
+                  schema: z.object({ success: z.boolean(), provider: z.string() }),
+                },
+              },
+            },
+            "400": {
+              description: "Validation error",
+              content: { "application/json": { schema: ErrorSchema } },
+            },
+            "500": {
+              description: "Internal server error",
+              content: { "application/json": { schema: ErrorSchema } },
+            },
+          },
+        },
       },
       "/api/receipts/{id}/image": {
         get: {
