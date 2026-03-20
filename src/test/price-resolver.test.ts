@@ -5,7 +5,7 @@ import { AssetService } from "@/lib/services/assets";
 import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";
 import { resolvePrice, resolveLatestPrice } from "@/lib/services/price-resolver";
-import { marketPrices } from "@/lib/db/schema";
+import { marketPrices, exchangeRates } from "@/lib/db/schema";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type * as schema from "@/lib/db/schema";
 
@@ -130,6 +130,30 @@ describe("resolvePrice", () => {
     expect(result!.price).toBe(7500000);
   });
 
+  it("ignores market prices from wrong provider", () => {
+    const asset = assetService.create({
+      name: "Bitcoin",
+      type: "crypto",
+      currency: "EUR",
+      symbolMap: { coingecko: "bitcoin" },
+    });
+
+    // Insert price under a different provider — should NOT match
+    db.insert(marketPrices)
+      .values({
+        symbol: "bitcoin",
+        price: "99999",
+        currency: "EUR",
+        date: "2026-03-20",
+        provider: "alpha-vantage",
+      })
+      .run();
+
+    const result = resolvePrice(db, asset, "2026-03-20");
+    // Should fall through to lot/deposit fallback, not pick up the wrong-provider price
+    expect(result?.source).not.toBe("market");
+  });
+
   it("iterates multiple symbols in symbolMap", () => {
     const asset = assetService.create({
       name: "Bitcoin",
@@ -153,6 +177,53 @@ describe("resolvePrice", () => {
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
     expect(result!.price).toBe(8200000);
+  });
+
+  it("resolves foreign currency deposit via exchange_rates", () => {
+    const asset = assetService.create({
+      name: "USD Savings",
+      type: "deposit",
+      currency: "USD",
+      symbolMap: { frankfurter: "USD" },
+    });
+
+    db.insert(exchangeRates)
+      .values({
+        base: "USD",
+        quote: "EUR",
+        rate: "0.92",
+        date: "2026-03-20",
+        provider: "frankfurter",
+      })
+      .run();
+
+    const result = resolvePrice(db, asset, "2026-03-20");
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe("exchange");
+    expect(result!.price).toBe(92); // 0.92 * 100
+  });
+
+  it("exchange rate ignores wrong provider", () => {
+    const asset = assetService.create({
+      name: "USD Savings",
+      type: "deposit",
+      currency: "USD",
+      symbolMap: { frankfurter: "USD" },
+    });
+
+    // Rate from ECB, but asset expects frankfurter
+    db.insert(exchangeRates)
+      .values({
+        base: "USD",
+        quote: "EUR",
+        rate: "0.92",
+        date: "2026-03-20",
+        provider: "ecb",
+      })
+      .run();
+
+    const result = resolvePrice(db, asset, "2026-03-20");
+    expect(result?.source).not.toBe("exchange");
   });
 });
 
@@ -191,10 +262,40 @@ describe("resolveLatestPrice", () => {
     expect(result!.price).toBe(8500000);
   });
 
-  it("returns deposit fallback for deposits", () => {
+  it("returns exchange rate for foreign currency deposit", () => {
+    const asset = assetService.create({
+      name: "GBP Savings",
+      type: "deposit",
+      currency: "GBP",
+      symbolMap: { frankfurter: "GBP" },
+    });
+
+    db.insert(exchangeRates)
+      .values({
+        base: "GBP",
+        quote: "EUR",
+        rate: "1.17",
+        date: "2026-03-20",
+        provider: "frankfurter",
+      })
+      .run();
+
+    const result = resolveLatestPrice(db, asset);
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe("exchange");
+    expect(result!.price).toBe(117); // 1.17 * 100
+  });
+
+  it("returns deposit fallback for EUR deposits", () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
     const result = resolveLatestPrice(db, asset);
     expect(result!.price).toBe(100);
     expect(result!.source).toBe("deposit");
+  });
+
+  it("returns null for foreign currency deposit without symbolMap", () => {
+    const asset = assetService.create({ name: "USD Fund", type: "deposit", currency: "USD" });
+    const result = resolveLatestPrice(db, asset);
+    expect(result).toBeNull();
   });
 });
