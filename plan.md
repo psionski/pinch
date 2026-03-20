@@ -1114,7 +1114,7 @@ src/
 - [ ] Error boundaries and loading states across all pages
 - [ ] Performance: check query efficiency, add missing indices if needed
 - [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app.
-- [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly.
+- [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
