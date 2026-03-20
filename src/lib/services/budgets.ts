@@ -7,6 +7,7 @@ import type {
   GetBudgetStatusInput,
   BudgetResponse,
   BudgetStatusResponse,
+  BudgetHistoryPoint,
 } from "@/lib/validators/budgets";
 import type { ReportService } from "./reports";
 import { ensureOwnRows, monthHasOwnRows } from "./budget-inheritance";
@@ -140,5 +141,26 @@ export class BudgetService {
   /** Returns true if the month has its own explicit budget rows (not inherited). */
   hasOwnRows(month: string): boolean {
     return monthHasOwnRows(this.db, month);
+  }
+
+  /** Returns budget totals for each of the last N months. */
+  getHistory(months: number): BudgetHistoryPoint[] {
+    const now = new Date();
+    const points: BudgetHistoryPoint[] = [];
+
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const { items: status } = this.getForMonth({ month });
+
+      const totalBudget = status.reduce((sum, b) => sum + b.budgetAmount, 0);
+      const totalSpent = status.reduce((sum, b) => sum + b.spentAmount, 0);
+      const percentUsed =
+        totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 10000) / 100 : 0;
+
+      points.push({ month, totalBudget, totalSpent, percentUsed });
+    }
+
+    return points;
   }
 }

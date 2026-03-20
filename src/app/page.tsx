@@ -5,6 +5,7 @@ import {
   getCategoryService,
   getRecurringService,
 } from "@/lib/api/services";
+import { getCurrentMonthInfo, getPreviousMonthRange } from "@/lib/date-ranges";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { SpendingTrendChart } from "@/components/charts/spending-trend-chart";
 import { CategoryDonutChart } from "@/components/charts/category-donut-chart";
@@ -13,46 +14,14 @@ import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { UpcomingRecurring } from "@/components/dashboard/upcoming-recurring";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
-function getCurrentMonth(): {
-  monthStart: string;
-  monthEnd: string;
-  currentMonth: string;
-  monthLabel: string;
-} {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const currentMonth = `${year}-${String(month).padStart(2, "0")}`;
-  const monthStart = `${currentMonth}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
-  const monthLabel = new Date(year, month - 1).toLocaleString("en", {
-    month: "long",
-    year: "numeric",
-  });
-  return { monthStart, monthEnd, currentMonth, monthLabel };
-}
-
-function getPreviousMonth(currentMonth: string): { prevMonthStart: string; prevMonthEnd: string } {
-  const [year, month] = currentMonth.split("-").map(Number);
-  const prevDate = new Date(year, month - 2, 1);
-  const prevYear = prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth() + 1;
-  const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
-  const prevMonthStart = `${prevMonthStr}-01`;
-  const prevLastDay = new Date(prevYear, prevMonth, 0).getDate();
-  const prevMonthEnd = `${prevMonthStr}-${String(prevLastDay).padStart(2, "0")}`;
-  return { prevMonthStart, prevMonthEnd };
-}
-
 export default function DashboardPage(): React.ReactElement {
   const reportService = getReportService();
   const budgetService = getBudgetService();
   const transactionService = getTransactionService();
   const categoryService = getCategoryService();
 
-  const { monthStart, monthEnd, currentMonth, monthLabel } = getCurrentMonth();
-  const { prevMonthStart, prevMonthEnd } = getPreviousMonth(currentMonth);
+  const { monthStart, monthEnd, currentMonth, monthLabel } = getCurrentMonthInfo();
+  const { prevMonthStart, prevMonthEnd } = getPreviousMonthRange(currentMonth);
 
   const summary = reportService.spendingSummary({
     dateFrom: monthStart,

@@ -37,6 +37,51 @@ function parseIsoDate(s: string): { year: number; month: number } {
   return { year: y, month: m - 1 }; // month is 0-indexed like Date
 }
 
+/** Returns the current month as YYYY-MM. */
+export function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export interface MonthInfo {
+  currentMonth: string;
+  monthStart: string;
+  monthEnd: string;
+  monthLabel: string;
+}
+
+/** Returns the current month string, start/end dates, and a human-readable label. */
+export function getCurrentMonthInfo(): MonthInfo {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const currentMonth = `${year}-${String(month).padStart(2, "0")}`;
+  const monthStart = `${currentMonth}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
+  const monthLabel = new Date(year, month - 1).toLocaleString("en", {
+    month: "long",
+    year: "numeric",
+  });
+  return { currentMonth, monthStart, monthEnd, monthLabel };
+}
+
+/** Returns the start/end dates for the month before the given YYYY-MM. */
+export function getPreviousMonthRange(currentMonth: string): {
+  prevMonthStart: string;
+  prevMonthEnd: string;
+} {
+  const [year, month] = currentMonth.split("-").map(Number);
+  const prevDate = new Date(year, month - 2, 1);
+  const prevYear = prevDate.getFullYear();
+  const prevMonth = prevDate.getMonth() + 1;
+  const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  const prevMonthStart = `${prevMonthStr}-01`;
+  const prevLastDay = new Date(prevYear, prevMonth, 0).getDate();
+  const prevMonthEnd = `${prevMonthStr}-${String(prevLastDay).padStart(2, "0")}`;
+  return { prevMonthStart, prevMonthEnd };
+}
+
 export function computePresetRange(preset: Exclude<Preset, "custom">): DateRange {
   const now = new Date();
   const year = now.getFullYear();

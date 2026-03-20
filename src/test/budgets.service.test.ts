@@ -393,3 +393,31 @@ describe("listForCategory", () => {
     expect(foodBudgets[0].amount).toBe(50000);
   });
 });
+
+// ─── getHistory ──────────────────────────────────────────────────────────────
+
+describe("getHistory", () => {
+  it("returns one point per month", () => {
+    budgetService.set(
+      SetBudgetSchema.parse({ categoryId: foodId, month: "2026-03", amount: 50000 })
+    );
+    txService.create(
+      tx({ categoryId: foodId, amount: 20000, type: "expense", date: "2026-03-10" })
+    );
+
+    const points = budgetService.getHistory(1);
+    expect(points).toHaveLength(1);
+    expect(points[0].month).toBe("2026-03");
+    expect(points[0].totalBudget).toBe(50000);
+    expect(points[0].totalSpent).toBe(20000);
+    expect(points[0].percentUsed).toBeCloseTo(40, 0);
+  });
+
+  it("returns zero values when no budgets exist", () => {
+    const points = budgetService.getHistory(2);
+    expect(points).toHaveLength(2);
+    expect(points[0].totalBudget).toBe(0);
+    expect(points[0].totalSpent).toBe(0);
+    expect(points[0].percentUsed).toBe(0);
+  });
+});

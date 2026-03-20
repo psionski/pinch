@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getBudgetService } from "@/lib/api/services";
-import { parseBody, parseSearchParams, isErrorResponse, errorResponse } from "@/lib/api/helpers";
+import {
+  parseBody,
+  parseSearchParams,
+  isErrorResponse,
+  errorResponse,
+  handleServiceError,
+} from "@/lib/api/helpers";
 import {
   SetBudgetSchema,
   GetBudgetStatusSchema,
@@ -15,11 +21,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const budget = getBudgetService().set(input);
     return NextResponse.json(budget, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    if (message.includes("FOREIGN KEY")) {
-      return errorResponse("Category not found", "NOT_FOUND", 404);
-    }
-    return errorResponse(message, "INTERNAL_ERROR", 500);
+    return handleServiceError(err, "Category not found");
   }
 }
 
@@ -31,8 +33,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     const result = getBudgetService().getForMonth(input);
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return errorResponse(message, "INTERNAL_ERROR", 500);
+    return handleServiceError(err);
   }
 }
 
@@ -45,7 +46,6 @@ export async function DELETE(req: Request): Promise<NextResponse> {
     if (!deleted) return errorResponse("Budget not found", "NOT_FOUND", 404);
     return NextResponse.json({ success: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return errorResponse(message, "INTERNAL_ERROR", 500);
+    return handleServiceError(err);
   }
 }

@@ -9,15 +9,11 @@ import { MergeCategoryDialog } from "./merge-category-dialog";
 import { DeleteCategoryDialog } from "./delete-category-dialog";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 import type { BudgetStatsItem } from "@/lib/validators/reports";
+import { getCurrentMonth } from "@/lib/date-ranges";
 
 interface CategoriesClientProps {
   initialCategories: CategoryWithCountResponse[];
   initialStats: BudgetStatsItem[];
-}
-
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function CategoriesClient({

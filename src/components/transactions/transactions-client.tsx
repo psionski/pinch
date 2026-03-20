@@ -15,6 +15,8 @@ import { RecategorizeDialog } from "./recategorize-dialog";
 import { PaginationControls } from "./pagination-controls";
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog";
 import { ReceiptUploadDialog } from "@/components/receipts/receipt-upload-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
+import { useTransactionMutations } from "./use-transaction-mutations";
 import type {
   TransactionResponse,
   PaginatedTransactionsResponse,
@@ -93,7 +95,7 @@ export function TransactionsClient({
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionResponse | null>(null);
   const [showRecategorize, setShowRecategorize] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [viewingReceiptId, setViewingReceiptId] = useState<number | null>(null);
   const [showUploadReceipt, setShowUploadReceipt] = useState(false);
 
@@ -121,6 +123,13 @@ export function TransactionsClient({
     },
     []
   );
+
+  const refresh = useCallback(() => {
+    void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
+  }, [fetchTransactions, filters, sortBy, sortOrder, limit, offset]);
+
+  const { formLoading, addTransaction, editTransaction, inlineUpdate, bulkDelete, recategorize } =
+    useTransactionMutations(refresh);
 
   // Re-fetch when filters/sort/pagination change
   useEffect(() => {
@@ -164,89 +173,22 @@ export function TransactionsClient({
     setOffset(0);
   }
 
-  async function handleAddTransaction(formData: TransactionFormData): Promise<void> {
-    setFormLoading(true);
-    try {
-      const body: Record<string, unknown> = {
-        amount: formData.amount,
-        type: formData.type,
-        description: formData.description,
-        date: formData.date,
-      };
-      if (formData.merchant) body.merchant = formData.merchant;
-      if (formData.categoryId) body.categoryId = formData.categoryId;
-      if (formData.notes) body.notes = formData.notes;
-      if (formData.tags.length > 0) body.tags = formData.tags;
-
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
-        setShowAddForm(false);
-        void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
-      }
-    } finally {
-      setFormLoading(false);
-    }
+  async function handleAdd(formData: TransactionFormData): Promise<void> {
+    if (await addTransaction(formData)) setShowAddForm(false);
   }
 
-  async function handleEditTransaction(formData: TransactionFormData): Promise<void> {
+  async function handleEdit(formData: TransactionFormData): Promise<void> {
     if (!editingTx) return;
-    setFormLoading(true);
-    try {
-      const body: Record<string, unknown> = {
-        amount: formData.amount,
-        type: formData.type,
-        description: formData.description,
-        date: formData.date,
-        merchant: formData.merchant || null,
-        categoryId: formData.categoryId,
-        notes: formData.notes || null,
-        tags: formData.tags.length > 0 ? formData.tags : null,
-      };
-
-      const res = await fetch(`/api/transactions/${editingTx.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
-        setEditingTx(null);
-        void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
-      }
-    } finally {
-      setFormLoading(false);
-    }
-  }
-
-  async function handleInlineUpdate(id: number, updates: Record<string, unknown>): Promise<void> {
-    const res = await fetch(`/api/transactions/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    });
-    if (res.ok) {
-      void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
-    }
+    if (await editTransaction(editingTx.id, formData)) setEditingTx(null);
   }
 
   async function handleBulkDelete(): Promise<void> {
     if (selectedIds.size === 0) return;
-    const ids = Array.from(selectedIds);
     setLoading(true);
     try {
-      const res = await fetch("/api/transactions", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      if (res.ok) {
+      if (await bulkDelete(Array.from(selectedIds))) {
         setSelectedIds(new Set());
-        void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
+        setShowDeleteConfirm(false);
       }
     } finally {
       setLoading(false);
@@ -255,26 +197,9 @@ export function TransactionsClient({
 
   async function handleRecategorize(categoryId: number): Promise<void> {
     if (selectedIds.size === 0) return;
-    setFormLoading(true);
-    try {
-      const updates = Array.from(selectedIds).map((id) => ({
-        id,
-        categoryId,
-      }));
-
-      const res = await fetch("/api/transactions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates }),
-      });
-
-      if (res.ok) {
-        setShowRecategorize(false);
-        setSelectedIds(new Set());
-        void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
-      }
-    } finally {
-      setFormLoading(false);
+    if (await recategorize(Array.from(selectedIds), categoryId)) {
+      setShowRecategorize(false);
+      setSelectedIds(new Set());
     }
   }
 
@@ -314,7 +239,7 @@ export function TransactionsClient({
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => void handleBulkDelete()}
+            onClick={() => setShowDeleteConfirm(true)}
             disabled={loading}
           >
             <Trash2 className="size-3.5" />
@@ -338,7 +263,7 @@ export function TransactionsClient({
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
           onEdit={setEditingTx}
-          onInlineUpdate={handleInlineUpdate}
+          onInlineUpdate={async (id, updates) => void (await inlineUpdate(id, updates))}
           onReceiptClick={setViewingReceiptId}
         />
       </div>
@@ -357,7 +282,7 @@ export function TransactionsClient({
         open={showAddForm}
         onOpenChange={setShowAddForm}
         categories={categories}
-        onSubmit={(d) => void handleAddTransaction(d)}
+        onSubmit={(d) => void handleAdd(d)}
         loading={formLoading}
       />
 
@@ -369,7 +294,7 @@ export function TransactionsClient({
           if (!open) setEditingTx(null);
         }}
         categories={categories}
-        onSubmit={(d) => void handleEditTransaction(d)}
+        onSubmit={(d) => void handleEdit(d)}
         initialData={editingTx}
         loading={formLoading}
       />
@@ -384,13 +309,27 @@ export function TransactionsClient({
         loading={formLoading}
       />
 
+      {/* Delete confirmation dialog */}
+      <ConfirmDeleteDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Transactions"
+        description={
+          <>
+            Are you sure you want to delete <strong>{selectedIds.size}</strong> transaction(s)?
+          </>
+        }
+        onConfirm={() => void handleBulkDelete()}
+        loading={loading}
+      />
+
       {/* Receipt detail dialog */}
       <ReceiptDialog
         receiptId={viewingReceiptId}
         onOpenChange={(open) => {
           if (!open) setViewingReceiptId(null);
         }}
-        onDeleted={() => void fetchTransactions(filters, sortBy, sortOrder, limit, offset)}
+        onDeleted={refresh}
       />
 
       {/* Receipt upload dialog */}

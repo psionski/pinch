@@ -3,6 +3,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { transactions, categories } from "@/lib/db/schema";
 import { getEffectiveBudgets } from "./budget-inheritance";
+import { buildChildrenMap } from "./category-hierarchy";
 import {
   type SpendingSummaryInput,
   type CategoryStatsInput,
@@ -47,23 +48,6 @@ function periodTotal(db: Db, dateFrom: string, dateTo: string, type: "income" | 
 }
 
 // ─── Hierarchy helpers ───────────────────────────────────────────────────────
-
-interface CategoryNode {
-  id: number;
-  parentId: number | null;
-}
-
-function buildChildrenMap(cats: CategoryNode[]): Map<number, number[]> {
-  const map = new Map<number, number[]>();
-  for (const cat of cats) {
-    if (cat.parentId !== null) {
-      const siblings = map.get(cat.parentId) ?? [];
-      siblings.push(cat.id);
-      map.set(cat.parentId, siblings);
-    }
-  }
-  return map;
-}
 
 function rollupValues<K extends string>(
   id: number,

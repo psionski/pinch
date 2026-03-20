@@ -81,6 +81,18 @@ function formatZodError(error: ZodError): { issues: Array<{ path: string; messag
   };
 }
 
+/** Map common DB constraint errors to structured API responses. Use in catch blocks. */
+export function handleServiceError(
+  err: unknown,
+  foreignKeyMessage = "Referenced entity not found"
+): NextResponse<ErrorResponse> {
+  const message = err instanceof Error ? err.message : "Internal error";
+  if (message.includes("FOREIGN KEY")) {
+    return errorResponse(foreignKeyMessage, "NOT_FOUND", 404);
+  }
+  return errorResponse(message, "INTERNAL_ERROR", 500);
+}
+
 /** Check if a value is a NextResponse (error). Type guard for parse helpers. */
 export function isErrorResponse(value: unknown): value is NextResponse<ErrorResponse> {
   return value instanceof NextResponse;

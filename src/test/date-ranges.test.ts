@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   computePresetRange,
   computeCompareRange,
+  getCurrentMonth,
+  getCurrentMonthInfo,
+  getPreviousMonthRange,
   DEFAULT_PRESET,
   PRESET_LABELS,
 } from "@/lib/date-ranges";
@@ -141,5 +144,52 @@ describe("computeCompareRange", () => {
     expect(result.months).toBe(4);
     expect(result.compareDateFrom).toBe("2025-07-01");
     expect(result.compareDateTo).toBe("2025-10-31");
+  });
+});
+
+// ─── getCurrentMonth ────────────────────────────────────────────────────────
+
+describe("getCurrentMonth", () => {
+  it("returns YYYY-MM for the current month", () => {
+    expect(getCurrentMonth()).toBe("2026-03");
+  });
+
+  it("zero-pads single-digit months", () => {
+    vi.setSystemTime(new Date(2026, 0, 15)); // January
+    expect(getCurrentMonth()).toBe("2026-01");
+  });
+});
+
+// ─── getCurrentMonthInfo ────────────────────────────────────────────────────
+
+describe("getCurrentMonthInfo", () => {
+  it("returns month string, start, end, and label", () => {
+    const info = getCurrentMonthInfo();
+    expect(info.currentMonth).toBe("2026-03");
+    expect(info.monthStart).toBe("2026-03-01");
+    expect(info.monthEnd).toBe("2026-03-31");
+    expect(info.monthLabel).toBe("March 2026");
+  });
+
+  it("handles February correctly", () => {
+    vi.setSystemTime(new Date(2026, 1, 10)); // February 2026
+    const info = getCurrentMonthInfo();
+    expect(info.monthEnd).toBe("2026-02-28");
+  });
+});
+
+// ─── getPreviousMonthRange ──────────────────────────────────────────────────
+
+describe("getPreviousMonthRange", () => {
+  it("returns the previous month start and end", () => {
+    const { prevMonthStart, prevMonthEnd } = getPreviousMonthRange("2026-03");
+    expect(prevMonthStart).toBe("2026-02-01");
+    expect(prevMonthEnd).toBe("2026-02-28");
+  });
+
+  it("wraps to December of previous year from January", () => {
+    const { prevMonthStart, prevMonthEnd } = getPreviousMonthRange("2026-01");
+    expect(prevMonthStart).toBe("2025-12-01");
+    expect(prevMonthEnd).toBe("2025-12-31");
   });
 });
