@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getCategoryService, getReportService } from "@/lib/api/services";
 import { CategoriesClient } from "@/components/categories/categories-client";
 

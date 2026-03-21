@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getRecurringService, getCategoryService } from "@/lib/api/services";
 import { RecurringClient } from "@/components/recurring/recurring-client";
 

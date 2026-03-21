@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getPortfolioService, getPortfolioReportService } from "@/lib/api/services";
 import {
   PortfolioReportsClient,

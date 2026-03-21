@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getBudgetService, getCategoryService } from "@/lib/api/services";
 import { getCurrentMonth } from "@/lib/date-ranges";
 import { BudgetsClient } from "@/components/budgets/budgets-client";

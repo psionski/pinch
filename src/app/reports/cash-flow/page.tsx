@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getReportService, getCategoryService } from "@/lib/api/services";
 import { ReportsClient, type ReportsData } from "@/components/reports/reports-client";
 import { DEFAULT_PRESET, computePresetRange, computeCompareRange } from "@/lib/date-ranges";
