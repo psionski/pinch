@@ -169,11 +169,7 @@ export function windowToDateRange(window: Window): { from: string; to: string } 
 }
 
 /** Generate evenly-spaced date points between two dates at the given interval. */
-export function generateDatePoints(
-  from: string,
-  to: string,
-  interval: Interval
-): string[] {
+export function generateDatePoints(from: string, to: string, interval: Interval): string[] {
   const points: string[] = [];
   const current = new Date(from + "T00:00:00Z");
   const end = new Date(to + "T00:00:00Z");

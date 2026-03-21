@@ -1,9 +1,19 @@
 import { getDb } from "../index";
-import { budgets, categories, recurringTransactions, transactions } from "../schema";
+import {
+  assets,
+  assetLots,
+  assetPrices,
+  budgets,
+  categories,
+  marketPrices,
+  recurringTransactions,
+  transactions,
+} from "../schema";
 import { PARENT_CATEGORIES, CHILD_CATEGORIES } from "./data";
 import { generateMonth, type TxInput } from "./transactions";
 import { generateBudgets } from "./budgets";
 import { generateRecurringTemplates } from "./recurring";
+import { generateAssets } from "./assets";
 import { daysInMonth, isoDate } from "./rng";
 import { logger, seedLogger } from "@/lib/logger";
 
@@ -134,6 +144,54 @@ async function seed(): Promise<void> {
     await db.insert(budgets).values(row);
   }
   seedLogger.info(`  ${budgetRows.length} budget entries across ${months.length} months.`);
+
+  // ── Assets & Portfolio ──────────────────────────────────────────────────────
+  seedLogger.info("Generating portfolio assets...");
+  const { assets: assetSeeds, marketPrices: mpSeeds } = generateAssets(months);
+
+  let totalLots = 0;
+  for (const seed of assetSeeds) {
+    const [assetRow] = await db.insert(assets).values(seed.asset).returning({ id: assets.id });
+
+    for (const lot of seed.lots) {
+      const totalCents = Math.round(Math.abs(lot.quantity) * lot.pricePerUnit);
+      const [txRow] = await db
+        .insert(transactions)
+        .values({
+          amount: totalCents,
+          type: "transfer",
+          description: lot.description,
+          date: lot.date,
+          notes: lot.notes ?? null,
+          tags: JSON.stringify(["portfolio"]),
+        })
+        .returning({ id: transactions.id });
+
+      await db.insert(assetLots).values({
+        assetId: assetRow.id,
+        quantity: lot.quantity,
+        pricePerUnit: lot.pricePerUnit,
+        date: lot.date,
+        transactionId: txRow.id,
+        notes: lot.notes ?? null,
+      });
+
+      await db.insert(assetPrices).values({
+        assetId: assetRow.id,
+        pricePerUnit: lot.pricePerUnit,
+        recordedAt: `${lot.date}T12:00:00.000Z`,
+      });
+
+      totalLots++;
+    }
+
+    seedLogger.info(`  ${seed.asset.name}: ${seed.lots.length} lots`);
+  }
+
+  for (let i = 0; i < mpSeeds.length; i += BATCH) {
+    await db.insert(marketPrices).values(mpSeeds.slice(i, i + BATCH));
+  }
+  seedLogger.info(`  ${mpSeeds.length} market price points, ${totalLots} asset lots total.`);
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
