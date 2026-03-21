@@ -1,9 +1,5 @@
 import cron from "node-cron";
-import {
-  getRecurringService,
-  getFinancialDataService,
-  getAssetPriceService,
-} from "@/lib/api/services";
+import { getRecurringService, getFinancialDataService } from "@/lib/api/services";
 import { runBackup } from "@/lib/services/backup";
 import { getDb } from "@/lib/db";
 import { assets } from "@/lib/db/schema";
@@ -63,13 +59,12 @@ export function initCronJobs(): void {
 
 /**
  * Cron callback: for each asset with a symbol_map, fetch today's price
- * from the first matching provider and record it as an asset_prices snapshot.
+ * from providers to warm the market_prices cache.
  */
 async function runMarketPriceJob(): Promise<void> {
   try {
     const db = getDb();
     const fds = getFinancialDataService();
-    const priceService = getAssetPriceService();
     const today = todayString();
 
     const symbolAssets = db
@@ -82,22 +77,16 @@ async function runMarketPriceJob(): Promise<void> {
       .where(isNotNull(assets.symbolMap))
       .all();
 
-    let recorded = 0;
+    let warmed = 0;
     for (const asset of symbolAssets) {
       if (!asset.symbolMap) continue;
       const map = JSON.parse(asset.symbolMap) as Record<string, string>;
 
       try {
-        // Try each symbol in the map until one returns a price
         for (const symbol of Object.values(map)) {
           const result = await fds.getPrice(symbol, asset.currency, today);
           if (result) {
-            const priceCents = Math.round(result.price * 100);
-            priceService.record(asset.id, {
-              pricePerUnit: priceCents,
-              recordedAt: new Date().toISOString(),
-            });
-            recorded++;
+            warmed++;
             break;
           }
         }
@@ -106,8 +95,8 @@ async function runMarketPriceJob(): Promise<void> {
       }
     }
 
-    if (recorded > 0) {
-      console.log(`[cron] Recorded market prices for ${recorded}/${symbolAssets.length} assets`);
+    if (warmed > 0) {
+      console.log(`[cron] Warmed market prices for ${warmed}/${symbolAssets.length} assets`);
     }
   } catch (err) {
     console.error("[cron] Market price job failed:", err);

@@ -279,37 +279,16 @@ describe("AssetLotService", () => {
 // ─── AssetPriceService ────────────────────────────────────────────────────────
 
 describe("AssetPriceService", () => {
-  it("records a price and retrieves it as latest", () => {
+  it("records a user price override", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    priceService.record(asset.id, { pricePerUnit: 8000000, recordedAt: "2026-03-20T12:00:00Z" });
+    const price = priceService.record(asset.id, {
+      pricePerUnit: 8000000,
+      recordedAt: "2026-03-20T12:00:00Z",
+    });
 
-    const latest = priceService.getLatest(asset.id);
-    expect(latest?.pricePerUnit).toBe(8000000);
-    expect(latest?.assetId).toBe(asset.id);
-  });
-
-  it("getLatest returns the most recent price", () => {
-    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    priceService.record(asset.id, { pricePerUnit: 7000000, recordedAt: "2026-01-01T00:00:00Z" });
-    priceService.record(asset.id, { pricePerUnit: 8000000, recordedAt: "2026-03-20T00:00:00Z" });
-
-    const latest = priceService.getLatest(asset.id);
-    expect(latest?.pricePerUnit).toBe(8000000);
-  });
-
-  it("getHistory returns prices ordered ascending", () => {
-    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    priceService.record(asset.id, { pricePerUnit: 30000, recordedAt: "2026-03-20T00:00:00Z" });
-    priceService.record(asset.id, { pricePerUnit: 28000, recordedAt: "2026-01-01T00:00:00Z" });
-
-    const history = priceService.getHistory(asset.id);
-    expect(history[0].pricePerUnit).toBe(28000);
-    expect(history[1].pricePerUnit).toBe(30000);
-  });
-
-  it("getLatest returns null when no prices recorded", () => {
-    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    expect(priceService.getLatest(asset.id)).toBeNull();
+    expect(price.pricePerUnit).toBe(8000000);
+    expect(price.assetId).toBe(asset.id);
+    expect(price.recordedAt).toBe("2026-03-20T12:00:00Z");
   });
 });
 

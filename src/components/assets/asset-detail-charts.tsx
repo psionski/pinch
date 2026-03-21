@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ValueChart } from "./value-chart";
 import { PriceChart } from "./price-chart";
@@ -9,21 +9,14 @@ import type { AssetHistoryResult } from "@/lib/validators/portfolio-reports";
 const WINDOWS = ["3m", "6m", "12m", "all"] as const;
 type Window = (typeof WINDOWS)[number];
 
-interface PricePoint {
-  pricePerUnit: number;
-  recordedAt: string;
-}
-
 interface AssetDetailChartsProps {
   assetId: number;
   currency: string;
-  initialPriceHistory: PricePoint[];
 }
 
 export function AssetDetailCharts({
   assetId,
   currency,
-  initialPriceHistory,
 }: AssetDetailChartsProps): React.ReactElement {
   const [window, setWindow] = useState<Window>("6m");
   const [history, setHistory] = useState<AssetHistoryResult | null>(null);
@@ -48,6 +41,14 @@ export function AssetDetailCharts({
     void fetchHistory(window);
   }, [fetchHistory, window]);
 
+  // Derive price chart data from the history timeline (uses the unified price resolver)
+  const priceData = useMemo(() => {
+    if (!history) return [];
+    return history.timeline
+      .filter((p) => p.price !== null)
+      .map((p) => ({ pricePerUnit: p.price!, recordedAt: p.date }));
+  }, [history]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -66,7 +67,7 @@ export function AssetDetailCharts({
       <div className={loading ? "pointer-events-none opacity-60" : ""}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {history && <ValueChart data={history} currency={currency} />}
-          <PriceChart data={initialPriceHistory} currency={currency} />
+          <PriceChart data={priceData} currency={currency} />
         </div>
       </div>
     </div>

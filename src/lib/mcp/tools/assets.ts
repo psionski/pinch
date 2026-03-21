@@ -190,16 +190,6 @@ export function registerAssetTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "get_price_history",
-    {
-      description:
-        "Get the price history (time series) for a single asset, ordered oldest to newest. Useful for charting.",
-      inputSchema: IdSchema,
-    },
-    (input) => ok(getAssetPriceService().getHistory(input.id))
-  );
-
-  server.registerTool(
     "list_lots",
     {
       description:

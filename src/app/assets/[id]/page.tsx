@@ -1,12 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
-import {
-  getAssetService,
-  getAssetLotService,
-  getAssetPriceService,
-  getPortfolioReportService,
-} from "@/lib/api/services";
+import { getAssetService, getAssetLotService, getPortfolioReportService } from "@/lib/api/services";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LotHistoryTable } from "@/components/assets/lot-history-table";
@@ -41,8 +36,6 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
   if (!asset) notFound();
 
   const lots = getAssetLotService().listLots(id);
-  const priceHistory = getAssetPriceService().getHistory(id);
-  const latestPrice = priceHistory.at(-1);
 
   // Realized P&L for this specific asset
   const reportService = getPortfolioReportService();
@@ -104,9 +97,9 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
             <p className="text-xl font-bold">
               {asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}
             </p>
-            {latestPrice && (
+            {asset.latestPrice !== null && (
               <p className="text-muted-foreground mt-0.5 text-xs">
-                @ {(latestPrice.pricePerUnit / 100).toFixed(2)} {asset.currency}
+                @ {(asset.latestPrice / 100).toFixed(2)} {asset.currency}
               </p>
             )}
           </CardContent>
@@ -138,11 +131,7 @@ export default async function AssetDetailPage({ params }: PageProps): Promise<Re
       </div>
 
       {/* Charts */}
-      <AssetDetailCharts
-        assetId={id}
-        currency={asset.currency}
-        initialPriceHistory={priceHistory}
-      />
+      <AssetDetailCharts assetId={id} currency={asset.currency} />
 
       {/* Lot history */}
       <Card>
