@@ -1,3 +1,5 @@
+import type { Window, Interval } from "@/lib/validators/portfolio-reports";
+
 /** Today's date as YYYY-MM-DD in UTC. */
 export function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
@@ -143,6 +145,57 @@ export function daysBetween(from: string, to: string): number {
 /** Convert a Unix timestamp (milliseconds) to YYYY-MM-DD in UTC. */
 export function isoDateFromMs(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+// ─── Portfolio Date Utilities ─────────────────────────────────────────────────
+
+/** Convert a portfolio window preset to a concrete date range. */
+export function windowToDateRange(window: Window): { from: string; to: string } {
+  const today = new Date();
+  const to = today.toISOString().slice(0, 10);
+
+  if (window === "all") {
+    return { from: "2000-01-01", to };
+  }
+
+  if (window === "ytd") {
+    return { from: `${today.getUTCFullYear()}-01-01`, to };
+  }
+
+  const months = window === "3m" ? 3 : window === "6m" ? 6 : 12;
+  const fromDate = new Date(today);
+  fromDate.setUTCMonth(fromDate.getUTCMonth() - months);
+  return { from: fromDate.toISOString().slice(0, 10), to };
+}
+
+/** Generate evenly-spaced date points between two dates at the given interval. */
+export function generateDatePoints(
+  from: string,
+  to: string,
+  interval: Interval
+): string[] {
+  const points: string[] = [];
+  const current = new Date(from + "T00:00:00Z");
+  const end = new Date(to + "T00:00:00Z");
+
+  while (current <= end) {
+    points.push(current.toISOString().slice(0, 10));
+
+    if (interval === "daily") {
+      current.setUTCDate(current.getUTCDate() + 1);
+    } else if (interval === "weekly") {
+      current.setUTCDate(current.getUTCDate() + 7);
+    } else {
+      current.setUTCMonth(current.getUTCMonth() + 1);
+    }
+  }
+
+  // Always include the end date if not already there
+  if (points.length === 0 || points[points.length - 1] !== to) {
+    points.push(to);
+  }
+
+  return points;
 }
 
 // ─── Range Computation ────────────────────────────────────────────────────────

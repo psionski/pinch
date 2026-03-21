@@ -1,10 +1,20 @@
-import { isoToday, offsetDate, daysBetween } from "@/lib/date-ranges";
+import {
+  isoToday,
+  offsetDate,
+  daysBetween,
+  windowToDateRange,
+  generateDatePoints,
+} from "@/lib/date-ranges";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import * as schema from "@/lib/db/schema";
 import { assets, assetLots, transactions } from "@/lib/db/schema";
 import { resolvePrice } from "./price-resolver";
-import type { AssetResponse } from "@/lib/validators/assets";
+import {
+  type Db,
+  parseAssetRow,
+  getHoldingsAtDate,
+  getCostBasisAtDate,
+  consumeFifo,
+} from "./portfolio-helpers";
 import type {
   Window,
   Interval,
@@ -22,23 +32,6 @@ import type {
   TransferSummaryItem,
 } from "@/lib/validators/portfolio-reports";
 
-type Db = BetterSQLite3Database<typeof schema>;
-
-function parseAssetRow(row: schema.Asset): AssetResponse {
-  return {
-    id: row.id,
-    name: row.name,
-    type: row.type as AssetResponse["type"],
-    currency: row.currency,
-    symbolMap: row.symbolMap ? (JSON.parse(row.symbolMap) as Record<string, string>) : null,
-    icon: row.icon,
-    color: row.color,
-    notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-}
-
 export class PortfolioReportService {
   constructor(private db: Db) {}
 
@@ -51,7 +44,6 @@ export class PortfolioReportService {
     const allAssets = this.db.select().from(assets).all().map(parseAssetRow);
 
     return datePoints.map((date) => {
-      // Cash balance as of this date: income − expenses up to date
       const [cashRow] = this.db
         .select({
           income:
@@ -67,7 +59,6 @@ export class PortfolioReportService {
         .where(lte(transactions.date, date))
         .all();
 
-      // Asset purchase/sale flows up to this date
       const [flowRow] = this.db
         .select({
           purchases:
@@ -90,10 +81,9 @@ export class PortfolioReportService {
         (flowRow?.purchases ?? 0) +
         (flowRow?.sales ?? 0);
 
-      // Asset values: for each asset, compute holdings and value at this date
       let assetTotal = 0;
       for (const asset of allAssets) {
-        const holdings = this.getHoldingsAtDate(asset.id, date);
+        const holdings = getHoldingsAtDate(this.db, asset.id, date);
         if (holdings <= 0) continue;
 
         const resolved = resolvePrice(this.db, asset, date);
@@ -120,8 +110,8 @@ export class PortfolioReportService {
 
     return allAssets
       .map((asset) => {
-        const holdings = this.getHoldingsAtDate(asset.id, evalDate);
-        const { costBasis, earliestDate } = this.getCostBasisAtDate(asset.id, evalDate);
+        const holdings = getHoldingsAtDate(this.db, asset.id, evalDate);
+        const { costBasis, earliestDate } = getCostBasisAtDate(this.db, asset.id, evalDate);
 
         if (costBasis === 0 && holdings <= 0) return null;
 
@@ -165,7 +155,7 @@ export class PortfolioReportService {
     let totalValue = 0;
 
     for (const asset of allAssets) {
-      const holdings = this.getHoldingsAtDate(asset.id, today);
+      const holdings = getHoldingsAtDate(this.db, asset.id, today);
       if (holdings <= 0) continue;
 
       const resolved = resolvePrice(this.db, asset, today);
@@ -180,17 +170,15 @@ export class PortfolioReportService {
         name: asset.name,
         type: asset.type,
         currentValue,
-        pct: 0, // computed below
+        pct: 0,
       });
     }
 
-    // Compute percentages
     for (const item of items) {
       item.pct = totalValue > 0 ? Math.round((item.currentValue / totalValue) * 10000) / 100 : 0;
     }
     items.sort((a, b) => b.currentValue - a.currentValue);
 
-    // Group by type
     const typeMap = new Map<string, number>();
     for (const item of items) {
       typeMap.set(item.type, (typeMap.get(item.type) ?? 0) + item.currentValue);
@@ -216,7 +204,7 @@ export class PortfolioReportService {
     let totalValue = 0;
 
     for (const asset of allAssets) {
-      const holdings = this.getHoldingsAtDate(asset.id, today);
+      const holdings = getHoldingsAtDate(this.db, asset.id, today);
       if (holdings <= 0) continue;
 
       const resolved = resolvePrice(this.db, asset, today);
@@ -258,28 +246,16 @@ export class PortfolioReportService {
         .orderBy(asc(assetLots.date), asc(assetLots.id))
         .all();
 
-      // FIFO simulation to compute realized P&L from sell lots
       const buyQueue: Array<{ qty: number; price: number }> = [];
       let totalSold = 0;
       let proceeds = 0;
       let costOfSold = 0;
 
       for (const lot of lots) {
-        // Apply date filter to sell lots only
         if (lot.quantity < 0) {
           if (from && lot.date < from) {
             // Sell before range — still consume from queue for FIFO accuracy
-            let toConsume = -lot.quantity;
-            while (toConsume > 0 && buyQueue.length > 0) {
-              const front = buyQueue[0];
-              if (front.qty <= toConsume) {
-                toConsume -= front.qty;
-                buyQueue.shift();
-              } else {
-                front.qty -= toConsume;
-                toConsume = 0;
-              }
-            }
+            consumeFifo(buyQueue, -lot.quantity);
             continue;
           }
           if (to && lot.date > to) continue;
@@ -288,21 +264,10 @@ export class PortfolioReportService {
         if (lot.quantity > 0) {
           buyQueue.push({ qty: lot.quantity, price: lot.pricePerUnit });
         } else {
-          let toConsume = -lot.quantity;
-          const sellPrice = lot.pricePerUnit;
-          const sellTotal = Math.round(toConsume * sellPrice);
-
+          const toConsume = -lot.quantity;
+          proceeds += Math.round(toConsume * lot.pricePerUnit);
           totalSold += toConsume;
-          proceeds += sellTotal;
-
-          while (toConsume > 0 && buyQueue.length > 0) {
-            const front = buyQueue[0];
-            const consumed = Math.min(front.qty, toConsume);
-            costOfSold += Math.round(consumed * front.price);
-            front.qty -= consumed;
-            toConsume -= consumed;
-            if (front.qty <= 0) buyQueue.shift();
-          }
+          costOfSold += consumeFifo(buyQueue, toConsume);
         }
       }
 
@@ -339,7 +304,6 @@ export class PortfolioReportService {
 
     const dateRange = windowToDateRange(window);
 
-    // Lot timeline
     const lots = this.db
       .select({
         date: assetLots.date,
@@ -357,7 +321,7 @@ export class PortfolioReportService {
       .orderBy(asc(assetLots.date), asc(assetLots.id))
       .all();
 
-    let runningQty = this.getHoldingsAtDate(assetId, offsetDate(dateRange.from, -1));
+    let runningQty = getHoldingsAtDate(this.db, assetId, offsetDate(dateRange.from, -1));
     const lotHistory: AssetHistoryLot[] = lots.map((lot) => {
       runningQty += lot.quantity;
       return {
@@ -369,10 +333,9 @@ export class PortfolioReportService {
       };
     });
 
-    // Price/value timeline at weekly intervals
     const datePoints = generateDatePoints(dateRange.from, dateRange.to, "weekly");
     const timeline: AssetHistoryPoint[] = datePoints.map((date) => {
-      const qty = this.getHoldingsAtDate(assetId, date);
+      const qty = getHoldingsAtDate(this.db, assetId, date);
       const resolved = resolvePrice(this.db, asset, date);
       const price = resolved?.price ?? null;
       const value = price !== null ? Math.round(qty * price) : null;
@@ -435,103 +398,4 @@ export class PortfolioReportService {
       net: data.purchases - data.sales,
     }));
   }
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  private getHoldingsAtDate(assetId: number, date: string): number {
-    const [row] = this.db
-      .select({
-        total: sql<number>`coalesce(sum(${assetLots.quantity}), 0)`.mapWith(Number),
-      })
-      .from(assetLots)
-      .where(and(eq(assetLots.assetId, assetId), lte(assetLots.date, date)))
-      .all();
-    return row?.total ?? 0;
-  }
-
-  private getCostBasisAtDate(
-    assetId: number,
-    date: string
-  ): { costBasis: number; earliestDate: string | null } {
-    const lots = this.db
-      .select({
-        quantity: assetLots.quantity,
-        pricePerUnit: assetLots.pricePerUnit,
-        date: assetLots.date,
-      })
-      .from(assetLots)
-      .where(and(eq(assetLots.assetId, assetId), lte(assetLots.date, date)))
-      .orderBy(asc(assetLots.date), asc(assetLots.id))
-      .all();
-
-    if (lots.length === 0) return { costBasis: 0, earliestDate: null };
-
-    // FIFO cost basis
-    const queue: Array<{ qty: number; price: number }> = [];
-    for (const lot of lots) {
-      if (lot.quantity > 0) {
-        queue.push({ qty: lot.quantity, price: lot.pricePerUnit });
-      } else {
-        let toConsume = -lot.quantity;
-        while (toConsume > 0 && queue.length > 0) {
-          const front = queue[0];
-          if (front.qty <= toConsume) {
-            toConsume -= front.qty;
-            queue.shift();
-          } else {
-            front.qty -= toConsume;
-            toConsume = 0;
-          }
-        }
-      }
-    }
-
-    const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0));
-    return { costBasis, earliestDate: lots[0].date };
-  }
-}
-
-// ─── Date Utilities ──────────────────────────────────────────────────────────
-
-function windowToDateRange(window: Window): { from: string; to: string } {
-  const today = new Date();
-  const to = today.toISOString().slice(0, 10);
-
-  if (window === "all") {
-    return { from: "2000-01-01", to };
-  }
-
-  if (window === "ytd") {
-    return { from: `${today.getUTCFullYear()}-01-01`, to };
-  }
-
-  const months = window === "3m" ? 3 : window === "6m" ? 6 : 12;
-  const fromDate = new Date(today);
-  fromDate.setUTCMonth(fromDate.getUTCMonth() - months);
-  return { from: fromDate.toISOString().slice(0, 10), to };
-}
-
-function generateDatePoints(from: string, to: string, interval: Interval): string[] {
-  const points: string[] = [];
-  const current = new Date(from + "T00:00:00Z");
-  const end = new Date(to + "T00:00:00Z");
-
-  while (current <= end) {
-    points.push(current.toISOString().slice(0, 10));
-
-    if (interval === "daily") {
-      current.setUTCDate(current.getUTCDate() + 1);
-    } else if (interval === "weekly") {
-      current.setUTCDate(current.getUTCDate() + 7);
-    } else {
-      current.setUTCMonth(current.getUTCMonth() + 1);
-    }
-  }
-
-  // Always include the end date if not already there
-  if (points.length === 0 || points[points.length - 1] !== to) {
-    points.push(to);
-  }
-
-  return points;
 }
