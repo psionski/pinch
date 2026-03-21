@@ -4,6 +4,7 @@ import * as schema from "@/lib/db/schema";
 import { assetLots } from "@/lib/db/schema";
 import type { FinancialDataService } from "./financial-data";
 import type { SymbolMap } from "@/lib/validators/assets";
+import { financialLogger } from "@/lib/logger";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -45,7 +46,7 @@ export function triggerSymbolBackfill(
         await financialDataService.ensurePriceHistory(asset.currency, "EUR", from, today);
       }
     } catch (err) {
-      console.warn(`[backfill] Failed for asset ${asset.id}:`, err);
+      financialLogger.warn({ assetId: asset.id, err }, "Symbol backfill failed");
     }
   })();
 }

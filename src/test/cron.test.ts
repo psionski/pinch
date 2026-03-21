@@ -19,7 +19,6 @@ vi.mock("@/lib/db", () => ({
     })),
   })),
 }));
-
 describe("initCronJobs singleton guard", () => {
   beforeEach(() => {
     const g = globalThis as unknown as { __pinchCronInit?: boolean };
@@ -89,46 +88,55 @@ describe("runRecurringJob", () => {
   it("logs when transactions are generated", async () => {
     const { runRecurringJob } = await import("@/lib/cron");
     const { getRecurringService } = await import("@/lib/api/services");
+    const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(getRecurringService).mockReturnValue({
       generatePending: vi.fn().mockReturnValue(5),
     } as unknown as ReturnType<typeof getRecurringService>);
 
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const infoSpy = vi.spyOn(cronLogger, "info");
     runRecurringJob();
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("5 recurring transaction(s)"));
-    logSpy.mockRestore();
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ count: 5 }),
+      expect.stringContaining("Generated recurring transactions")
+    );
+    infoSpy.mockRestore();
   });
 
   it("does not log when zero transactions generated", async () => {
     const { runRecurringJob } = await import("@/lib/cron");
     const { getRecurringService } = await import("@/lib/api/services");
+    const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(getRecurringService).mockReturnValue({
       generatePending: vi.fn().mockReturnValue(0),
     } as unknown as ReturnType<typeof getRecurringService>);
 
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const infoSpy = vi.spyOn(cronLogger, "info");
     runRecurringJob();
-    expect(logSpy).not.toHaveBeenCalled();
-    logSpy.mockRestore();
+    expect(infoSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ count: expect.any(Number) }),
+      expect.stringContaining("Generated recurring transactions")
+    );
+    infoSpy.mockRestore();
   });
 
   it("catches and logs errors without throwing", async () => {
     const { runRecurringJob } = await import("@/lib/cron");
     const { getRecurringService } = await import("@/lib/api/services");
+    const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(getRecurringService).mockImplementation(() => {
       throw new Error("db locked");
     });
 
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(cronLogger, "error");
     expect(() => runRecurringJob()).not.toThrow();
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to generate"),
-      expect.any(Error)
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      expect.stringContaining("Failed to generate")
     );
-    errSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });
 
@@ -140,30 +148,34 @@ describe("runBackupJob", () => {
   it("calls runBackup and logs the result", async () => {
     const { runBackupJob } = await import("@/lib/cron");
     const { runBackup } = await import("@/lib/services/backup");
+    const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(runBackup).mockResolvedValue({ path: "/backups/test.db", rotatedCount: 2 });
 
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const infoSpy = vi.spyOn(cronLogger, "info");
     await runBackupJob();
 
     expect(runBackup).toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("/backups/test.db"));
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("rotated 2"));
-    logSpy.mockRestore();
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/backups/test.db", rotated: 2 }),
+      expect.stringContaining("Backup saved")
+    );
+    infoSpy.mockRestore();
   });
 
   it("catches and logs errors without throwing", async () => {
     const { runBackupJob } = await import("@/lib/cron");
     const { runBackup } = await import("@/lib/services/backup");
+    const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(runBackup).mockRejectedValue(new Error("disk full"));
 
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(cronLogger, "error");
     await expect(runBackupJob()).resolves.toBeUndefined();
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Backup failed"),
-      expect.any(Error)
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      expect.stringContaining("Backup failed")
     );
-    errSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

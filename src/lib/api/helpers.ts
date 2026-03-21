@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import type { ErrorCode, ErrorResponse } from "@/lib/validators/common";
+import { apiLogger } from "@/lib/logger";
 
 /** Return a structured JSON error response. */
 export function errorResponse(
@@ -88,8 +89,10 @@ export function handleServiceError(
 ): NextResponse<ErrorResponse> {
   const message = err instanceof Error ? err.message : "Internal error";
   if (message.includes("FOREIGN KEY")) {
+    apiLogger.warn({ err, context: foreignKeyMessage }, "Foreign key violation");
     return errorResponse(foreignKeyMessage, "NOT_FOUND", 404);
   }
+  apiLogger.error({ err }, "Service error");
   return errorResponse(message, "INTERNAL_ERROR", 500);
 }
 

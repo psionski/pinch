@@ -4,6 +4,7 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { mkdirSync } from "fs";
 import { dirname, join } from "path";
 import * as schema from "./schema";
+import { dbLogger } from "@/lib/logger";
 
 export type AppDb = BetterSQLite3Database<typeof schema>;
 
@@ -54,20 +55,24 @@ function initClient(path: string): InstanceType<typeof Database> {
   return client;
 }
 
-// Singleton for the application DB connection.
+// Singleton for the application DB connection stored on globalThis so it
+// survives Next.js re-bundling across server components and API routes.
 // In tests, use createDb() directly with a separate path/in-memory DB.
-let _db: AppDb | null = null;
+const g = globalThis as unknown as { __pinchDb?: AppDb };
 
 /** App-level singleton. Runs pending migrations on first call. */
 export function getDb(): AppDb {
-  if (!_db) {
+  if (!g.__pinchDb) {
     const client = initClient(DB_PATH);
     const db = drizzle({ client, schema });
     migrate(db, { migrationsFolder: join(process.cwd(), "drizzle") });
+    dbLogger.debug("Migrations applied");
     ensureFtsTriggers(client);
-    _db = db;
+    dbLogger.debug("FTS triggers ensured");
+    g.__pinchDb = db;
+    dbLogger.info({ path: DB_PATH }, "Database initialized");
   }
-  return _db;
+  return g.__pinchDb;
 }
 
 /** Create a fresh DB connection — use in tests or for alternate DB paths. */

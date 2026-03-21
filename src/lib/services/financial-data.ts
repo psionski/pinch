@@ -9,6 +9,7 @@ import { FrankfurterProvider } from "@/lib/providers/frankfurter";
 import { OpenExchangeRatesProvider } from "@/lib/providers/open-exchange-rates";
 import { CoinGeckoProvider } from "@/lib/providers/coingecko";
 import { AlphaVantageProvider } from "@/lib/providers/alpha-vantage";
+import { financialLogger } from "@/lib/logger";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -65,6 +66,7 @@ export class FinancialDataService {
     if (cached) {
       const age = Date.now() - new Date(cached.fetchedAt).getTime();
       if (isHistorical || age < PRICE_TTL_MS) {
+        financialLogger.debug({ symbol, currency, date: priceDate }, "Price served from cache");
         return { ...toPriceResult(cached), stale: false };
       }
     }
@@ -74,18 +76,33 @@ export class FinancialDataService {
       try {
         const result = await provider.getPrice?.(symbol, currency, priceDate);
         if (result) {
-          this.cachePrice(result);
+          financialLogger.info(
+            { provider: result.provider, symbol, currency, date: priceDate },
+            "External price fetched"
+          );
+          this.cachePrice({ ...result, date: priceDate });
           return { ...result, stale: false };
         }
-      } catch {
-        // continue to next provider
+      } catch (err) {
+        financialLogger.warn(
+          { provider: provider.name, symbol, currency, date: priceDate, err },
+          "Provider price lookup failed"
+        );
       }
     }
 
     if (cached) {
+      financialLogger.warn(
+        { symbol, currency, date: priceDate },
+        "All providers failed, returning stale cache"
+      );
       return { ...toPriceResult(cached), stale: true };
     }
 
+    financialLogger.warn(
+      { symbol, currency, date: priceDate },
+      "All providers failed, no cached data"
+    );
     return null;
   }
 
@@ -102,6 +119,10 @@ export class FinancialDataService {
       const oldestFetch = Math.min(...cached.map((r) => new Date(r.fetchedAt).getTime()));
       const age = Date.now() - oldestFetch;
       if (isHistorical || age < PRICE_TTL_MS) {
+        financialLogger.debug(
+          { symbol, date: priceDate, count: cached.length },
+          "Prices served from cache"
+        );
         return cached.map((r) => ({ ...toPriceResult(r), stale: false }));
       }
     }
@@ -111,15 +132,26 @@ export class FinancialDataService {
       try {
         const results = await provider.getPrices?.(symbol, priceDate);
         if (results && results.length > 0) {
-          for (const r of results) this.cachePrice(r);
+          financialLogger.info(
+            { provider: provider.name, symbol, date: priceDate, count: results.length },
+            "External prices fetched"
+          );
+          for (const r of results) this.cachePrice({ ...r, date: priceDate });
           return results.map((r) => ({ ...r, stale: false }));
         }
-      } catch {
-        // continue to next provider
+      } catch (err) {
+        financialLogger.warn(
+          { provider: provider.name, symbol, date: priceDate, err },
+          "Provider prices lookup failed"
+        );
       }
     }
 
     if (cached.length > 0) {
+      financialLogger.warn(
+        { symbol, date: priceDate },
+        "All providers failed, returning stale prices"
+      );
       return cached.map((r) => ({ ...toPriceResult(r), stale: true }));
     }
 
@@ -189,20 +221,31 @@ export class FinancialDataService {
     const expectedDays = daysBetween(from, to);
     if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
 
+    financialLogger.debug({ symbol, currency, from, to }, "Backfilling price history");
+
     const providers = this.buildAllProviders();
     for (const provider of providers) {
       try {
         const results = await provider.getPriceRange?.(symbol, currency, from, to);
         if (results && results.length > 0) {
+          let inserted = 0;
           for (const r of results) {
             if (!cachedDates.has(r.date)) {
               this.cachePrice(r);
+              inserted++;
             }
           }
+          financialLogger.info(
+            { provider: provider.name, symbol, currency, from, to, inserted },
+            "Price history backfilled"
+          );
           return;
         }
-      } catch {
-        // continue to next provider
+      } catch (err) {
+        financialLogger.warn(
+          { provider: provider.name, symbol, currency, from, to, err },
+          "Provider price range lookup failed"
+        );
       }
     }
   }
@@ -222,12 +265,13 @@ export class FinancialDataService {
         try {
           const matches = await p.searchSymbol!(query);
           results.push(...matches);
-        } catch {
-          // provider failed — skip
+        } catch (err) {
+          financialLogger.warn({ provider: p.name, query, err }, "Symbol search provider failed");
         }
       });
 
     await Promise.allSettled(searches);
+    financialLogger.info({ query, resultCount: results.length }, "Symbol search completed");
     return results;
   }
 
@@ -296,6 +340,10 @@ export class FinancialDataService {
       statuses[i].healthy = result.status === "fulfilled" ? result.value : false;
     });
 
+    financialLogger.debug(
+      { providers: statuses.map((s) => ({ name: s.name, healthy: s.healthy })) },
+      "Provider health check completed"
+    );
     return statuses;
   }
 

@@ -5,6 +5,7 @@ import { generateMonth, type TxInput } from "./transactions";
 import { generateBudgets } from "./budgets";
 import { generateRecurringTemplates } from "./recurring";
 import { daysInMonth, isoDate } from "./rng";
+import { logger, seedLogger } from "@/lib/logger";
 
 async function seed(): Promise<void> {
   const db = getDb();
@@ -13,15 +14,16 @@ async function seed(): Promise<void> {
   const existingCategories = await db.select().from(categories);
   const existingTransactions = await db.select({ id: transactions.id }).from(transactions).limit(1);
   if (existingCategories.length > 0 || existingTransactions.length > 0) {
-    console.error(
-      "Error: Database is not empty. Delete the database file and run migrations before seeding.\n" +
+    seedLogger.error(
+      "Database is not empty. Delete the database file and run migrations before seeding.\n" +
         "  rm data/pinch.db && npm run db:migrate && npx tsx src/lib/db/seed.ts"
     );
+    logger.flush();
     process.exit(1);
   }
 
   // ── Categories ──────────────────────────────────────────────────────────
-  console.log("Seeding categories...");
+  seedLogger.info("Seeding categories...");
 
   for (const cat of PARENT_CATEGORIES) {
     await db.insert(categories).values(cat).onConflictDoNothing();
@@ -40,7 +42,7 @@ async function seed(): Promise<void> {
   }
 
   const totalCats = PARENT_CATEGORIES.length + CHILD_CATEGORIES.length;
-  console.log(`  ${totalCats} categories ready (${CHILD_CATEGORIES.length} nested).`);
+  seedLogger.info(`  ${totalCats} categories ready (${CHILD_CATEGORIES.length} nested).`);
 
   const cats = await db.select().from(categories);
   const catIds: Record<string, number> = {};
@@ -68,7 +70,7 @@ async function seed(): Promise<void> {
     `${isoDate(lastMonth.year, lastMonth.month, 1).slice(0, 7)}`;
 
   // ── Recurring templates (before transactions, so we can link them) ────
-  console.log("Creating recurring transaction templates...");
+  seedLogger.info("Creating recurring transaction templates...");
 
   const recStart = isoDate(firstMonth.year, firstMonth.month, 1);
   const todayStr = isoDate(todayYear, todayMonth, todayDay);
@@ -82,10 +84,10 @@ async function seed(): Promise<void> {
       .returning({ id: recurringTransactions.id });
     recurringIds[tmpl.description] = row.id;
   }
-  console.log(`  ${templates.length} recurring templates created.`);
+  seedLogger.info(`  ${templates.length} recurring templates created.`);
 
   // ── Transactions ──────────────────────────────────────────────────────
-  console.log(`Generating 4 months of transactions (${rangeLabel})...`);
+  seedLogger.info(`Generating 4 months of transactions (${rangeLabel})...`);
 
   let balance = 200000; // €2 000 — previous month's salary leftovers
   const allTxs: TxInput[] = [];
@@ -108,10 +110,12 @@ async function seed(): Promise<void> {
     const result = generateMonth(year, month, lastDay, catIds, balance, recurringIds);
     allTxs.push(...result.txs);
     balance = result.balance;
-    console.log(`  ${year}-${String(month).padStart(2, "0")}: ${result.txs.length} transactions`);
+    seedLogger.info(
+      `  ${year}-${String(month).padStart(2, "0")}: ${result.txs.length} transactions`
+    );
   }
 
-  console.log(`Inserting ${allTxs.length} transactions...`);
+  seedLogger.info(`Inserting ${allTxs.length} transactions...`);
   const rows = allTxs.map((tx) => ({
     ...tx,
     tags: JSON.stringify(tx.tags),
@@ -124,23 +128,24 @@ async function seed(): Promise<void> {
   }
 
   // ── Budgets ─────────────────────────────────────────────────────────────
-  console.log("Generating budgets...");
+  seedLogger.info("Generating budgets...");
   const budgetRows = generateBudgets(allTxs, catIds, months);
   for (const row of budgetRows) {
     await db.insert(budgets).values(row);
   }
-  console.log(`  ${budgetRows.length} budget entries across ${months.length} months.`);
+  seedLogger.info(`  ${budgetRows.length} budget entries across ${months.length} months.`);
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const expenses = allTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-  console.log(`Done.`);
-  console.log(`  Total income:   €${(income / 100).toFixed(2)}`);
-  console.log(`  Total expenses: €${(expenses / 100).toFixed(2)}`);
-  console.log(`  Final balance:  €${(balance / 100).toFixed(2)}`);
+  seedLogger.info(`Done.`);
+  seedLogger.info(`  Total income:   €${(income / 100).toFixed(2)}`);
+  seedLogger.info(`  Total expenses: €${(expenses / 100).toFixed(2)}`);
+  seedLogger.info(`  Final balance:  €${(balance / 100).toFixed(2)}`);
 }
 
 seed().catch((err) => {
-  console.error("Seed failed:", err);
+  seedLogger.error({ err }, "Seed failed");
+  logger.flush();
   process.exit(1);
 });
