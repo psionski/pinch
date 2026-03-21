@@ -350,12 +350,14 @@ export function AssetsClient({
         </>
       )}
 
-      <AssetFormDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        onSubmit={handleCreate}
-        loading={loading}
-      />
+      {showCreate && (
+        <AssetFormDialog
+          open={showCreate}
+          onOpenChange={setShowCreate}
+          onSubmit={handleCreate}
+          loading={loading}
+        />
+      )}
 
       {buyingAsset && (
         <BuySellDialog

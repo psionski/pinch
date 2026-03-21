@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SymbolSearch } from "./symbol-search";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
 import type { SymbolMap } from "@/lib/validators/assets";
 
@@ -43,17 +44,9 @@ const ASSET_TYPES = [
   { value: "other", label: "Other" },
 ] as const;
 
-/** Infer the default provider for a given asset type. */
-function defaultProvider(type: string): string {
-  if (type === "crypto") return "coingecko";
-  return "alpha-vantage";
-}
-
-/** Extract the first symbol value from a symbolMap, or empty string. */
-function symbolFromMap(map: Record<string, string> | null | undefined): string {
-  if (!map) return "";
-  const values = Object.values(map);
-  return values[0] ?? "";
+function initSymbolMap(data: AssetWithMetrics | null | undefined): SymbolMap {
+  if (!data?.symbolMap) return {};
+  return { ...data.symbolMap };
 }
 
 export function AssetFormDialog({
@@ -67,7 +60,7 @@ export function AssetFormDialog({
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState<string>(initialData?.type ?? "deposit");
   const [currency, setCurrency] = useState(initialData?.currency ?? "EUR");
-  const [symbol, setSymbol] = useState(symbolFromMap(initialData?.symbolMap));
+  const [symbolMap, setSymbolMap] = useState<SymbolMap>(initSymbolMap(initialData));
   const [icon, setIcon] = useState(initialData?.icon ?? "");
   const [error, setError] = useState("");
 
@@ -83,14 +76,13 @@ export function AssetFormDialog({
       return;
     }
 
-    const trimmedSymbol = symbol.trim();
-    const symbolMap = trimmedSymbol ? { [defaultProvider(type)]: trimmedSymbol } : undefined;
+    const hasSymbols = Object.keys(symbolMap).length > 0;
 
     onSubmit({
       name: name.trim(),
       type: type as "deposit" | "investment" | "crypto" | "other",
       currency: currency.trim().toUpperCase(),
-      symbolMap,
+      symbolMap: hasSymbols ? symbolMap : undefined,
       icon: icon.trim() || undefined,
     });
   }
@@ -138,18 +130,18 @@ export function AssetFormDialog({
               disabled={loading}
             />
           </div>
-          {type !== "deposit" && (
+          {(type !== "deposit" || currency !== "EUR") && (
             <div className="space-y-1">
-              <Label htmlFor="asset-symbol">Market Symbol (optional)</Label>
-              <Input
-                id="asset-symbol"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
-                placeholder={type === "crypto" ? "e.g. bitcoin" : "e.g. AAPL"}
-                disabled={loading}
-              />
+              <Label>
+                {type === "deposit"
+                  ? "Exchange Rate Tracking (optional)"
+                  : "Price Tracking (optional)"}
+              </Label>
+              <SymbolSearch value={symbolMap} onChange={setSymbolMap} disabled={loading} />
               <p className="text-muted-foreground text-xs">
-                Enables automatic price tracking. CoinGecko ID for crypto, ticker for stocks.
+                {type === "deposit"
+                  ? "Search for your currency to enable automatic exchange rate updates."
+                  : "Search for symbols to enable automatic price tracking. You can select one per provider for redundancy."}
               </p>
             </div>
           )}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,15 @@ interface BuySellDialogProps {
   loading?: boolean;
 }
 
+function getFirstSymbolEntry(
+  symbolMap: Record<string, string> | null | undefined
+): { provider: string; symbol: string } | null {
+  if (!symbolMap) return null;
+  const entries = Object.entries(symbolMap);
+  if (entries.length === 0) return null;
+  return { provider: entries[0][0], symbol: entries[0][1] };
+}
+
 export function BuySellDialog({
   open,
   onOpenChange,
@@ -42,6 +52,32 @@ export function BuySellDialog({
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+
+  const fetchCurrentPrice = useCallback(async (): Promise<void> => {
+    const entry = getFirstSymbolEntry(asset.symbolMap);
+    if (!entry) return;
+    setFetchingPrice(true);
+    try {
+      const params = new URLSearchParams({
+        symbol: entry.symbol,
+        currency: asset.currency,
+        date: today,
+      });
+      const res = await fetch(`/api/financial/price?${params}`);
+      if (res.ok) {
+        const data = (await res.json()) as { price: number };
+        setPrice(data.price.toFixed(2));
+      }
+    } finally {
+      setFetchingPrice(false);
+    }
+  }, [asset.symbolMap, asset.currency, today]);
+
+  useEffect(() => {
+    if (!open) return;
+    void fetchCurrentPrice();
+  }, [open, fetchCurrentPrice]);
 
   function handleSubmit(e: React.FormEvent): void {
     e.preventDefault();
@@ -98,16 +134,21 @@ export function BuySellDialog({
           </div>
           <div className="space-y-1">
             <Label htmlFor="lot-price">Price per unit ({asset.currency})</Label>
-            <Input
-              id="lot-price"
-              type="number"
-              step="0.01"
-              min="0"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="e.g. 345.63"
-              disabled={loading}
-            />
+            <div className="relative">
+              <Input
+                id="lot-price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder={fetchingPrice ? "Fetching…" : "e.g. 345.63"}
+                disabled={loading}
+              />
+              {fetchingPrice && (
+                <Loader2 className="text-muted-foreground absolute top-2.5 right-3 size-4 animate-spin" />
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <Label htmlFor="lot-date">Date</Label>
