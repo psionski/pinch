@@ -5,16 +5,9 @@ import { getDb } from "@/lib/db";
 import { assets } from "@/lib/db/schema";
 import { isNotNull } from "drizzle-orm";
 import { cronLogger } from "@/lib/logger";
+import { isoToday } from "@/lib/date-ranges";
 
 const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
-
-export function todayString(): string {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 /** Cron callback: generate pending recurring transactions up to today. */
 export function runRecurringJob(): void {
@@ -66,7 +59,7 @@ async function runMarketPriceJob(): Promise<void> {
   try {
     const db = getDb();
     const fds = getFinancialDataService();
-    const today = todayString();
+    const today = isoToday();
 
     const symbolAssets = db
       .select({

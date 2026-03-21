@@ -3,6 +3,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { assetPrices, marketPrices, assetLots } from "@/lib/db/schema";
 import type { AssetResponse } from "@/lib/validators/assets";
+import { offsetDate } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -199,10 +200,4 @@ function findLotPrice(db: Db, assetId: number, date: string): number | null {
     .get();
 
   return row?.pricePerUnit ?? null;
-}
-
-function offsetDate(date: string, days: number): string {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }

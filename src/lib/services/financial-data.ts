@@ -10,6 +10,7 @@ import { OpenExchangeRatesProvider } from "@/lib/providers/open-exchange-rates";
 import { CoinGeckoProvider } from "@/lib/providers/coingecko";
 import { AlphaVantageProvider } from "@/lib/providers/alpha-vantage";
 import { financialLogger } from "@/lib/logger";
+import { isoToday, daysBetween } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -218,7 +219,7 @@ export class FinancialDataService {
 
     const cachedDates = new Set(cached.map((r) => r.date));
 
-    const expectedDays = daysBetween(from, to);
+    const expectedDays = daysBetween(from, to) + 1;
     if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
 
     financialLogger.debug({ symbol, currency, from, to }, "Backfilling price history");
@@ -354,7 +355,7 @@ export class FinancialDataService {
     currency: string,
     date: string
   ): typeof schema.marketPrices.$inferSelect | null {
-    return (
+    const row =
       this.db
         .select()
         .from(marketPrices)
@@ -365,8 +366,8 @@ export class FinancialDataService {
             eq(marketPrices.date, date)
           )
         )
-        .get() ?? null
-    );
+        .get() ?? null;
+    return row;
   }
 
   private getCachedPricesForSymbol(
@@ -395,7 +396,7 @@ export class FinancialDataService {
         set: {
           price: String(result.price),
           provider: result.provider,
-          fetchedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
+          fetchedAt: new Date().toISOString(),
         },
       })
       .run();
@@ -420,10 +421,6 @@ export class FinancialDataService {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function toPriceResult(row: typeof schema.marketPrices.$inferSelect): PriceResult {
   return {
     symbol: row.symbol,
@@ -432,12 +429,6 @@ function toPriceResult(row: typeof schema.marketPrices.$inferSelect): PriceResul
     date: row.date,
     provider: row.provider,
   };
-}
-
-function daysBetween(from: string, to: string): number {
-  const a = new Date(from + "T00:00:00Z");
-  const b = new Date(to + "T00:00:00Z");
-  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
 }
 
 // Re-export for convenience

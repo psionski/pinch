@@ -2,11 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getCategoryService, getReportService } from "@/lib/api/services";
 import { CategoriesClient } from "@/components/categories/categories-client";
-
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+import { getCurrentMonth } from "@/lib/date-ranges";
 
 export default function CategoriesPage(): React.ReactElement {
   const categoryService = getCategoryService();

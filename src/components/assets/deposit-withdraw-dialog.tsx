@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { isoToday } from "@/lib/date-ranges";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +33,7 @@ interface DepositWithdrawDialogProps {
 
 async function fetchExchangeRate(from: string, to: string): Promise<number | null> {
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    const params = new URLSearchParams({ symbol: from, currency: to, date: today });
+    const params = new URLSearchParams({ symbol: from, currency: to, date: isoToday() });
     const res = await fetch(`/api/financial/price?${params}`);
     if (!res.ok) return null;
     const data = (await res.json()) as { price: number };
@@ -51,7 +51,7 @@ export function DepositWithdrawDialog({
   onSubmit,
   loading,
 }: DepositWithdrawDialogProps): React.ReactElement {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const isEur = asset.currency === "EUR";
 
   const [amount, setAmount] = useState("");

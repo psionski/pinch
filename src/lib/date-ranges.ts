@@ -1,3 +1,8 @@
+/** Today's date as YYYY-MM-DD in UTC. */
+export function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export interface DateRange {
   dateFrom: string;
   dateTo: string;
@@ -25,10 +30,7 @@ export const PRESET_LABELS: Record<Preset, string> = {
 };
 
 function toIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return d.toISOString().slice(0, 10);
 }
 
 /** Parse YYYY-MM-DD without timezone issues (avoids UTC parsing of Date constructor). */
@@ -37,10 +39,10 @@ function parseIsoDate(s: string): { year: number; month: number } {
   return { year: y, month: m - 1 }; // month is 0-indexed like Date
 }
 
-/** Returns the current month as YYYY-MM. */
+/** Returns the current month as YYYY-MM (UTC). */
 export function getCurrentMonth(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export interface MonthInfo {
@@ -50,18 +52,19 @@ export interface MonthInfo {
   monthLabel: string;
 }
 
-/** Returns the current month string, start/end dates, and a human-readable label. */
+/** Returns the current month string, start/end dates, and a human-readable label (UTC). */
 export function getCurrentMonthInfo(): MonthInfo {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
   const currentMonth = `${year}-${String(month).padStart(2, "0")}`;
   const monthStart = `${currentMonth}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
-  const monthLabel = new Date(year, month - 1).toLocaleString("en", {
+  const monthLabel = new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en", {
     month: "long",
     year: "numeric",
+    timeZone: "UTC",
   });
   return { currentMonth, monthStart, monthEnd, monthLabel };
 }
@@ -72,54 +75,77 @@ export function getPreviousMonthRange(currentMonth: string): {
   prevMonthEnd: string;
 } {
   const [year, month] = currentMonth.split("-").map(Number);
-  const prevDate = new Date(year, month - 2, 1);
-  const prevYear = prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth() + 1;
+  const prevDate = new Date(Date.UTC(year, month - 2, 1));
+  const prevYear = prevDate.getUTCFullYear();
+  const prevMonth = prevDate.getUTCMonth() + 1;
   const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
   const prevMonthStart = `${prevMonthStr}-01`;
-  const prevLastDay = new Date(prevYear, prevMonth, 0).getDate();
+  const prevLastDay = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
   const prevMonthEnd = `${prevMonthStr}-${String(prevLastDay).padStart(2, "0")}`;
   return { prevMonthStart, prevMonthEnd };
 }
 
 export function computePresetRange(preset: Exclude<Preset, "custom">): DateRange {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
 
   switch (preset) {
     case "this-month": {
-      const start = new Date(year, month, 1);
-      const end = new Date(year, month + 1, 0);
+      const start = new Date(Date.UTC(year, month, 1));
+      const end = new Date(Date.UTC(year, month + 1, 0));
       return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
     }
     case "last-month": {
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 0));
       return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
     }
     case "3m": {
-      const start = new Date(year, month - 2, 1);
-      const end = new Date(year, month + 1, 0);
+      const start = new Date(Date.UTC(year, month - 2, 1));
+      const end = new Date(Date.UTC(year, month + 1, 0));
       return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
     }
     case "6m": {
-      const start = new Date(year, month - 5, 1);
-      const end = new Date(year, month + 1, 0);
+      const start = new Date(Date.UTC(year, month - 5, 1));
+      const end = new Date(Date.UTC(year, month + 1, 0));
       return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
     }
     case "12m": {
-      const start = new Date(year, month - 11, 1);
-      const end = new Date(year, month + 1, 0);
+      const start = new Date(Date.UTC(year, month - 11, 1));
+      const end = new Date(Date.UTC(year, month + 1, 0));
       return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
     }
     case "ytd": {
-      const start = new Date(year, 0, 1);
-      const end = new Date(year, month + 1, 0);
+      const start = new Date(Date.UTC(year, 0, 1));
+      const end = new Date(Date.UTC(year, month + 1, 0));
       return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
     }
   }
 }
+
+// ─── Shared Date Utilities ────────────────────────────────────────────────────
+
+/** Offset a YYYY-MM-DD date string by a number of days. Returns YYYY-MM-DD (UTC). */
+export function offsetDate(date: string, days: number): string {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Number of days between two YYYY-MM-DD dates (to - from). Same date returns 0. */
+export function daysBetween(from: string, to: string): number {
+  const a = new Date(from + "T00:00:00Z");
+  const b = new Date(to + "T00:00:00Z");
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+/** Convert a Unix timestamp (milliseconds) to YYYY-MM-DD in UTC. */
+export function isoDateFromMs(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+// ─── Range Computation ────────────────────────────────────────────────────────
 
 /** Compute the previous period of the same length (month-aligned) for comparison. */
 export function computeCompareRange(range: DateRange): ComputedRange {
@@ -130,8 +156,8 @@ export function computeCompareRange(range: DateRange): ComputedRange {
   const months = Math.max(1, (to.year - from.year) * 12 + (to.month - from.month) + 1);
 
   // Previous period: shift back by that many months, aligned to month boundaries
-  const compareStart = new Date(from.year, from.month - months, 1);
-  const compareEnd = new Date(from.year, from.month, 0); // last day before dateFrom's month
+  const compareStart = new Date(Date.UTC(from.year, from.month - months, 1));
+  const compareEnd = new Date(Date.UTC(from.year, from.month, 0)); // last day before dateFrom's month
 
   return {
     ...range,

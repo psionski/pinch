@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  isoToday,
+  offsetDate,
+  daysBetween,
+  isoDateFromMs,
   computePresetRange,
   computeCompareRange,
   getCurrentMonth,
@@ -11,10 +15,10 @@ import {
 } from "@/lib/date-ranges";
 import type { DateRange } from "@/lib/date-ranges";
 
-// Pin "now" to 2026-03-19 for deterministic tests
+// Pin "now" to 2026-03-19 UTC for deterministic tests
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 2, 19)); // March 19, 2026
+  vi.setSystemTime(new Date(Date.UTC(2026, 2, 19))); // March 19, 2026 UTC
 });
 
 afterEach(() => {
@@ -81,14 +85,14 @@ describe("computePresetRange", () => {
   });
 
   it("handles year boundaries correctly for 12m in January", () => {
-    vi.setSystemTime(new Date(2026, 0, 15)); // January 15, 2026
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 15))); // January 15, 2026 UTC
     const range = computePresetRange("12m");
     expect(range.dateFrom).toBe("2025-02-01");
     expect(range.dateTo).toBe("2026-01-31");
   });
 
   it("last-month at January wraps to December of previous year", () => {
-    vi.setSystemTime(new Date(2026, 0, 10)); // January 10, 2026
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 10))); // January 10, 2026 UTC
     const range = computePresetRange("last-month");
     expect(range.dateFrom).toBe("2025-12-01");
     expect(range.dateTo).toBe("2025-12-31");
@@ -155,7 +159,7 @@ describe("getCurrentMonth", () => {
   });
 
   it("zero-pads single-digit months", () => {
-    vi.setSystemTime(new Date(2026, 0, 15)); // January
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 15))); // January UTC
     expect(getCurrentMonth()).toBe("2026-01");
   });
 });
@@ -172,7 +176,7 @@ describe("getCurrentMonthInfo", () => {
   });
 
   it("handles February correctly", () => {
-    vi.setSystemTime(new Date(2026, 1, 10)); // February 2026
+    vi.setSystemTime(new Date(Date.UTC(2026, 1, 10))); // February 2026 UTC
     const info = getCurrentMonthInfo();
     expect(info.monthEnd).toBe("2026-02-28");
   });
@@ -191,5 +195,60 @@ describe("getPreviousMonthRange", () => {
     const { prevMonthStart, prevMonthEnd } = getPreviousMonthRange("2026-01");
     expect(prevMonthStart).toBe("2025-12-01");
     expect(prevMonthEnd).toBe("2025-12-31");
+  });
+});
+
+// ─── isoToday ────────────────────────────────────────────────────────────────
+
+describe("isoToday", () => {
+  it("returns the current UTC date as YYYY-MM-DD", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 19, 23, 30)));
+    expect(isoToday()).toBe("2026-03-19");
+  });
+
+  it("handles UTC midnight boundary correctly", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 20, 0, 30)));
+    expect(isoToday()).toBe("2026-03-20");
+  });
+});
+
+// ─── offsetDate ──────────────────────────────────────────────────────────────
+
+describe("offsetDate", () => {
+  it("adds positive days", () => {
+    expect(offsetDate("2026-03-19", 5)).toBe("2026-03-24");
+  });
+
+  it("subtracts days", () => {
+    expect(offsetDate("2026-03-01", -1)).toBe("2026-02-28");
+  });
+
+  it("crosses year boundaries", () => {
+    expect(offsetDate("2025-12-31", 1)).toBe("2026-01-01");
+  });
+});
+
+// ─── daysBetween ─────────────────────────────────────────────────────────────
+
+describe("daysBetween", () => {
+  it("returns 0 for the same date", () => {
+    expect(daysBetween("2026-03-19", "2026-03-19")).toBe(0);
+  });
+
+  it("returns positive count for chronological dates", () => {
+    expect(daysBetween("2026-03-01", "2026-03-10")).toBe(9);
+  });
+
+  it("returns negative for reversed dates", () => {
+    expect(daysBetween("2026-03-10", "2026-03-01")).toBe(-9);
+  });
+});
+
+// ─── isoDateFromMs ───────────────────────────────────────────────────────────
+
+describe("isoDateFromMs", () => {
+  it("converts a Unix timestamp in ms to YYYY-MM-DD", () => {
+    const ms = Date.UTC(2026, 2, 19, 14, 30);
+    expect(isoDateFromMs(ms)).toBe("2026-03-19");
   });
 });

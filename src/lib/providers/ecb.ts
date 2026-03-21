@@ -1,4 +1,5 @@
 import type { PriceResult, FinancialDataProvider } from "./types";
+import { isoToday } from "@/lib/date-ranges";
 
 const DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 const HIST_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml";
@@ -18,7 +19,7 @@ export class EcbProvider implements FinancialDataProvider {
   }
 
   async getPrices(symbol: string, date?: string): Promise<PriceResult[]> {
-    const isHistorical = date && date < today();
+    const isHistorical = date && date < isoToday();
     const url = isHistorical ? HIST_URL : DAILY_URL;
 
     const res = await fetch(url, {
@@ -35,7 +36,7 @@ export class EcbProvider implements FinancialDataProvider {
     // Add EUR itself as a synthetic 1:1 rate.
     rateMap.set("EUR", 1);
 
-    return buildResults(symbol, rateMap, date ?? latestDateFromXml(xml) ?? today(), this.name);
+    return buildResults(symbol, rateMap, date ?? latestDateFromXml(xml) ?? isoToday(), this.name);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -115,8 +116,4 @@ function buildResults(
     });
   }
   return results;
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }

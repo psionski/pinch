@@ -5,6 +5,7 @@ import { assetLots } from "@/lib/db/schema";
 import type { FinancialDataService } from "./financial-data";
 import type { SymbolMap } from "@/lib/validators/assets";
 import { financialLogger } from "@/lib/logger";
+import { isoToday } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -21,7 +22,7 @@ export function triggerSymbolBackfill(
 ): void {
   if (!asset.symbolMap || Object.keys(asset.symbolMap).length === 0) return;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
 
   // Find earliest lot date for this asset
   const earliestLot = db

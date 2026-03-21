@@ -43,6 +43,14 @@ Workflow:
 - Shared validators in `src/lib/validators/` — used by API routes, MCP tools, and frontend forms.
 - **API route helpers:** Use `parseBody`, `parseSearchParams`, `isErrorResponse`, `errorResponse` from `src/lib/api/helpers.ts`. Don't write manual JSON parsing or error responses in routes.
 
+### Date/Time Conventions
+
+- **All date math, storage, and caching uses UTC.** Local timezone is only for UI display.
+- Calendar dates are stored as `YYYY-MM-DD` strings (UTC day).
+- Timestamps are stored as ISO 8601 with Z suffix (e.g. `2026-03-21T14:30:00.000Z`).
+- Use shared utilities from `src/lib/date-ranges.ts` (`isoToday()`, `offsetDate()`, `daysBetween()`). Don't create local date helpers in other files.
+- Never use `getFullYear()`, `getMonth()`, `getDate()` (local-time methods) for date logic. Use `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()` or `toISOString()`.
+
 ### Database
 
 - All schema changes go through Drizzle Kit migrations. Never modify the DB manually.
@@ -87,6 +95,16 @@ Documentation and unit tests are part of the deliverable (read the relevant sect
 - Test the contract: given these inputs, expect these outputs/side effects. Don't test implementation details.
 - API routes: test via integration tests that hit the route handlers with real requests.
 - MCP tools: test via their service layer calls (tools are thin wrappers, so testing services covers the logic).
+- **Regression tests:** When fixing a bug, optionally write a test that reproduces the bug first (or alongside the fix). The test should fail without the fix and pass with it.
+
+### E2E Testing & Debugging
+
+You can run `npm run dev` to start the dev server, then use the **Pinch MCP tools** to perform end-to-end testing against the running app (create transactions, check budgets, verify portfolio reports, etc.). This is the primary way to validate features and debug issues beyond unit tests.
+
+- Start the server: `npm run dev`
+- Use Pinch MCP tools to interact with the app (create data, query reports, verify behavior)
+- Add temporary logging (`financialLogger.debug`, etc.) to trace issues — read the server output to see logs. It refreshes automatically when in `dev` mode.
+- Clean up debug logging before committing - but only if you think the debug log message is unlikely to be needed again.
 
 ## Style & Conventions
 

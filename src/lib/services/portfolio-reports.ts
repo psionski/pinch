@@ -1,3 +1,4 @@
+import { isoToday, offsetDate, daysBetween } from "@/lib/date-ranges";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
@@ -491,22 +492,6 @@ export class PortfolioReportService {
 }
 
 // ─── Date Utilities ──────────────────────────────────────────────────────────
-
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function offsetDate(date: string, days: number): string {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function daysBetween(from: string, to: string): number {
-  const a = new Date(from + "T00:00:00Z");
-  const b = new Date(to + "T00:00:00Z");
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
-}
 
 function windowToDateRange(window: Window): { from: string; to: string } {
   const today = new Date();

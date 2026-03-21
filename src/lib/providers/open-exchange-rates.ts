@@ -1,4 +1,5 @@
 import type { PriceResult, FinancialDataProvider } from "./types";
+import { isoDateFromMs } from "@/lib/date-ranges";
 
 const BASE_URL = "https://openexchangerates.org/api";
 
@@ -36,7 +37,7 @@ export class OpenExchangeRatesProvider implements FinancialDataProvider {
     const baseRate = usdRates.get(symbol);
     if (baseRate === undefined) return [];
 
-    const rateDate = date ?? isoDate(data.timestamp * 1000);
+    const rateDate = date ?? isoDateFromMs(data.timestamp * 1000);
     const results: PriceResult[] = [];
 
     for (const [currency, usdRate] of usdRates) {
@@ -69,8 +70,4 @@ interface OerResponse {
   timestamp: number;
   base: string;
   rates: Record<string, number>;
-}
-
-function isoDate(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
 }

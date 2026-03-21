@@ -1,4 +1,5 @@
 import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
+import { isoToday } from "@/lib/date-ranges";
 
 const BASE_URL = "https://www.alphavantage.co/query";
 
@@ -13,7 +14,7 @@ export class AlphaVantageProvider implements FinancialDataProvider {
   constructor(private apiKey: string) {}
 
   async getPrice(symbol: string, currency = "USD", date?: string): Promise<PriceResult | null> {
-    if (date && date < today()) {
+    if (date && date < isoToday()) {
       return this.getHistoricalPrice(symbol, currency, date);
     }
     return this.getCurrentPrice(symbol, currency);
@@ -40,7 +41,7 @@ export class AlphaVantageProvider implements FinancialDataProvider {
       symbol,
       price,
       currency: currency.toUpperCase(),
-      date: today(),
+      date: isoToday(),
       provider: this.name,
     };
   }
@@ -129,8 +130,4 @@ interface AlphaVantageQuoteResponse {
 
 interface AlphaVantageDailyResponse {
   "Time Series (Daily)"?: Record<string, Record<string, string>>;
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { isoToday } from "@/lib/date-ranges";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,7 @@ export function BuySellDialog({
   onSubmit,
   loading,
 }: BuySellDialogProps): React.ReactElement {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [date, setDate] = useState(today);

@@ -57,14 +57,6 @@ describe("initCronJobs singleton guard", () => {
   });
 });
 
-describe("todayString", () => {
-  it("returns a YYYY-MM-DD string for the current UTC date", async () => {
-    const { todayString } = await import("@/lib/cron");
-    const result = todayString();
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
-});
-
 describe("runRecurringJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();

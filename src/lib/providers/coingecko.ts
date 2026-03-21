@@ -1,4 +1,5 @@
 import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
+import { isoToday } from "@/lib/date-ranges";
 
 const BASE_URL = "https://api.coingecko.com/api/v3";
 const PRO_URL = "https://pro-api.coingecko.com/api/v3";
@@ -20,7 +21,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
   async getPrice(symbol: string, currency = "eur", date?: string): Promise<PriceResult | null> {
     const vs = currency.toLowerCase();
 
-    if (date && date < today()) {
+    if (date && date < isoToday()) {
       return this.getHistoricalPrice(symbol, vs, date);
     }
 
@@ -44,7 +45,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
       symbol,
       price,
       currency: vs.toUpperCase(),
-      date: today(),
+      date: isoToday(),
       provider: this.name,
     };
   }
@@ -160,8 +161,4 @@ interface CoinGeckoSearchResponse {
 
 interface CoinGeckoRangeResponse {
   prices?: [number, number][]; // [timestamp_ms, price]
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }
