@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NetWorthPoint } from "@/lib/validators/portfolio-reports";
+import { Temporal } from "@js-temporal/polyfill";
 
 const chartConfig = {
   cash: {
@@ -34,12 +35,11 @@ function formatXAxisDate(dates: string[]): (date: string) => string {
   const multiYear = years.size > 1;
 
   return (date: string): string => {
-    const [year, month, day] = date.split("-");
-    const d = new Date(Number(year), Number(month) - 1, Number(day));
+    const d = Temporal.PlainDate.from(date);
     if (multiYear) {
-      return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      return d.toLocaleString("en-US", { month: "short", year: "2-digit" });
     }
-    return d.toLocaleDateString("en-US", { month: "short" });
+    return d.toLocaleString("en-US", { month: "short" });
   };
 }
 

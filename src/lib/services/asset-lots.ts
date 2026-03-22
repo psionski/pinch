@@ -4,6 +4,7 @@ import * as schema from "@/lib/db/schema";
 import { assets, assetLots, assetPrices, transactions } from "@/lib/db/schema";
 import type { BuyAssetInput, SellAssetInput, AssetLotResponse } from "@/lib/validators/assets";
 import type { TransactionResponse } from "@/lib/validators/transactions";
+import { utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -16,7 +17,7 @@ function parseLot(row: schema.AssetLot): AssetLotResponse {
     date: row.date,
     transactionId: row.transactionId,
     notes: row.notes,
-    createdAt: row.createdAt,
+    createdAt: utcToLocal(row.createdAt),
   };
 }
 
@@ -25,6 +26,8 @@ function parseTransaction(row: schema.Transaction): TransactionResponse {
     ...row,
     type: row.type as TransactionResponse["type"],
     tags: null,
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
   };
 }
 

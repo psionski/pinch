@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { getCurrentMonth } from "@/lib/date-ranges";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
@@ -269,7 +270,7 @@ export class ReportService {
     if (input.month) {
       const [y, m] = input.month.split("-").map(Number);
       dateFrom = `${input.month}-01`;
-      const lastDay = new Date(y, m, 0).getDate();
+      const lastDay = Temporal.PlainYearMonth.from({ year: y, month: m }).daysInMonth;
       dateTo = `${input.month}-${String(lastDay).padStart(2, "0")}`;
     } else {
       dateFrom = input.dateFrom!;

@@ -310,7 +310,7 @@ describe("AssetPriceService", () => {
 
     expect(price.pricePerUnit).toBe(8000000);
     expect(price.assetId).toBe(asset.id);
-    expect(price.recordedAt).toBe("2026-03-20T12:00:00Z");
+    expect(price.recordedAt).toBe("2026-03-20T12:00:00");
   });
 });
 

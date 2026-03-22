@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AssetHistoryResult } from "@/lib/validators/portfolio-reports";
+import { Temporal } from "@js-temporal/polyfill";
 
 const chartConfig = {
   value: {
@@ -35,9 +36,7 @@ interface ChartPoint {
 }
 
 function formatShortMonth(date: string): string {
-  const [year, month, day] = date.split("-");
-  const d = new Date(Number(year), Number(month) - 1, Number(day || 1));
-  return d.toLocaleDateString("en-US", { month: "short" });
+  return Temporal.PlainDate.from(date.slice(0, 10)).toLocaleString("en-US", { month: "short" });
 }
 
 function formatCurrency(cents: number, currency: string): string {
@@ -100,9 +99,9 @@ export function ValueChart({ data, currency }: ValueChartProps): React.ReactElem
                       return `${label}: ${formatCurrency((value as number) * 100, currency)}`;
                     }}
                     labelFormatter={(label) => {
-                      const [year, month, day] = (label as string).split("-");
-                      const d = new Date(Number(year), Number(month) - 1, Number(day || 1));
-                      return d.toLocaleDateString("en-US", {
+                      return Temporal.PlainDate.from(
+                        (label as string).slice(0, 10)
+                      ).toLocaleString("en-US", {
                         month: "long",
                         day: "numeric",
                         year: "numeric",

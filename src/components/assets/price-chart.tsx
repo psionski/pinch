@@ -8,6 +8,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Temporal } from "@js-temporal/polyfill";
 
 interface PricePoint {
   pricePerUnit: number;
@@ -27,8 +28,10 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return Temporal.PlainDate.from(dateStr.slice(0, 10)).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function PriceChart({ data, currency }: PriceChartProps): React.ReactElement {

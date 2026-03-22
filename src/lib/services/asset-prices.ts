@@ -3,6 +3,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { assets, assetPrices } from "@/lib/db/schema";
 import type { RecordPriceInput, AssetPriceResponse } from "@/lib/validators/assets";
+import { utcToLocal, localToUtc } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -11,7 +12,7 @@ function parsePrice(row: schema.AssetPrice): AssetPriceResponse {
     id: row.id,
     assetId: row.assetId,
     pricePerUnit: row.pricePerUnit,
-    recordedAt: row.recordedAt,
+    recordedAt: utcToLocal(row.recordedAt),
   };
 }
 
@@ -32,7 +33,7 @@ export class AssetPriceService {
       .values({
         assetId,
         pricePerUnit: input.pricePerUnit,
-        recordedAt: input.recordedAt ?? new Date().toISOString(),
+        recordedAt: input.recordedAt ? localToUtc(input.recordedAt) : new Date().toISOString(),
       })
       .returning()
       .all();

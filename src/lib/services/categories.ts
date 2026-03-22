@@ -10,8 +10,17 @@ import type {
   CategoryResponse,
   CategoryWithCountResponse,
 } from "@/lib/validators/categories";
+import { utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
+
+function parseCategory(row: schema.Category): CategoryResponse {
+  return {
+    ...row,
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
+  };
+}
 
 export interface MergeResult {
   merged: true;
@@ -35,7 +44,7 @@ export class CategoryService {
       })
       .returning()
       .all();
-    return row;
+    return parseCategory(row);
   }
 
   /** Returns all categories with transaction counts. Parent/child hierarchy is represented via `parentId`. */
@@ -57,14 +66,14 @@ export class CategoryService {
     }
 
     return allCategories.map((cat) => ({
-      ...cat,
+      ...parseCategory(cat),
       transactionCount: countMap.get(cat.id) ?? 0,
     }));
   }
 
   getById(id: number): CategoryResponse | null {
     const [row] = this.db.select().from(categories).where(eq(categories.id, id)).all();
-    return row ?? null;
+    return row ? parseCategory(row) : null;
   }
 
   update(id: number, input: UpdateCategoryInput): CategoryResponse | null {
@@ -81,7 +90,7 @@ export class CategoryService {
       .returning()
       .all();
 
-    return rows.length > 0 ? rows[0] : null;
+    return rows.length > 0 ? parseCategory(rows[0]) : null;
   }
 
   delete(id: number): boolean {

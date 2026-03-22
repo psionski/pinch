@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Temporal } from "@js-temporal/polyfill";
 import { ChevronLeft, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BudgetTable } from "./budget-table";
@@ -28,10 +29,9 @@ function shiftMonth(month: string, delta: number): string {
 }
 
 function formatMonthLabel(month: string): string {
-  const [year, m] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat("default", { month: "long", year: "numeric" }).format(
-    new Date(year, m - 1)
-  );
+  return Temporal.PlainYearMonth.from(month)
+    .toPlainDate({ day: 1 })
+    .toLocaleString("default", { month: "long", year: "numeric" });
 }
 
 export function BudgetsClient({

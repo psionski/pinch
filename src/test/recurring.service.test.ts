@@ -58,61 +58,61 @@ describe("computeNextOccurrence", () => {
 
   it("returns null when inactive", () => {
     const r = makeRow({ isActive: 0 });
-    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBeNull();
+    expect(computeNextOccurrence(r, "2026-03-01")).toBeNull();
   });
 
   it("returns null when endDate is in the past", () => {
     const r = makeRow({ endDate: "2026-02-01" });
-    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBeNull();
+    expect(computeNextOccurrence(r, "2026-03-01")).toBeNull();
   });
 
   it("monthly: returns next occurrence on the same day of month", () => {
     const r = makeRow({ startDate: "2026-01-15", frequency: "monthly" });
-    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBe("2026-03-15");
+    expect(computeNextOccurrence(r, "2026-03-01")).toBe("2026-03-15");
   });
 
   it("monthly: uses dayOfMonth when specified", () => {
     const r = makeRow({ startDate: "2026-01-01", frequency: "monthly", dayOfMonth: 20 });
-    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBe("2026-03-20");
+    expect(computeNextOccurrence(r, "2026-03-01")).toBe("2026-03-20");
   });
 
   it("monthly: advances to next month when current day has passed", () => {
     const r = makeRow({ startDate: "2026-01-05", frequency: "monthly" });
-    expect(computeNextOccurrence(r, new Date("2026-03-10"))).toBe("2026-04-05");
+    expect(computeNextOccurrence(r, "2026-03-10")).toBe("2026-04-05");
   });
 
   it("weekly: returns correct day of week", () => {
     // dayOfWeek 1 = Monday
     const r = makeRow({ startDate: "2026-01-01", frequency: "weekly", dayOfWeek: 1 });
     // 2026-03-16 is a Monday
-    const result = computeNextOccurrence(r, new Date("2026-03-15"));
+    const result = computeNextOccurrence(r, "2026-03-15");
     expect(result).toBe("2026-03-16");
   });
 
   it("daily: returns next day", () => {
     const r = makeRow({ startDate: "2026-01-01", frequency: "daily" });
-    expect(computeNextOccurrence(r, new Date("2026-03-15"))).toBe("2026-03-16");
+    expect(computeNextOccurrence(r, "2026-03-15")).toBe("2026-03-16");
   });
 
   it("yearly: returns same month/day next year when past", () => {
     const r = makeRow({ startDate: "2026-01-10", frequency: "yearly" });
-    expect(computeNextOccurrence(r, new Date("2026-01-11"))).toBe("2027-01-10");
+    expect(computeNextOccurrence(r, "2026-01-11")).toBe("2027-01-10");
   });
 
   it("yearly: returns this year's occurrence when not yet passed", () => {
     const r = makeRow({ startDate: "2026-06-15", frequency: "yearly" });
-    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBe("2026-06-15");
+    expect(computeNextOccurrence(r, "2026-03-01")).toBe("2026-06-15");
   });
 
   it("returns null for unknown frequency", () => {
     const r = makeRow({ frequency: "biweekly" as "monthly" });
-    expect(computeNextOccurrence(r, new Date("2026-03-01"))).toBeNull();
+    expect(computeNextOccurrence(r, "2026-03-01")).toBeNull();
   });
 
   it("monthly: handles cursor before startDate", () => {
     const r = makeRow({ startDate: "2026-06-15", frequency: "monthly" });
     // cursor is before startDate — first occurrence should be the startDate itself
-    expect(computeNextOccurrence(r, new Date("2026-01-01"))).toBe("2026-06-15");
+    expect(computeNextOccurrence(r, "2026-01-01")).toBe("2026-06-15");
   });
 });
 

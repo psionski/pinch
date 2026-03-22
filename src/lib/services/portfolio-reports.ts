@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import {
   isoToday,
   offsetDate,
@@ -382,7 +383,7 @@ export class PortfolioReportService {
   getTransferSummary(month: string): TransferSummaryItem[] {
     const dateFrom = `${month}-01`;
     const [y, m] = month.split("-").map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
+    const lastDay = Temporal.PlainYearMonth.from({ year: y, month: m }).daysInMonth;
     const dateTo = `${month}-${String(lastDay).padStart(2, "0")}`;
 
     const rows = this.db

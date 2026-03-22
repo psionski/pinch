@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { MonthPicker } from "@/components/ui/month-picker";
+import { Temporal } from "@js-temporal/polyfill";
 import {
   DEFAULT_PRESET,
   PRESET_LABELS,
@@ -34,7 +35,7 @@ export function DateRangeFilter({ onChange }: DateRangeFilterProps): React.React
   function handleCustomChange(from: string, to: string): void {
     if (from && to && from <= to) {
       const [toYear, toMonth] = to.split("-").map(Number);
-      const lastDay = new Date(toYear, toMonth, 0).getDate();
+      const lastDay = Temporal.PlainYearMonth.from({ year: toYear, month: toMonth }).daysInMonth;
       onChange(
         computeCompareRange({
           dateFrom: `${from}-01`,

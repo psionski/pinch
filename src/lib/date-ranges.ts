@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import type { Window, Interval } from "@/lib/validators/portfolio-reports";
 
 // ─── Timezone ─────────────────────────────────────────────────────────────────
@@ -19,11 +20,50 @@ export function clearTimezoneCache(): void {
   _tz = undefined;
 }
 
+// ─── Timestamp Conversion ────────────────────────────────────────────────────
+
+/**
+ * Normalize a UTC timestamp string to something Temporal.Instant can parse.
+ * Handles SQLite format ("YYYY-MM-DD HH:MM:SS") and strings missing a Z suffix.
+ */
+function normalizeUtc(utcStr: string): string {
+  let s = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T");
+  if (!/[Zz]$|[+-]\d{2}(:\d{2})?$/.test(s)) s += "Z";
+  return s;
+}
+
+/**
+ * Convert a UTC timestamp string to a local-time ISO string in the user's timezone.
+ * Handles both SQLite format ("YYYY-MM-DD HH:MM:SS") and JS ISO format ("YYYY-MM-DDTHH:MM:SS.mmmZ").
+ * Returns "YYYY-MM-DDTHH:MM:SS" in the configured timezone.
+ */
+export function utcToLocal(utcStr: string): string {
+  return Temporal.Instant.from(normalizeUtc(utcStr))
+    .toZonedDateTimeISO(tz())
+    .toPlainDateTime()
+    .toString({ smallestUnit: "second" });
+}
+
+/**
+ * Convert a local-time timestamp to a UTC ISO string for storage.
+ * If the input already has timezone info (Z or ±HH:MM), it's parsed directly.
+ * Otherwise it's interpreted as local time in the user's configured timezone.
+ */
+export function localToUtc(localStr: string): string {
+  if (/[Zz]$|[+-]\d{2}(:\d{2})?$/.test(localStr)) {
+    return Temporal.Instant.from(localStr).toString();
+  }
+  return Temporal.PlainDateTime.from(localStr)
+    .toZonedDateTime(tz())
+    .toInstant()
+    .toString();
+}
+
 // ─── Today / Current Month ────────────────────────────────────────────────────
 
 /** Today's date as YYYY-MM-DD in the user's configured timezone. */
 export function isoToday(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: tz() });
+  return Temporal.Now.plainDateISO(tz()).toString();
 }
 
 export interface DateRange {
@@ -52,22 +92,9 @@ export const PRESET_LABELS: Record<Preset, string> = {
   custom: "Custom",
 };
 
-function toIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-/** Parse YYYY-MM-DD without timezone issues (avoids UTC parsing of Date constructor). */
-function parseIsoDate(s: string): { year: number; month: number } {
-  const [y, m] = s.split("-").map(Number);
-  return { year: y, month: m - 1 }; // month is 0-indexed like Date
-}
-
 /** Returns the current month as YYYY-MM in the user's configured timezone. */
 export function getCurrentMonth(): string {
-  return isoToday().slice(0, 7);
+  return Temporal.Now.plainDateISO(tz()).toPlainYearMonth().toString();
 }
 
 export interface MonthInfo {
@@ -79,12 +106,11 @@ export interface MonthInfo {
 
 /** Returns the current month string, start/end dates, and a human-readable label. */
 export function getCurrentMonthInfo(): MonthInfo {
-  const currentMonth = getCurrentMonth();
-  const [year, month] = currentMonth.split("-").map(Number);
-  const monthStart = `${currentMonth}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
-  const monthLabel = new Date(year, month - 1).toLocaleString("en", {
+  const ym = Temporal.Now.plainDateISO(tz()).toPlainYearMonth();
+  const currentMonth = ym.toString();
+  const monthStart = ym.toPlainDate({ day: 1 }).toString();
+  const monthEnd = ym.toPlainDate({ day: ym.daysInMonth }).toString();
+  const monthLabel = new Date(ym.year, ym.month - 1).toLocaleString("en", {
     month: "long",
     year: "numeric",
   });
@@ -96,74 +122,69 @@ export function getPreviousMonthRange(currentMonth: string): {
   prevMonthStart: string;
   prevMonthEnd: string;
 } {
-  const [year, month] = currentMonth.split("-").map(Number);
-  const prevDate = new Date(year, month - 2, 1);
-  const prevYear = prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth() + 1;
-  const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
-  const prevMonthStart = `${prevMonthStr}-01`;
-  const prevLastDay = new Date(prevYear, prevMonth, 0).getDate();
-  const prevMonthEnd = `${prevMonthStr}-${String(prevLastDay).padStart(2, "0")}`;
-  return { prevMonthStart, prevMonthEnd };
+  const ym = Temporal.PlainYearMonth.from(currentMonth).subtract({ months: 1 });
+  return {
+    prevMonthStart: ym.toPlainDate({ day: 1 }).toString(),
+    prevMonthEnd: ym.toPlainDate({ day: ym.daysInMonth }).toString(),
+  };
 }
 
 export function computePresetRange(preset: Exclude<Preset, "custom">): DateRange {
-  const [year, m] = getCurrentMonth().split("-").map(Number);
-  const month = m - 1; // 0-indexed for Date math
+  const ym = Temporal.Now.plainDateISO(tz()).toPlainYearMonth();
+
+  if (preset === "last-month") {
+    const prev = ym.subtract({ months: 1 });
+    return {
+      dateFrom: prev.toPlainDate({ day: 1 }).toString(),
+      dateTo: prev.toPlainDate({ day: prev.daysInMonth }).toString(),
+    };
+  }
+
+  const dateTo = ym.toPlainDate({ day: ym.daysInMonth }).toString();
+  let startYm: Temporal.PlainYearMonth;
 
   switch (preset) {
-    case "this-month": {
-      const start = new Date(year, month, 1);
-      const end = new Date(year, month + 1, 0);
-      return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
-    }
-    case "last-month": {
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0);
-      return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
-    }
-    case "3m": {
-      const start = new Date(year, month - 2, 1);
-      const end = new Date(year, month + 1, 0);
-      return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
-    }
-    case "6m": {
-      const start = new Date(year, month - 5, 1);
-      const end = new Date(year, month + 1, 0);
-      return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
-    }
-    case "12m": {
-      const start = new Date(year, month - 11, 1);
-      const end = new Date(year, month + 1, 0);
-      return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
-    }
-    case "ytd": {
-      const start = new Date(year, 0, 1);
-      const end = new Date(year, month + 1, 0);
-      return { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) };
-    }
+    case "this-month":
+      startYm = ym;
+      break;
+    case "3m":
+      startYm = ym.subtract({ months: 2 });
+      break;
+    case "6m":
+      startYm = ym.subtract({ months: 5 });
+      break;
+    case "12m":
+      startYm = ym.subtract({ months: 11 });
+      break;
+    case "ytd":
+      startYm = Temporal.PlainYearMonth.from({ year: ym.year, month: 1 });
+      break;
   }
+
+  return { dateFrom: startYm.toPlainDate({ day: 1 }).toString(), dateTo };
 }
 
 // ─── Shared Date Utilities ────────────────────────────────────────────────────
 
-/** Offset a YYYY-MM-DD date string by a number of days. Returns YYYY-MM-DD (UTC). */
+/** Offset a YYYY-MM-DD date string by a number of days. */
 export function offsetDate(date: string, days: number): string {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  const d = Temporal.PlainDate.from(date);
+  return (days >= 0 ? d.add({ days }) : d.subtract({ days: -days })).toString();
 }
 
 /** Number of days between two YYYY-MM-DD dates (to - from). Same date returns 0. */
 export function daysBetween(from: string, to: string): number {
-  const a = new Date(from + "T00:00:00Z");
-  const b = new Date(to + "T00:00:00Z");
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
+  return Temporal.PlainDate.from(from)
+    .until(Temporal.PlainDate.from(to), { largestUnit: "days" })
+    .total("days");
 }
 
 /** Convert a Unix timestamp (milliseconds) to YYYY-MM-DD in UTC. */
 export function isoDateFromMs(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+  return Temporal.Instant.fromEpochMilliseconds(ms)
+    .toZonedDateTimeISO("UTC")
+    .toPlainDate()
+    .toString();
 }
 
 // ─── Portfolio Date Utilities ─────────────────────────────────────────────────
@@ -171,37 +192,29 @@ export function isoDateFromMs(ms: number): string {
 /** Convert a portfolio window preset to a concrete date range. */
 export function windowToDateRange(window: Window): { from: string; to: string } {
   const to = isoToday();
-  const year = Number(to.slice(0, 4));
 
-  if (window === "all") {
-    return { from: "2000-01-01", to };
-  }
-
-  if (window === "ytd") {
-    return { from: `${year}-01-01`, to };
-  }
+  if (window === "all") return { from: "2000-01-01", to };
+  if (window === "ytd") return { from: `${to.slice(0, 4)}-01-01`, to };
 
   const months = window === "3m" ? 3 : window === "6m" ? 6 : 12;
-  const fromDate = new Date(to + "T00:00:00Z");
-  fromDate.setUTCMonth(fromDate.getUTCMonth() - months);
-  return { from: fromDate.toISOString().slice(0, 10), to };
+  return { from: Temporal.PlainDate.from(to).subtract({ months }).toString(), to };
 }
 
 /** Generate evenly-spaced date points between two dates at the given interval. */
 export function generateDatePoints(from: string, to: string, interval: Interval): string[] {
   const points: string[] = [];
-  const current = new Date(from + "T00:00:00Z");
-  const end = new Date(to + "T00:00:00Z");
+  let current = Temporal.PlainDate.from(from);
+  const end = Temporal.PlainDate.from(to);
 
-  while (current <= end) {
-    points.push(current.toISOString().slice(0, 10));
+  while (Temporal.PlainDate.compare(current, end) <= 0) {
+    points.push(current.toString());
 
     if (interval === "daily") {
-      current.setUTCDate(current.getUTCDate() + 1);
+      current = current.add({ days: 1 });
     } else if (interval === "weekly") {
-      current.setUTCDate(current.getUTCDate() + 7);
+      current = current.add({ weeks: 1 });
     } else {
-      current.setUTCMonth(current.getUTCMonth() + 1);
+      current = current.add({ months: 1 });
     }
   }
 
@@ -217,20 +230,20 @@ export function generateDatePoints(from: string, to: string, interval: Interval)
 
 /** Compute the previous period of the same length (month-aligned) for comparison. */
 export function computeCompareRange(range: DateRange): ComputedRange {
-  const from = parseIsoDate(range.dateFrom);
-  const to = parseIsoDate(range.dateTo);
+  const from = Temporal.PlainYearMonth.from(range.dateFrom.slice(0, 7));
+  const to = Temporal.PlainYearMonth.from(range.dateTo.slice(0, 7));
 
   // Count months in range (first-of-month to last-of-month)
   const months = Math.max(1, (to.year - from.year) * 12 + (to.month - from.month) + 1);
 
   // Previous period: shift back by that many months, aligned to month boundaries
-  const compareStart = new Date(from.year, from.month - months, 1);
-  const compareEnd = new Date(from.year, from.month, 0); // last day before dateFrom's month
+  const compareStartYm = from.subtract({ months });
+  const compareEndYm = from.subtract({ months: 1 });
 
   return {
     ...range,
-    compareDateFrom: toIsoDate(compareStart),
-    compareDateTo: toIsoDate(compareEnd),
+    compareDateFrom: compareStartYm.toPlainDate({ day: 1 }).toString(),
+    compareDateTo: compareEndYm.toPlainDate({ day: compareEndYm.daysInMonth }).toString(),
     months,
   };
 }

@@ -9,6 +9,7 @@ import type {
   AssetWithMetrics,
 } from "@/lib/validators/assets";
 import { resolvePrice } from "./price-resolver";
+import { utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -22,8 +23,8 @@ function parseAsset(row: schema.Asset): AssetResponse {
     icon: row.icon,
     color: row.color,
     notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
   };
 }
 

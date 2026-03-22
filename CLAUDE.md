@@ -52,19 +52,23 @@ The app has a single **user-configured timezone** stored in the `settings` table
 - Timestamps (`createdAt`, `updatedAt`, `recordedAt`) are stored as ISO 8601 UTC (e.g. `2026-03-21T14:30:00.000Z`). SQLite `datetime('now')` defaults produce UTC.
 
 **Boundaries — convert at the edges:**
-- **Input:** When computing "today" or "current month", use `isoToday()` / `getCurrentMonth()` from `src/lib/date-ranges.ts` — these use the app timezone internally. Never use `new Date()` to determine the current calendar date.
-- **Output:** Calendar dates (`YYYY-MM-DD`) are already civil dates and need no conversion. Timestamps should be displayed in the user's timezone where relevant.
+- **Input:** When computing "today" or "current month", use `isoToday()` / `getCurrentMonth()` from `src/lib/date-ranges.ts` — these use the app timezone internally. When accepting timestamps from API/MCP input, use `localToUtc()` to convert to UTC before storage.
+- **Output:** Calendar dates (`YYYY-MM-DD`) are already civil dates and need no conversion. Timestamps are converted from UTC to local time via `utcToLocal()` in service parse functions, so all API/MCP consumers receive timestamps in the user's timezone.
+
+**Temporal API** — all date/time code uses `@js-temporal/polyfill` (TC39 Stage 4 polyfill). Do **not** use the legacy `Date` object for date math, formatting, or timezone conversion. Use the appropriate Temporal type:
+- `Temporal.PlainDate` — calendar dates (`YYYY-MM-DD`): parsing, arithmetic, comparisons, formatting.
+- `Temporal.PlainYearMonth` — month-level operations: `daysInMonth`, month arithmetic, formatting.
+- `Temporal.Instant` — exact moments in time (UTC): timestamp conversion, epoch math.
+- `Temporal.ZonedDateTime` — intermediate type for UTC↔local conversion (via `toZonedDateTimeISO(tz)` / `toZonedDateTime(tz)`).
+- `Temporal.Now` — current time: `Temporal.Now.plainDateISO(tz)` for today's date, `Temporal.Now.instant()` for current UTC instant.
+- Legacy `Date` is acceptable only for epoch-millisecond arithmetic (e.g. cache TTL via `Date.now()`) where Temporal adds no value.
 
 **Date utilities** (`src/lib/date-ranges.ts`):
+- `utcToLocal()`, `localToUtc()` — timestamp conversion between UTC storage and user's timezone.
 - `isoToday()`, `getCurrentMonth()`, `getCurrentMonthInfo()`, `computePresetRange()`, `windowToDateRange()` — all timezone-aware via cached setting.
 - `offsetDate()`, `daysBetween()`, `generateDatePoints()`, `computeCompareRange()` — pure date math on `YYYY-MM-DD` strings, timezone-agnostic.
 - `clearTimezoneCache()` — call after changing the timezone setting.
 - Don't create local date helpers in other files. Use these shared utilities.
-
-**Pure calendar math** (shifting months, computing last day of month, day-of-week from a known date):
-- Prefer plain arithmetic over `Date` objects when possible (e.g. month shifting via `totalMonths = year * 12 + month + delta`).
-- When a `Date` object is needed for calendar math on a known `YYYY-MM-DD` string, `new Date(year, month, day)` is fine — the timezone doesn't affect the result because the inputs are explicit, not derived from "now".
-- Don't sprinkle `Date.UTC` / `getUTC*` through code that isn't actually dealing with UTC timestamps.
 
 **Settings infrastructure:**
 - `SettingsService.getTimezone()` returns `string | null` (`null` = not configured).

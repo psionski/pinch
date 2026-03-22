@@ -26,7 +26,7 @@ import type {
   TransactionResponse,
 } from "@/lib/validators/transactions";
 import type { PaginatedResponse } from "@/lib/validators/common";
-import { isoToday } from "@/lib/date-ranges";
+import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -46,6 +46,8 @@ function parseTransaction(row: Transaction): TransactionResponse {
     ...row,
     type: row.type as "income" | "expense" | "transfer",
     tags: parseTags(row.tags),
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
   };
 }
 

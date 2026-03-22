@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 import { isoToday } from "@/lib/date-ranges";
 
@@ -88,8 +89,8 @@ export class CoinGeckoProvider implements FinancialDataProvider {
   ): Promise<PriceResult[]> {
     const vs = currency.toLowerCase();
     // CoinGecko /market_chart/range uses unix timestamps
-    const fromTs = Math.floor(new Date(from + "T00:00:00Z").getTime() / 1000);
-    const toTs = Math.floor(new Date(to + "T23:59:59Z").getTime() / 1000);
+    const fromTs = Math.floor(Temporal.Instant.from(from + "T00:00:00Z").epochMilliseconds / 1000);
+    const toTs = Math.floor(Temporal.Instant.from(to + "T23:59:59Z").epochMilliseconds / 1000);
 
     const url = new URL(`${this.baseUrl}/coins/${symbol}/market_chart/range`);
     url.searchParams.set("vs_currency", vs);
@@ -106,7 +107,7 @@ export class CoinGeckoProvider implements FinancialDataProvider {
     // CoinGecko returns [timestamp_ms, price] pairs — deduplicate to one per day
     const dayMap = new Map<string, number>();
     for (const [ts, price] of data.prices) {
-      const dateStr = new Date(ts).toISOString().slice(0, 10);
+      const dateStr = Temporal.Instant.fromEpochMilliseconds(ts).toString().slice(0, 10);
       dayMap.set(dateStr, price); // last value wins (intraday → closing)
     }
 

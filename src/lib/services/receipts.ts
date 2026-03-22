@@ -12,7 +12,7 @@ import type {
 } from "@/lib/validators/receipts";
 import type { PaginatedResponse } from "@/lib/validators/common";
 import { sql } from "drizzle-orm";
-import { isoToday } from "@/lib/date-ranges";
+import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -36,7 +36,7 @@ function toResponse(row: schema.Receipt): ReceiptResponse {
     total: row.total,
     imageUrl: row.imagePath ? `${BASE_URL}/api/receipts/${row.id}/image` : null,
     rawText: row.rawText,
-    createdAt: row.createdAt,
+    createdAt: utcToLocal(row.createdAt),
   };
 }
 
