@@ -154,6 +154,13 @@ export class AssetLotService {
   }
 
   listLots(assetId: number): AssetLotResponse[] {
+    const asset = this.db
+      .select({ id: assets.id })
+      .from(assets)
+      .where(eq(assets.id, assetId))
+      .get();
+    if (!asset) throw new Error(`Asset ${assetId} not found`);
+
     return this.db
       .select()
       .from(assetLots)

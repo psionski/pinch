@@ -4,8 +4,9 @@ import { makeTestDb } from "./helpers";
 import { AssetService } from "@/lib/services/assets";
 import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";
-import { resolvePrice, resolveLatestPrice } from "@/lib/services/price-resolver";
+import { resolvePrice } from "@/lib/services/price-resolver";
 import { marketPrices } from "@/lib/db/schema";
+import { isoToday } from "@/lib/date-ranges";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type * as schema from "@/lib/db/schema";
 
@@ -227,18 +228,20 @@ describe("resolvePrice", () => {
   });
 });
 
-describe("resolveLatestPrice", () => {
+describe("resolvePrice (no date — defaults to today)", () => {
   it("returns latest user price when available", () => {
+    const today = isoToday();
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
     priceService.record(asset.id, { pricePerUnit: 30000, recordedAt: "2026-01-01T00:00:00Z" });
-    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: `${today}T00:00:00Z` });
 
-    const result = resolveLatestPrice(db, asset);
+    const result = resolvePrice(db, asset);
     expect(result!.price).toBe(35000);
     expect(result!.source).toBe("user");
   });
 
   it("returns market price for asset with symbolMap and no user prices", () => {
+    const today = isoToday();
     const asset = assetService.create({
       name: "Bitcoin",
       type: "crypto",
@@ -251,18 +254,19 @@ describe("resolveLatestPrice", () => {
         symbol: "bitcoin",
         price: "85000",
         currency: "EUR",
-        date: "2026-03-20",
+        date: today,
         provider: "coingecko",
       })
       .run();
 
-    const result = resolveLatestPrice(db, asset);
+    const result = resolvePrice(db, asset);
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
     expect(result!.price).toBe(8500000);
   });
 
   it("returns exchange rate for foreign currency deposit", () => {
+    const today = isoToday();
     const asset = assetService.create({
       name: "GBP Savings",
       type: "deposit",
@@ -275,12 +279,12 @@ describe("resolveLatestPrice", () => {
         symbol: "GBP",
         currency: "EUR",
         price: "1.17",
-        date: "2026-03-20",
+        date: today,
         provider: "frankfurter",
       })
       .run();
 
-    const result = resolveLatestPrice(db, asset);
+    const result = resolvePrice(db, asset);
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
     expect(result!.price).toBe(117); // 1.17 * 100
@@ -288,14 +292,14 @@ describe("resolveLatestPrice", () => {
 
   it("returns deposit fallback for EUR deposits", () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    const result = resolveLatestPrice(db, asset);
+    const result = resolvePrice(db, asset);
     expect(result!.price).toBe(100);
     expect(result!.source).toBe("deposit");
   });
 
   it("returns null for foreign currency deposit without symbolMap", () => {
     const asset = assetService.create({ name: "USD Fund", type: "deposit", currency: "USD" });
-    const result = resolveLatestPrice(db, asset);
+    const result = resolvePrice(db, asset);
     expect(result).toBeNull();
   });
 });

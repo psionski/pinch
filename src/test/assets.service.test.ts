@@ -6,6 +6,7 @@ import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";
 import { PortfolioService } from "@/lib/services/portfolio";
 import { TransactionService } from "@/lib/services/transactions";
+import { isoToday } from "@/lib/date-ranges";
 
 let assetService: AssetService;
 let lotService: AssetLotService;
@@ -88,9 +89,10 @@ describe("AssetService", () => {
   });
 
   it("computes correct metrics with price snapshot", () => {
+    const today = isoToday();
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-01-01" });
-    priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T10:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: `${today}T10:00:00Z` });
 
     const retrieved = assetService.getById(asset.id);
     expect(retrieved?.currentHoldings).toBe(10);
@@ -228,6 +230,16 @@ describe("AssetLotService", () => {
 
   // ── Regression: average-cost basis after partial sell ───────────────────────
 
+  it("currentHoldings is free of IEEE 754 float noise", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 0.003, pricePerUnit: 8000000, date: "2026-01-01" });
+    lotService.buy(asset.id, { quantity: 0.003, pricePerUnit: 8100000, date: "2026-02-01" });
+    lotService.buy(asset.id, { quantity: 0.003, pricePerUnit: 8200000, date: "2026-03-01" });
+
+    const retrieved = assetService.getById(asset.id);
+    expect(retrieved?.currentHoldings).toBe(0.009);
+  });
+
   it("costBasis (FIFO): partial sell consumes oldest lot first", () => {
     const asset = assetService.create({ name: "VWCE", type: "investment", currency: "EUR" });
     // Buy 5 at €102.50
@@ -264,6 +276,10 @@ describe("AssetLotService", () => {
     expect(retrieved?.costBasis).toBe(2000); // only the new €20 lot remains
   });
 
+  it("listLots throws for non-existent asset", () => {
+    expect(() => lotService.listLots(999)).toThrow("not found");
+  });
+
   it("listLots returns lots ordered by date descending", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 1, pricePerUnit: 10000, date: "2026-01-01" });
@@ -279,6 +295,12 @@ describe("AssetLotService", () => {
 // ─── AssetPriceService ────────────────────────────────────────────────────────
 
 describe("AssetPriceService", () => {
+  it("record throws for non-existent asset", () => {
+    expect(() =>
+      priceService.record(999, { pricePerUnit: 100, recordedAt: "2026-03-20T12:00:00Z" })
+    ).toThrow("not found");
+  });
+
   it("records a user price override", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
     const price = priceService.record(asset.id, {
@@ -325,7 +347,7 @@ describe("PortfolioService", () => {
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
     // Buy 10 SPX @ €345.63 = €3,456.30 total
     lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-03-01" });
-    priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: "2026-03-20T10:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 36000, recordedAt: `${isoToday()}T10:00:00Z` });
 
     const portfolio = portfolioService.getPortfolio();
     // cashBalance = income − purchases = 500000 − 345630 = 154370
@@ -341,7 +363,7 @@ describe("PortfolioService", () => {
 
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 10, pricePerUnit: 34563, date: "2026-03-01" });
-    priceService.record(asset.id, { pricePerUnit: 34563, recordedAt: "2026-03-20T10:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 34563, recordedAt: `${isoToday()}T10:00:00Z` });
 
     const before = portfolioService.getPortfolio();
 
@@ -359,7 +381,7 @@ describe("PortfolioService", () => {
   it("allocation percentages sum to 100 for a single asset", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 1, pricePerUnit: 8000000, date: "2026-03-01" });
-    priceService.record(asset.id, { pricePerUnit: 9000000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 9000000, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const portfolio = portfolioService.getPortfolio();
     expect(portfolio.allocation).toHaveLength(1);

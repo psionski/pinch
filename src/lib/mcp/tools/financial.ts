@@ -11,6 +11,15 @@ function notFound(msg: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
 }
 
+async function unconfiguredProviderHint(
+  svc: ReturnType<typeof getFinancialDataService>
+): Promise<string | null> {
+  const statuses = await svc.getProviderStatus();
+  const missing = statuses.filter((s) => s.apiKeyRequired && !s.apiKeySet).map((s) => s.name);
+  if (missing.length === 0) return null;
+  return `Providers [${missing.join(", ")}] are not configured — use set_api_key to add API keys if this symbol requires them.`;
+}
+
 export function registerFinancialTools(server: McpServer): void {
   server.registerTool(
     "convert_currency",
@@ -48,12 +57,13 @@ export function registerFinancialTools(server: McpServer): void {
       inputSchema: GetPriceSchema,
     },
     async (input) => {
-      const result = await getFinancialDataService().getPrice(
-        input.symbol,
-        input.currency,
-        input.date
-      );
-      if (!result) return notFound(`No price available for ${input.symbol}/${input.currency}`);
+      const svc = getFinancialDataService();
+      const result = await svc.getPrice(input.symbol, input.currency, input.date);
+      if (!result) {
+        const msg = `No price available for ${input.symbol}/${input.currency}`;
+        const hint = await unconfiguredProviderHint(svc);
+        return notFound(hint ? `${msg}. ${hint}` : msg);
+      }
       return ok(result);
     }
   );
@@ -88,8 +98,13 @@ export function registerFinancialTools(server: McpServer): void {
       }),
     },
     async (input) => {
-      const results = await getFinancialDataService().searchSymbol(input.query);
-      if (results.length === 0) return notFound(`No symbols found for "${input.query}"`);
+      const svc = getFinancialDataService();
+      const results = await svc.searchSymbol(input.query);
+      if (results.length === 0) {
+        const msg = `No symbols found for "${input.query}"`;
+        const hint = await unconfiguredProviderHint(svc);
+        return notFound(hint ? `${msg}. ${hint}` : msg);
+      }
       return ok(results);
     }
   );

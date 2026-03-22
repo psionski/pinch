@@ -62,7 +62,9 @@ export function registerPortfolioReportTools(server: McpServer): void {
     {
       description:
         "Net worth breakdown by currency. Shows how much of your portfolio is in each currency " +
-        "with absolute values and percentages.",
+        "with absolute values and percentages. " +
+        "Note: exposure is based on each asset's denomination currency, not the underlying holdings. " +
+        "A global ETF denominated in EUR will show as EUR exposure.",
       inputSchema: z.object({}),
     },
     () => ok(getPortfolioReportService().getCurrencyExposure())

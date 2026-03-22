@@ -30,7 +30,7 @@ export function getHoldingsAtDate(db: Db, assetId: number, date: string): number
     .from(assetLots)
     .where(and(eq(assetLots.assetId, assetId), lte(assetLots.date, date)))
     .all();
-  return row?.total ?? 0;
+  return parseFloat((row?.total ?? 0).toFixed(8));
 }
 
 /** FIFO queue entry. */

@@ -211,7 +211,7 @@ export const assetLots = sqliteTable(
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
     quantity: real("quantity").notNull(), // positive = buy/deposit, negative = sell/withdraw
-    pricePerUnit: integer("price_per_unit").notNull(), // cents, in asset's currency
+    pricePerUnit: integer("price_per_unit").notNull(), // EUR cents (cost per unit in base currency)
     date: text("date").notNull(), // ISO 8601 date
     transactionId: integer("transaction_id").references(() => transactions.id, {
       onDelete: "set null",
@@ -237,7 +237,7 @@ export const assetPrices = sqliteTable(
     assetId: integer("asset_id")
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
-    pricePerUnit: integer("price_per_unit").notNull(), // cents, in asset's currency
+    pricePerUnit: integer("price_per_unit").notNull(), // EUR cents (cost per unit in base currency)
     recordedAt: text("recorded_at").notNull(), // ISO 8601 datetime
   },
   (table) => [

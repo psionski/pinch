@@ -7,6 +7,7 @@ import { AssetPriceService } from "@/lib/services/asset-prices";
 import { PortfolioReportService } from "@/lib/services/portfolio-reports";
 import { TransactionService } from "@/lib/services/transactions";
 import { ReportService } from "@/lib/services/reports";
+import { isoToday } from "@/lib/date-ranges";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 
@@ -39,7 +40,7 @@ describe("getAssetPerformance", () => {
   it("computes performance for a single asset with buy and price snapshot", () => {
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 10, pricePerUnit: 30000, date: "2026-01-15" });
-    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: "2026-03-20T10:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: `${isoToday()}T10:00:00Z` });
 
     const result = reportService.getAssetPerformance();
     expect(result).toHaveLength(1);
@@ -56,11 +57,11 @@ describe("getAssetPerformance", () => {
   it("sorts by P&L descending", () => {
     const a1 = assetService.create({ name: "Winner", type: "crypto", currency: "EUR" });
     lotService.buy(a1.id, { quantity: 1, pricePerUnit: 10000, date: "2026-01-01" });
-    priceService.record(a1.id, { pricePerUnit: 20000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(a1.id, { pricePerUnit: 20000, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const a2 = assetService.create({ name: "Loser", type: "crypto", currency: "EUR" });
     lotService.buy(a2.id, { quantity: 1, pricePerUnit: 20000, date: "2026-01-01" });
-    priceService.record(a2.id, { pricePerUnit: 15000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(a2.id, { pricePerUnit: 15000, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAssetPerformance();
     expect(result[0].name).toBe("Winner");
@@ -83,7 +84,7 @@ describe("getAllocation", () => {
 
     const a2 = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
     lotService.buy(a2.id, { quantity: 1, pricePerUnit: 10000, date: "2026-01-01" });
-    priceService.record(a2.id, { pricePerUnit: 10000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(a2.id, { pricePerUnit: 10000, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAllocation();
     expect(result.byAsset).toHaveLength(2);
@@ -186,7 +187,7 @@ describe("getAssetHistory", () => {
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 5, pricePerUnit: 30000, date: "2026-01-15" });
     lotService.buy(asset.id, { quantity: 3, pricePerUnit: 31000, date: "2026-02-15" });
-    priceService.record(asset.id, { pricePerUnit: 32000, recordedAt: "2026-03-20T00:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 32000, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAssetHistory(asset.id, "all");
     expect(result).not.toBeNull();
@@ -195,6 +196,17 @@ describe("getAssetHistory", () => {
     expect(result!.lots[0].runningQuantity).toBe(5);
     expect(result!.lots[1].runningQuantity).toBe(8);
     expect(result!.timeline.length).toBeGreaterThan(0);
+  });
+
+  it("'all' window starts from earliest lot, not year 2000", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2025-06-15" });
+
+    const result = reportService.getAssetHistory(asset.id, "all");
+    expect(result).not.toBeNull();
+    // Timeline should start near the first lot date, not 2000-01-01
+    expect(result!.timeline[0].date >= "2025-06-01").toBe(true);
+    expect(result!.timeline[0].date < "2025-07-01").toBe(true);
   });
 });
 

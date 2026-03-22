@@ -39,6 +39,25 @@ export class PortfolioReportService {
 
   getNetWorthTimeSeries(window: Window, interval: Interval): NetWorthPoint[] {
     const dateRange = windowToDateRange(window);
+
+    // For "all", start from the earliest transaction or lot, not 2000-01-01
+    if (window === "all") {
+      const firstTx = this.db
+        .select({ date: transactions.date })
+        .from(transactions)
+        .orderBy(asc(transactions.date))
+        .limit(1)
+        .get();
+      const firstLot = this.db
+        .select({ date: assetLots.date })
+        .from(assetLots)
+        .orderBy(asc(assetLots.date))
+        .limit(1)
+        .get();
+      const earliest = [firstTx?.date, firstLot?.date].filter(Boolean).sort()[0];
+      if (earliest) dateRange.from = earliest;
+    }
+
     const datePoints = generateDatePoints(dateRange.from, dateRange.to, interval);
 
     const allAssets = this.db.select().from(assets).all().map(parseAssetRow);
@@ -303,6 +322,18 @@ export class PortfolioReportService {
     const asset = parseAssetRow(assetRow);
 
     const dateRange = windowToDateRange(window);
+
+    // For "all", start from the earliest lot instead of the hardcoded 2000-01-01
+    if (window === "all") {
+      const firstLot = this.db
+        .select({ date: assetLots.date })
+        .from(assetLots)
+        .where(eq(assetLots.assetId, assetId))
+        .orderBy(asc(assetLots.date))
+        .limit(1)
+        .get();
+      if (firstLot) dateRange.from = firstLot.date;
+    }
 
     const lots = this.db
       .select({

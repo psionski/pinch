@@ -8,7 +8,7 @@ import type {
   AssetResponse,
   AssetWithMetrics,
 } from "@/lib/validators/assets";
-import { resolveLatestPrice } from "./price-resolver";
+import { resolvePrice } from "./price-resolver";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -110,11 +110,11 @@ export class AssetService {
       }
     }
 
-    const currentHoldings = queue.reduce((sum, e) => sum + e.qty, 0);
+    const currentHoldings = parseFloat(queue.reduce((sum, e) => sum + e.qty, 0).toFixed(8));
     const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0));
 
     // Unified price resolution: user override → market → lot → deposit
-    const resolved = resolveLatestPrice(this.db, asset);
+    const resolved = resolvePrice(this.db, asset);
     const pricePerUnit = resolved?.price ?? null;
 
     const currentValue = pricePerUnit !== null ? Math.round(currentHoldings * pricePerUnit) : null;

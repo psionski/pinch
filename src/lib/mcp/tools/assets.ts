@@ -121,6 +121,9 @@ export function registerAssetTools(server: McpServer): void {
         "Example: buy 10 SPX at €345.63 → quantity: 10, pricePerUnit: 34563. " +
         "IMPORTANT for EUR deposits: pricePerUnit must be 100 (€1.00 per unit). Use quantity to represent the EUR amount " +
         "(e.g. quantity: 5000, pricePerUnit: 100 for a €5,000 deposit). " +
+        "For foreign currency deposits (e.g. USD): pricePerUnit is the EUR cost per unit of foreign currency in cents. " +
+        "Example: if 1 USD = €0.92, use quantity: 10000, pricePerUnit: 92 for a $10,000 deposit (total cost €9,200). " +
+        "Use get_price with symbol='USD', currency='EUR' to find the current exchange rate. " +
         "Returns { lot, transaction }.",
       inputSchema: IdSchema.merge(BuyAssetSchema),
     },
@@ -141,6 +144,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Record an asset sale or withdrawal. Creates a transfer transaction (cash in) + negative lot atomically. " +
         "Params: id (asset ID), quantity (positive number to sell), pricePerUnit (cents), date (YYYY-MM-DD). " +
+        "For EUR deposit withdrawals, use pricePerUnit: 100. For foreign currency withdrawals, use the current EUR exchange rate in cents. " +
         "Returns error if quantity exceeds current holdings. " +
         "Returns { lot, transaction }.",
       inputSchema: IdSchema.merge(SellAssetSchema),
@@ -161,7 +165,7 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Record a current price snapshot for an asset. " +
-        "Use get_market_price first to fetch the latest price, then call this to persist it. " +
+        "Use get_price first to fetch the latest price, then call this to persist it. " +
         "Params: id (asset ID), pricePerUnit (cents), recordedAt (optional ISO datetime, defaults to now). " +
         "This updates currentValue and P&L calculations.",
       inputSchema: IdSchema.merge(RecordPriceSchema),
@@ -183,7 +187,9 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Get the full portfolio: all assets with holdings + P&L, cash balance, total asset value, net worth, and allocation percentages. " +
         "Net worth = cash balance (income - expenses) + total asset value. " +
-        "Transfers are excluded from the cash balance calculation.",
+        "Transfers are excluded from the cash balance calculation. " +
+        "For detailed analysis see: get_allocation, get_asset_performance, get_net_worth_history, " +
+        "get_realized_pnl, get_currency_exposure, get_asset_history.",
       inputSchema: z.object({}),
     },
     () => ok(getPortfolioService().getPortfolio())
@@ -197,6 +203,13 @@ export function registerAssetTools(server: McpServer): void {
         "Positive quantity = buy/deposit, negative = sell/withdrawal.",
       inputSchema: IdSchema,
     },
-    (input) => ok(getAssetLotService().listLots(input.id))
+    (input) => {
+      try {
+        return ok(getAssetLotService().listLots(input.id));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "List lots failed";
+        return notFound(msg);
+      }
+    }
   );
 }

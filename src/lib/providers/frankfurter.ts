@@ -1,4 +1,4 @@
-import type { PriceResult, FinancialDataProvider } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 
 const BASE_URL = "https://api.frankfurter.app";
 
@@ -69,6 +69,21 @@ export class FrankfurterProvider implements FinancialDataProvider {
       date,
       provider: this.name,
     }));
+  }
+
+  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
+    const res = await fetch(`${BASE_URL}/currencies`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as Record<string, string>;
+    const q = query.toUpperCase();
+    return Object.entries(data)
+      .filter(([code, name]) => code.includes(q) || name.toUpperCase().includes(q))
+      .map(([code, name]) => ({
+        provider: this.name,
+        symbol: code,
+        name,
+        type: "currency",
+      }));
   }
 
   async healthCheck(): Promise<boolean> {
