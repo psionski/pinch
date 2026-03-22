@@ -38,7 +38,7 @@ export class AssetLotService {
       .values({
         assetId,
         pricePerUnit,
-        recordedAt: new Date(date).toISOString(),
+        recordedAt: date + "T00:00:00.000Z",
       })
       .run();
   }

@@ -206,6 +206,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
         name: "Assets",
         description: "Asset and portfolio tracking (savings, investments, crypto)",
       },
+      { name: "Settings", description: "App settings (timezone, etc.)" },
     ],
     paths: {
       "/api/transactions": {
@@ -868,6 +869,23 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
             },
           },
         },
+      },
+      "/api/settings/timezone": {
+        get: op({
+          id: "getTimezone",
+          summary: "Get the configured timezone",
+          tags: ["Settings"],
+          response: z.object({ timezone: z.string().nullable() }),
+          errors: [500],
+        }),
+        put: op({
+          id: "setTimezone",
+          summary: "Set the app timezone",
+          tags: ["Settings"],
+          body: z.object({ timezone: z.string() }),
+          response: z.object({ timezone: z.string() }),
+          errors: [400, 500],
+        }),
       },
     },
   });

@@ -16,15 +16,20 @@ export function formatPercent(value: number): string {
 /** Format YYYY-MM to a short month name, e.g. "2026-03" → "Mar 2026" */
 export function formatMonth(yearMonth: string): string {
   const [year, month] = yearMonth.split("-");
-  const date = new Date(Number(year), Number(month) - 1);
-  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  // Construct date from known components — timezone doesn't affect the result
+  return new Date(Number(year), Number(month) - 1).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /** Format YYYY-MM-DD to a short date, e.g. "2026-03-18" → "Mar 18" */
 export function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split("-");
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getCurrentMonth } from "@/lib/date-ranges";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -36,7 +37,7 @@ export function MonthPicker({
   const [open, setOpen] = useState(false);
 
   // Display year defaults to selected value's year, or current year
-  const initialYear = value ? Number(value.split("-")[0]) : new Date().getFullYear();
+  const initialYear = value ? Number(value.split("-")[0]) : Number(getCurrentMonth().split("-")[0]);
   const [displayYear, setDisplayYear] = useState(initialYear);
 
   const selectedYear = value ? Number(value.split("-")[0]) : null;
@@ -76,9 +77,8 @@ export function MonthPicker({
         <div className="grid grid-cols-3 gap-1">
           {MONTH_LABELS.map((label, i) => {
             const isSelected = selectedYear === displayYear && selectedMonth === i + 1;
-            const now = new Date();
-            const isCurrent =
-              displayYear === now.getFullYear() && i === now.getMonth() && !isSelected;
+            const [nowYear, nowMonth] = getCurrentMonth().split("-").map(Number);
+            const isCurrent = displayYear === nowYear && i + 1 === nowMonth && !isSelected;
             return (
               <Button
                 key={label}

@@ -5,6 +5,8 @@ import "./globals.css";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
+import { getSettingsService } from "@/lib/api/services";
+import { TimezoneInit } from "@/components/timezone-init";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,9 +28,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const timezone = getSettingsService().getTimezone() ?? "UTC";
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <TimezoneInit timezone={timezone} />
         <TooltipProvider>
           <SidebarProvider>
             <AppSidebar />

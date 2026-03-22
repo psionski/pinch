@@ -1,4 +1,5 @@
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { getCurrentMonth } from "@/lib/date-ranges";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { transactions, categories, assetLots, assets } from "@/lib/db/schema";
@@ -399,15 +400,16 @@ export class ReportService {
   }
 
   trends(input: TrendsInput): TrendPoint[] {
+    const currentMonth = getCurrentMonth();
     // Build month series for the last N months using a recursive CTE
     const rows = this.db.all<{ month: string; total: number; count: number }>(
       sql`
         WITH RECURSIVE months(m) AS (
-          SELECT strftime('%Y-%m', 'now', '-' || (${input.months} - 1) || ' months')
+          SELECT strftime('%Y-%m', ${currentMonth} || '-01', '-' || (${input.months} - 1) || ' months')
           UNION ALL
           SELECT strftime('%Y-%m', m || '-01', '+1 month')
           FROM months
-          WHERE m < strftime('%Y-%m', 'now')
+          WHERE m < ${currentMonth}
         )
         SELECT
           months.m AS month,

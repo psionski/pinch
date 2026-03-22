@@ -20,13 +20,18 @@ interface BudgetsClientProps {
 
 function shiftMonth(month: string, delta: number): string {
   const [year, m] = month.split("-").map(Number);
-  const d = new Date(year, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // Pure arithmetic: handle month overflow/underflow
+  const totalMonths = year * 12 + (m - 1) + delta;
+  const newYear = Math.floor(totalMonths / 12);
+  const newMonth = (totalMonths % 12) + 1;
+  return `${newYear}-${String(newMonth).padStart(2, "0")}`;
 }
 
 function formatMonthLabel(month: string): string {
   const [year, m] = month.split("-").map(Number);
-  return new Date(year, m - 1).toLocaleString("default", { month: "long", year: "numeric" });
+  return new Intl.DateTimeFormat("default", { month: "long", year: "numeric" }).format(
+    new Date(year, m - 1)
+  );
 }
 
 export function BudgetsClient({

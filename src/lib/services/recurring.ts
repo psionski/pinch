@@ -8,6 +8,7 @@ import type {
   UpdateRecurringInput,
   RecurringResponse,
 } from "@/lib/validators/recurring";
+import { isoToday } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -127,13 +128,13 @@ function occurrencesBetween(r: RecurringTransaction, fromDate: Date, upToDate: D
   return results;
 }
 
-function parseRecurring(row: RecurringTransaction, afterDate: Date): RecurringResponse {
+function parseRecurring(row: RecurringTransaction, afterDateStr: string): RecurringResponse {
   return {
     ...row,
     type: row.type as "income" | "expense",
     frequency: row.frequency as "daily" | "weekly" | "monthly" | "yearly",
     tags: parseTags(row.tags),
-    nextOccurrence: computeNextOccurrence(row, afterDate),
+    nextOccurrence: computeNextOccurrence(row, parseDate(afterDateStr)),
   };
 }
 
@@ -161,17 +162,17 @@ export class RecurringService {
       })
       .returning()
       .all();
-    return parseRecurring(row, new Date());
+    return parseRecurring(row, isoToday());
   }
 
   list(): RecurringResponse[] {
-    const now = new Date();
+    const today = isoToday();
     return this.db
       .select()
       .from(recurringTransactions)
       .orderBy(recurringTransactions.description)
       .all()
-      .map((r) => parseRecurring(r, now));
+      .map((r) => parseRecurring(r, today));
   }
 
   getById(id: number): RecurringResponse | null {
@@ -180,7 +181,7 @@ export class RecurringService {
       .from(recurringTransactions)
       .where(eq(recurringTransactions.id, id))
       .all();
-    return row ? parseRecurring(row, new Date()) : null;
+    return row ? parseRecurring(row, isoToday()) : null;
   }
 
   update(id: number, input: UpdateRecurringInput): RecurringResponse | null {
@@ -208,7 +209,7 @@ export class RecurringService {
       .returning()
       .all();
 
-    return rows.length > 0 ? parseRecurring(rows[0], new Date()) : null;
+    return rows.length > 0 ? parseRecurring(rows[0], isoToday()) : null;
   }
 
   delete(id: number): boolean {
@@ -226,8 +227,8 @@ export class RecurringService {
    * up to and including today.
    * Returns the total number of transactions created.
    */
-  generatePending(upTo?: Date): number {
-    const upToDate = upTo ?? new Date();
+  generatePending(upTo?: string): number {
+    const upToDate = parseDate(upTo ?? isoToday());
     const active = this.db
       .select()
       .from(recurringTransactions)

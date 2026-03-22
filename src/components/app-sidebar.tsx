@@ -13,6 +13,7 @@ import {
   ChevronRight,
   DollarSign,
   PieChart,
+  Settings,
 } from "lucide-react";
 import { Collapsible } from "radix-ui";
 
@@ -51,6 +52,7 @@ const navItemsAfter: NavItem[] = [
   { href: "/budgets", label: "Budgets", icon: Wallet },
   { href: "/assets", label: "Assets", icon: TrendingUp },
   { href: "/recurring", label: "Recurring", icon: Repeat },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }): React.ReactElement {

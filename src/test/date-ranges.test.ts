@@ -10,6 +10,7 @@ import {
   getCurrentMonth,
   getCurrentMonthInfo,
   getPreviousMonthRange,
+  setUserTimezone,
   DEFAULT_PRESET,
   PRESET_LABELS,
 } from "@/lib/date-ranges";
@@ -19,6 +20,7 @@ import type { DateRange } from "@/lib/date-ranges";
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(Date.UTC(2026, 2, 19))); // March 19, 2026 UTC
+  setUserTimezone("UTC"); // default to UTC for all tests
 });
 
 afterEach(() => {
@@ -201,7 +203,7 @@ describe("getPreviousMonthRange", () => {
 // ─── isoToday ────────────────────────────────────────────────────────────────
 
 describe("isoToday", () => {
-  it("returns the current UTC date as YYYY-MM-DD", () => {
+  it("returns the current date as YYYY-MM-DD (defaults to UTC)", () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 2, 19, 23, 30)));
     expect(isoToday()).toBe("2026-03-19");
   });
@@ -209,6 +211,50 @@ describe("isoToday", () => {
   it("handles UTC midnight boundary correctly", () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 2, 20, 0, 30)));
     expect(isoToday()).toBe("2026-03-20");
+  });
+
+  it("returns correct date when user timezone is ahead of UTC", () => {
+    // 22:30 UTC on March 19 = 00:30 on March 20 in Europe/Helsinki (UTC+2)
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 19, 22, 30)));
+    setUserTimezone("Europe/Helsinki");
+    expect(isoToday()).toBe("2026-03-20");
+  });
+
+  it("returns correct date when user timezone is behind UTC", () => {
+    // 03:00 UTC on March 20 = 22:00 on March 19 in America/New_York (UTC-5)
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 20, 3, 0)));
+    setUserTimezone("America/New_York");
+    expect(isoToday()).toBe("2026-03-19");
+  });
+});
+
+// ─── timezone-aware getCurrentMonth ─────────────────────────────────────────
+
+describe("timezone-aware getCurrentMonth", () => {
+  it("returns correct month when timezone crosses month boundary", () => {
+    // March 31 23:00 UTC = April 1 01:00 in Europe/Helsinki (UTC+2 in winter, UTC+3 in summer)
+    // In March, Helsinki is UTC+2, so 23:00 UTC = 01:00 April 1
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 31, 23, 0)));
+    setUserTimezone("Europe/Helsinki");
+    expect(getCurrentMonth()).toBe("2026-04");
+  });
+
+  it("uses UTC when no timezone configured", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 31, 23, 0)));
+    expect(getCurrentMonth()).toBe("2026-03");
+  });
+});
+
+// ─── timezone-aware computePresetRange ──────────────────────────────────────
+
+describe("timezone-aware computePresetRange", () => {
+  it("this-month uses timezone-aware current month", () => {
+    // March 31 23:00 UTC = April 1 in Helsinki → "this-month" should be April
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 31, 23, 0)));
+    setUserTimezone("Europe/Helsinki");
+    const range = computePresetRange("this-month");
+    expect(range.dateFrom).toBe("2026-04-01");
+    expect(range.dateTo).toBe("2026-04-30");
   });
 });
 

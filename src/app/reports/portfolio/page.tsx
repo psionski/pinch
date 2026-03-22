@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { requireTimezone } from "@/lib/api/require-timezone";
 import { getPortfolioService, getPortfolioReportService } from "@/lib/api/services";
 import {
   PortfolioReportsClient,
@@ -10,6 +11,7 @@ import { getCurrentMonthInfo } from "@/lib/date-ranges";
 const DEFAULT_WINDOW = "6m" as const;
 
 export default function PortfolioReportsPage(): React.ReactElement {
+  requireTimezone();
   const reportService = getPortfolioReportService();
   const portfolio = getPortfolioService().getPortfolio();
   const { currentMonth } = getCurrentMonthInfo();

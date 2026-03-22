@@ -11,6 +11,7 @@ import type {
 } from "@/lib/validators/budgets";
 import type { ReportService } from "./reports";
 import { ensureOwnRows, monthHasOwnRows } from "./budget-inheritance";
+import { getCurrentMonth } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -145,12 +146,16 @@ export class BudgetService {
 
   /** Returns budget totals for each of the last N months. */
   getHistory(months: number): BudgetHistoryPoint[] {
-    const now = new Date();
+    const current = getCurrentMonth();
+    const [curYear, curMonth] = current.split("-").map(Number);
     const points: BudgetHistoryPoint[] = [];
 
     for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      // Pure arithmetic: shift month backwards by i
+      const totalMonths = curYear * 12 + (curMonth - 1) - i;
+      const y = Math.floor(totalMonths / 12);
+      const m = (totalMonths % 12) + 1;
+      const month = `${y}-${String(m).padStart(2, "0")}`;
       const { items: status } = this.getForMonth({ month });
 
       const totalBudget = status.reduce((sum, b) => sum + b.budgetAmount, 0);

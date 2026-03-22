@@ -45,11 +45,33 @@ Workflow:
 
 ### Date/Time Conventions
 
-- **All date math, storage, and caching uses UTC.** Local timezone is only for UI display.
-- Calendar dates are stored as `YYYY-MM-DD` strings (UTC day).
-- Timestamps are stored as ISO 8601 with Z suffix (e.g. `2026-03-21T14:30:00.000Z`).
-- Use shared utilities from `src/lib/date-ranges.ts` (`isoToday()`, `offsetDate()`, `daysBetween()`). Don't create local date helpers in other files.
-- Never use `getFullYear()`, `getMonth()`, `getDate()` (local-time methods) for date logic. Use `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()` or `toISOString()`.
+The app has a single **user-configured timezone** stored in the `settings` table (key `"timezone"`, IANA identifier like `"Europe/Amsterdam"`). This timezone is the source of truth for what "today" and "this month" mean.
+
+**Storage:**
+- Calendar dates are stored as `YYYY-MM-DD` strings — civil dates, not UTC dates.
+- Timestamps (`createdAt`, `updatedAt`, `recordedAt`) are stored as ISO 8601 UTC (e.g. `2026-03-21T14:30:00.000Z`). SQLite `datetime('now')` defaults produce UTC.
+
+**Boundaries — convert at the edges:**
+- **Input:** When computing "today" or "current month", use `isoToday()` / `getCurrentMonth()` from `src/lib/date-ranges.ts` — these use the app timezone internally. Never use `new Date()` to determine the current calendar date.
+- **Output:** Calendar dates (`YYYY-MM-DD`) are already civil dates and need no conversion. Timestamps should be displayed in the user's timezone where relevant.
+
+**Date utilities** (`src/lib/date-ranges.ts`):
+- `isoToday()`, `getCurrentMonth()`, `getCurrentMonthInfo()`, `computePresetRange()`, `windowToDateRange()` — all timezone-aware via cached setting.
+- `offsetDate()`, `daysBetween()`, `generateDatePoints()`, `computeCompareRange()` — pure date math on `YYYY-MM-DD` strings, timezone-agnostic.
+- `clearTimezoneCache()` — call after changing the timezone setting.
+- Don't create local date helpers in other files. Use these shared utilities.
+
+**Pure calendar math** (shifting months, computing last day of month, day-of-week from a known date):
+- Prefer plain arithmetic over `Date` objects when possible (e.g. month shifting via `totalMonths = year * 12 + month + delta`).
+- When a `Date` object is needed for calendar math on a known `YYYY-MM-DD` string, `new Date(year, month, day)` is fine — the timezone doesn't affect the result because the inputs are explicit, not derived from "now".
+- Don't sprinkle `Date.UTC` / `getUTC*` through code that isn't actually dealing with UTC timestamps.
+
+**Settings infrastructure:**
+- `SettingsService.getTimezone()` returns `string | null` (`null` = not configured).
+- `SettingsService.setTimezone(tz)` validates the IANA identifier and stores it.
+- MCP tools: `get_timezone`, `set_timezone`.
+- API: `GET/PUT /api/settings/timezone`.
+- Onboarding gate: each page calls `requireTimezone()` from `src/lib/api/require-timezone.ts` — redirects to `/settings` if timezone is not configured. Server startup initializes the timezone via `instrumentation.ts`.
 
 ### Database
 

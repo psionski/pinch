@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isoToday } from "@/lib/date-ranges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,11 +44,6 @@ export interface TransactionFormData {
   tags: string[];
 }
 
-function todayString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export function TransactionFormDialog({
   open,
   onOpenChange,
@@ -68,7 +64,7 @@ export function TransactionFormDialog({
   const [categoryId, setCategoryId] = useState<string>(
     initialData?.categoryId ? String(initialData.categoryId) : "none"
   );
-  const [date, setDate] = useState(initialData?.date ?? todayString());
+  const [date, setDate] = useState(initialData?.date ?? isoToday());
   const [notes, setNotes] = useState(initialData?.notes ?? "");
   const [tagsStr, setTagsStr] = useState(initialData?.tags?.join(", ") ?? "");
   const [error, setError] = useState("");

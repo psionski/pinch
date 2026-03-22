@@ -1100,6 +1100,8 @@ src/
 ### Sprint 20: Onboarding & Initial Setup
 **Goal:** Make it easy for new users to enter their current financial state without fabricating transaction history. Includes an interactive first-run experience.
 
+**Partially done:** Timezone support is implemented. Settings page (`/settings`) with timezone selector, onboarding gate (middleware redirects to `/settings` until timezone is set), MCP tools (`get_timezone`, `set_timezone`), and all date functions are timezone-aware. See `src/lib/date-ranges.ts`, `src/lib/services/settings.ts`, `src/middleware.ts`.
+
 #### The problem
 
 A new user has an existing financial life: bank balance, savings, maybe some investments. Without onboarding, they'd need to create fake income transactions (inflating reports) or manually construct lots. The app should meet users where they are.
