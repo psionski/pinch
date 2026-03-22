@@ -135,7 +135,8 @@ export class PortfolioReportService {
         if (costBasis === 0 && holdings <= 0) return null;
 
         const resolved = resolvePrice(this.db, asset, evalDate);
-        const currentValue = resolved ? Math.round(holdings * resolved.price) : costBasis;
+        if (!resolved) return null;
+        const currentValue = Math.round(holdings * resolved.price);
         const pnl = currentValue - costBasis;
         const pnlPct = costBasis > 0 ? Math.round((pnl / costBasis) * 10000) / 100 : 0;
 

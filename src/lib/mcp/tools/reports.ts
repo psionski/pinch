@@ -18,6 +18,8 @@ export function registerReportTools(server: McpServer): void {
     {
       description:
         "Total spend for a period, grouped by category, month, or merchant. " +
+        "Best for comparing periods or viewing spending by merchant. " +
+        "For per-category breakdowns with hierarchy rollups and percentages, use get_category_stats instead. " +
         "Optionally compare against a second period by supplying compareDateFrom and compareDateTo.",
       inputSchema: SpendingSummarySchema,
     },
@@ -28,10 +30,12 @@ export function registerReportTools(server: McpServer): void {
     "get_category_stats",
     {
       description:
-        "Per-category spending stats. Returns amounts, percentages, hierarchy rollups, " +
-        "and category color/icon. Provide 'month' (YYYY-MM) or " +
-        "'dateFrom'+'dateTo' (YYYY-MM-DD). Set includeZeroSpend=false to omit categories " +
-        "with no transactions. Use get_budget_status for budget tracking.",
+        "Per-category spending stats with hierarchy rollups, percentages, and category color/icon. " +
+        "Best for detailed per-category breakdowns. " +
+        "For flexible grouping (by merchant/month) or period comparisons, use get_spending_summary instead. " +
+        "Provide 'month' (YYYY-MM) or 'dateFrom'+'dateTo' (YYYY-MM-DD). " +
+        "Set includeZeroSpend=false to omit categories with no transactions. " +
+        "Use get_budget_status for budget tracking.",
       inputSchema: CategoryStatsSchema,
     },
     (input) => ok(getReportService().getCategoryStats(input))

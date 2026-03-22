@@ -4,6 +4,7 @@ import { makeTestDb } from "./helpers";
 import { CategoryService } from "@/lib/services/categories";
 import { TransactionService } from "@/lib/services/transactions";
 import { CreateTransactionSchema } from "@/lib/validators/transactions";
+import { MergeCategoriesSchema } from "@/lib/validators/categories";
 
 type TestDb = ReturnType<typeof makeTestDb>;
 
@@ -234,6 +235,30 @@ describe("recategorize", () => {
     expect(count).toBe(1);
   });
 
+  it("dryRun returns count without modifying data", () => {
+    const source = categoryService.create({ name: "Source" });
+    const target = categoryService.create({ name: "Target" });
+    txService.create(tx({ categoryId: source.id }));
+    txService.create(tx({ categoryId: source.id }));
+
+    const count = categoryService.recategorize({
+      targetCategoryId: target.id,
+      sourceCategoryId: source.id,
+      dryRun: true,
+    });
+
+    expect(count).toBe(2);
+    // Verify no data was modified
+    const sourceTxs = txService.list({
+      categoryId: source.id,
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "desc",
+    });
+    expect(sourceTxs.total).toBe(2);
+  });
+
   it("returns 0 when no transactions match the filter", () => {
     const target = categoryService.create({ name: "Target" });
     txService.create(tx({ description: "Coffee" }));
@@ -250,14 +275,22 @@ describe("recategorize", () => {
 // ─── merge ────────────────────────────────────────────────────────────────────
 
 describe("merge", () => {
-  it("moves all transactions from source to target", () => {
+  it("moves all transactions from source to target and returns counts", () => {
     const source = categoryService.create({ name: "Source" });
     const target = categoryService.create({ name: "Target" });
     txService.create(tx({ categoryId: source.id, description: "A" }));
     txService.create(tx({ categoryId: source.id, description: "B" }));
     txService.create(tx({ categoryId: target.id, description: "C" }));
 
-    categoryService.merge({ sourceCategoryId: source.id, targetCategoryId: target.id });
+    const result = categoryService.merge({
+      sourceCategoryId: source.id,
+      targetCategoryId: target.id,
+    });
+
+    expect(result.merged).toBe(true);
+    expect(result.transactionsMoved).toBe(2);
+    expect(result.sourceCategoryName).toBe("Source");
+    expect(result.targetCategoryName).toBe("Target");
 
     const targetTxs = txService.list({
       categoryId: target.id,
@@ -285,6 +318,28 @@ describe("merge", () => {
     categoryService.merge({ sourceCategoryId: source.id, targetCategoryId: target.id });
 
     expect(categoryService.getById(target.id)).not.toBeNull();
+  });
+
+  it("throws when source category does not exist", () => {
+    const target = categoryService.create({ name: "Target" });
+    expect(() =>
+      categoryService.merge({ sourceCategoryId: 9999, targetCategoryId: target.id })
+    ).toThrow("Source category 9999 not found");
+  });
+
+  it("throws when target category does not exist", () => {
+    const source = categoryService.create({ name: "Source" });
+    expect(() =>
+      categoryService.merge({ sourceCategoryId: source.id, targetCategoryId: 9999 })
+    ).toThrow("Target category 9999 not found");
+  });
+
+  it("rejects self-merge at the validator level", () => {
+    const result = MergeCategoriesSchema.safeParse({
+      sourceCategoryId: 5,
+      targetCategoryId: 5,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("no transactions remain under deleted source category", () => {

@@ -26,8 +26,9 @@ export function registerFinancialTools(server: McpServer): void {
     {
       description:
         "Convert an amount between currencies using live exchange rates. " +
-        "Params: amount (cents, e.g. 1599 = $15.99), from (source currency, e.g. 'USD'), " +
-        "to (target currency, e.g. 'EUR'), date (optional YYYY-MM-DD, defaults to today). " +
+        "Params: amount (amount in cents of the source currency, e.g. 1599 = €15.99), " +
+        "from (source currency, e.g. 'USD'), to (target currency, e.g. 'EUR'), " +
+        "date (optional YYYY-MM-DD, defaults to today). " +
         "Returns converted amount in cents, exchange rate, date, provider, and stale flag. " +
         "Primary use case: receipt in foreign currency → EUR for transaction entry.",
       inputSchema: ConvertCurrencySchema,
@@ -92,7 +93,10 @@ export function registerFinancialTools(server: McpServer): void {
         "Returns matches with { provider, symbol, name, type }. " +
         "To enable automatic price tracking on an asset, pick the best match and pass it as " +
         "symbolMap: { [result.provider]: result.symbol } to create_asset or update_asset. " +
-        "For exchange rates on foreign currency deposits, use the currency code as the query (e.g. 'USD').",
+        "For exchange rates on foreign currency deposits, use the currency code as the query (e.g. 'USD'). " +
+        "If no results, the response will indicate which providers need API keys. " +
+        "If search_symbol returns no results, you can still create the asset without symbolMap — " +
+        "it won't have automatic price tracking. Use record_price to update prices manually.",
       inputSchema: z.object({
         query: z.string().min(1, "Search query is required"),
       }),

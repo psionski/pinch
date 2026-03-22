@@ -39,7 +39,7 @@ export const CreateTransactionSchema = z.object({
   description: z.string().min(1, "Description is required").max(500),
   merchant: z.string().max(255).optional(),
   categoryId: z.number().int().positive().optional(),
-  date: IsoDateSchema,
+  date: IsoDateSchema.optional(),
   receiptId: z.number().int().positive().optional(),
   recurringId: z.number().int().positive().optional(),
   notes: z.string().max(2000).optional(),

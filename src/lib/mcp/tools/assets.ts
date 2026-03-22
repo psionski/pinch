@@ -101,7 +101,9 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Delete an asset and all its lots and price history. " +
-        "The linked transfer transactions are kept (they record the cash flow).",
+        "The linked transfer transactions are kept (they record the cash flow). " +
+        "To find orphaned transfer transactions after deletion, use list_transactions with " +
+        "the asset's name as a search query.",
       inputSchema: IdSchema,
     },
     (input) => {

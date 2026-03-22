@@ -26,6 +26,7 @@ import type {
   TransactionResponse,
 } from "@/lib/validators/transactions";
 import type { PaginatedResponse } from "@/lib/validators/common";
+import { isoToday } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -60,7 +61,7 @@ export class TransactionService {
         description: input.description,
         merchant: input.merchant,
         categoryId: input.categoryId,
-        date: input.date,
+        date: input.date ?? isoToday(),
         receiptId: input.receiptId,
         recurringId: input.recurringId,
         notes: input.notes,
@@ -78,7 +79,7 @@ export class TransactionService {
       description: tx.description,
       merchant: tx.merchant,
       categoryId: tx.categoryId,
-      date: tx.date,
+      date: tx.date ?? isoToday(),
       receiptId: tx.receiptId ?? input.receiptId,
       recurringId: tx.recurringId,
       notes: tx.notes,

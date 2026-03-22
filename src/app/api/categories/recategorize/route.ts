@@ -9,7 +9,9 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     const count = getCategoryService().recategorize(input);
-    return NextResponse.json({ updated: count });
+    return NextResponse.json(
+      input.dryRun ? { wouldUpdate: count, dryRun: true } : { updated: count }
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal error";
     return errorResponse(message, "INTERNAL_ERROR", 500);

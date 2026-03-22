@@ -59,6 +59,7 @@ export const RecategorizeSchema = z
     descriptionPattern: z.string().max(255).optional(),
     dateFrom: IsoDateSchema.optional(),
     dateTo: IsoDateSchema.optional(),
+    dryRun: z.boolean().optional(),
   })
   .refine(
     (data) =>
@@ -78,9 +79,13 @@ export type RecategorizeInput = z.infer<typeof RecategorizeSchema>;
 // ─── Merge ────────────────────────────────────────────────────────────────────
 // Move all transactions from source → target, delete source
 
-export const MergeCategoriesSchema = z.object({
-  sourceCategoryId: z.number().int().positive("Source category ID is required"),
-  targetCategoryId: z.number().int().positive("Target category ID is required"),
-});
+export const MergeCategoriesSchema = z
+  .object({
+    sourceCategoryId: z.number().int().positive("Source category ID is required"),
+    targetCategoryId: z.number().int().positive("Target category ID is required"),
+  })
+  .refine((data) => data.sourceCategoryId !== data.targetCategoryId, {
+    message: "Source and target category must be different",
+  });
 
 export type MergeCategoriesInput = z.infer<typeof MergeCategoriesSchema>;

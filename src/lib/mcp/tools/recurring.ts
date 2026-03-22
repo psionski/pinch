@@ -13,10 +13,12 @@ export function registerRecurringTools(server: McpServer): void {
     "create_recurring",
     {
       description:
-        "Create a recurring transaction template. " +
+        "Create a recurring transaction template. Amounts are in cents (e.g. 1210 = €12.10). " +
         "frequency: daily | weekly | monthly | yearly. " +
+        "startDate is the first occurrence date (YYYY-MM-DD). Past dates will generate backdated transactions on next cron run. " +
         "dayOfMonth (for monthly) and dayOfWeek (0=Sun, for weekly) are optional; " +
-        "if omitted, the day from startDate is used.",
+        "if omitted, the day from startDate is used. " +
+        "Use list_categories to find valid categoryId values.",
       inputSchema: CreateRecurringSchema,
     },
     (input) => ok(getRecurringService().create(input))
