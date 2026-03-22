@@ -4,6 +4,7 @@ import * as schema from "@/lib/db/schema";
 import { assets, assetLots, assetPrices, transactions } from "@/lib/db/schema";
 import type { BuyAssetInput, SellAssetInput, AssetLotResponse } from "@/lib/validators/assets";
 import type { TransactionResponse } from "@/lib/validators/transactions";
+import { utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -16,7 +17,7 @@ function parseLot(row: schema.AssetLot): AssetLotResponse {
     date: row.date,
     transactionId: row.transactionId,
     notes: row.notes,
-    createdAt: row.createdAt,
+    createdAt: utcToLocal(row.createdAt),
   };
 }
 
@@ -25,6 +26,8 @@ function parseTransaction(row: schema.Transaction): TransactionResponse {
     ...row,
     type: row.type as TransactionResponse["type"],
     tags: null,
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
   };
 }
 
@@ -38,7 +41,7 @@ export class AssetLotService {
       .values({
         assetId,
         pricePerUnit,
-        recordedAt: new Date(date).toISOString(),
+        recordedAt: date + "T00:00:00.000Z",
       })
       .run();
   }
@@ -154,6 +157,13 @@ export class AssetLotService {
   }
 
   listLots(assetId: number): AssetLotResponse[] {
+    const asset = this.db
+      .select({ id: assets.id })
+      .from(assets)
+      .where(eq(assets.id, assetId))
+      .get();
+    if (!asset) throw new Error(`Asset ${assetId} not found`);
+
     return this.db
       .select()
       .from(assetLots)

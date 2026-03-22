@@ -11,6 +11,8 @@ export const SpendingSummarySchema = z.object({
   /** Optional: compare totals against a different period */
   compareDateFrom: IsoDateSchema.optional(),
   compareDateTo: IsoDateSchema.optional(),
+  /** When true, includes a transfers section showing money moved to assets */
+  includeTransfers: z.boolean().default(false),
 });
 
 export type SpendingSummaryInput = z.infer<typeof SpendingSummarySchema>;
@@ -152,10 +154,22 @@ const PeriodSchema = z.object({
   count: z.number().int(),
 });
 
+export const TransferGroupSchema = z.object({
+  assetId: z.number().int(),
+  assetName: z.string(),
+  assetType: z.string(),
+  purchases: z.number().int(),
+  sales: z.number().int(),
+  net: z.number().int(),
+});
+
+export type TransferGroup = z.infer<typeof TransferGroupSchema>;
+
 export const SpendingSummaryResultSchema = z.object({
   period: PeriodSchema,
   comparePeriod: PeriodSchema.optional(),
   groups: z.array(SpendingGroupSchema),
+  transfers: z.array(TransferGroupSchema).optional(),
 });
 
 export type SpendingSummaryResult = z.infer<typeof SpendingSummaryResultSchema>;

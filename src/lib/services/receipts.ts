@@ -12,6 +12,7 @@ import type {
 } from "@/lib/validators/receipts";
 import type { PaginatedResponse } from "@/lib/validators/common";
 import { sql } from "drizzle-orm";
+import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -35,13 +36,8 @@ function toResponse(row: schema.Receipt): ReceiptResponse {
     total: row.total,
     imageUrl: row.imagePath ? `${BASE_URL}/api/receipts/${row.id}/image` : null,
     rawText: row.rawText,
-    createdAt: row.createdAt,
+    createdAt: utcToLocal(row.createdAt),
   };
-}
-
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export class ReceiptService {
@@ -52,7 +48,7 @@ export class ReceiptService {
    * creates a receipts DB row, and returns the receipt.
    */
   upload(file: Buffer, ext: string, meta: CreateReceiptInput): ReceiptResponse {
-    const date = meta.date ?? todayIso();
+    const date = meta.date ?? isoToday();
 
     // Insert placeholder row first to get the auto-incremented ID
     const [row] = this.db
@@ -90,7 +86,7 @@ export class ReceiptService {
 
   /** Upload a receipt without an image (metadata only). */
   createMetadataOnly(meta: CreateReceiptInput): ReceiptResponse {
-    const date = meta.date ?? todayIso();
+    const date = meta.date ?? isoToday();
     const [row] = this.db
       .insert(receipts)
       .values({

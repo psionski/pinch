@@ -18,7 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SymbolSearch } from "./symbol-search";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
+import type { SymbolMap } from "@/lib/validators/assets";
 
 interface AssetFormDialogProps {
   open: boolean;
@@ -27,6 +29,7 @@ interface AssetFormDialogProps {
     name: string;
     type: "deposit" | "investment" | "crypto" | "other";
     currency: string;
+    symbolMap?: SymbolMap;
     icon?: string;
     color?: string;
   }) => void;
@@ -41,6 +44,11 @@ const ASSET_TYPES = [
   { value: "other", label: "Other" },
 ] as const;
 
+function initSymbolMap(data: AssetWithMetrics | null | undefined): SymbolMap {
+  if (!data?.symbolMap) return {};
+  return { ...data.symbolMap };
+}
+
 export function AssetFormDialog({
   open,
   onOpenChange,
@@ -52,6 +60,7 @@ export function AssetFormDialog({
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState<string>(initialData?.type ?? "deposit");
   const [currency, setCurrency] = useState(initialData?.currency ?? "EUR");
+  const [symbolMap, setSymbolMap] = useState<SymbolMap>(initSymbolMap(initialData));
   const [icon, setIcon] = useState(initialData?.icon ?? "");
   const [error, setError] = useState("");
 
@@ -66,10 +75,14 @@ export function AssetFormDialog({
       setError("Currency is required.");
       return;
     }
+
+    const hasSymbols = Object.keys(symbolMap).length > 0;
+
     onSubmit({
       name: name.trim(),
       type: type as "deposit" | "investment" | "crypto" | "other",
       currency: currency.trim().toUpperCase(),
+      symbolMap: hasSymbols ? symbolMap : undefined,
       icon: icon.trim() || undefined,
     });
   }
@@ -117,6 +130,21 @@ export function AssetFormDialog({
               disabled={loading}
             />
           </div>
+          {(type !== "deposit" || currency !== "EUR") && (
+            <div className="space-y-1">
+              <Label>
+                {type === "deposit"
+                  ? "Exchange Rate Tracking (optional)"
+                  : "Price Tracking (optional)"}
+              </Label>
+              <SymbolSearch value={symbolMap} onChange={setSymbolMap} disabled={loading} />
+              <p className="text-muted-foreground text-xs">
+                {type === "deposit"
+                  ? "Search for your currency to enable automatic exchange rate updates."
+                  : "Search for symbols to enable automatic price tracking. You can select one per provider for redundancy."}
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="asset-icon">Icon (emoji, optional)</Label>
             <Input

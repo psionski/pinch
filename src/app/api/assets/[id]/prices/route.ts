@@ -7,14 +7,6 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_req: Request, ctx: RouteContext): Promise<NextResponse> {
-  const id = parseId(await ctx.params);
-  if (isErrorResponse(id)) return id;
-
-  const history = getAssetPriceService().getHistory(id);
-  return NextResponse.json(history);
-}
-
 export async function POST(req: Request, ctx: RouteContext): Promise<NextResponse> {
   const id = parseId(await ctx.params);
   if (isErrorResponse(id)) return id;

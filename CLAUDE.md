@@ -43,6 +43,40 @@ Workflow:
 - Shared validators in `src/lib/validators/` — used by API routes, MCP tools, and frontend forms.
 - **API route helpers:** Use `parseBody`, `parseSearchParams`, `isErrorResponse`, `errorResponse` from `src/lib/api/helpers.ts`. Don't write manual JSON parsing or error responses in routes.
 
+### Date/Time Conventions
+
+The app has a single **user-configured timezone** stored in the `settings` table (key `"timezone"`, IANA identifier like `"Europe/Amsterdam"`). This timezone is the source of truth for what "today" and "this month" mean.
+
+**Storage:**
+- Calendar dates are stored as `YYYY-MM-DD` strings — civil dates, not UTC dates.
+- Timestamps (`createdAt`, `updatedAt`, `recordedAt`) are stored as ISO 8601 UTC (e.g. `2026-03-21T14:30:00.000Z`). SQLite `datetime('now')` defaults produce UTC.
+
+**Boundaries — convert at the edges:**
+- **Input:** When computing "today" or "current month", use `isoToday()` / `getCurrentMonth()` from `src/lib/date-ranges.ts` — these use the app timezone internally. When accepting timestamps from API/MCP input, use `localToUtc()` to convert to UTC before storage.
+- **Output:** Calendar dates (`YYYY-MM-DD`) are already civil dates and need no conversion. Timestamps are converted from UTC to local time via `utcToLocal()` in service parse functions, so all API/MCP consumers receive timestamps in the user's timezone.
+
+**Temporal API** — all date/time code uses `@js-temporal/polyfill` (TC39 Stage 4 polyfill). Do **not** use the legacy `Date` object for date math, formatting, or timezone conversion. Use the appropriate Temporal type:
+- `Temporal.PlainDate` — calendar dates (`YYYY-MM-DD`): parsing, arithmetic, comparisons, formatting.
+- `Temporal.PlainYearMonth` — month-level operations: `daysInMonth`, month arithmetic, formatting.
+- `Temporal.Instant` — exact moments in time (UTC): timestamp conversion, epoch math.
+- `Temporal.ZonedDateTime` — intermediate type for UTC↔local conversion (via `toZonedDateTimeISO(tz)` / `toZonedDateTime(tz)`).
+- `Temporal.Now` — current time: `Temporal.Now.plainDateISO(tz)` for today's date, `Temporal.Now.instant()` for current UTC instant.
+- Legacy `Date` is acceptable only for epoch-millisecond arithmetic (e.g. cache TTL via `Date.now()`) where Temporal adds no value.
+
+**Date utilities** (`src/lib/date-ranges.ts`):
+- `utcToLocal()`, `localToUtc()` — timestamp conversion between UTC storage and user's timezone.
+- `isoToday()`, `getCurrentMonth()`, `getCurrentMonthInfo()`, `computePresetRange()`, `windowToDateRange()` — all timezone-aware via cached setting.
+- `offsetDate()`, `daysBetween()`, `generateDatePoints()`, `computeCompareRange()` — pure date math on `YYYY-MM-DD` strings, timezone-agnostic.
+- `clearTimezoneCache()` — call after changing the timezone setting.
+- Don't create local date helpers in other files. Use these shared utilities.
+
+**Settings infrastructure:**
+- `SettingsService.getTimezone()` returns `string | null` (`null` = not configured).
+- `SettingsService.setTimezone(tz)` validates the IANA identifier and stores it.
+- MCP tools: `get_timezone`, `set_timezone`.
+- API: `GET/PUT /api/settings/timezone`.
+- Onboarding gate: each page calls `requireTimezone()` from `src/lib/api/require-timezone.ts` — redirects to `/settings` if timezone is not configured. Server startup initializes the timezone via `instrumentation.ts`.
+
 ### Database
 
 - All schema changes go through Drizzle Kit migrations. Never modify the DB manually.
@@ -87,6 +121,16 @@ Documentation and unit tests are part of the deliverable (read the relevant sect
 - Test the contract: given these inputs, expect these outputs/side effects. Don't test implementation details.
 - API routes: test via integration tests that hit the route handlers with real requests.
 - MCP tools: test via their service layer calls (tools are thin wrappers, so testing services covers the logic).
+- **Regression tests:** When fixing a bug, optionally write a test that reproduces the bug first (or alongside the fix). The test should fail without the fix and pass with it.
+
+### E2E Testing & Debugging
+
+You can run `npm run dev` to start the dev server, then use the **Pinch MCP tools** to perform end-to-end testing against the running app (create transactions, check budgets, verify portfolio reports, etc.). This is the primary way to validate features and debug issues beyond unit tests.
+
+- Start the server: `npm run dev`
+- Use Pinch MCP tools to interact with the app (create data, query reports, verify behavior)
+- Add temporary logging (`financialLogger.debug`, etc.) to trace issues — read the server output to see logs. It refreshes automatically when in `dev` mode.
+- Clean up debug logging before committing - but only if you think the debug log message is unlikely to be needed again.
 
 ## Style & Conventions
 

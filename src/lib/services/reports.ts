@@ -1,7 +1,9 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { getCurrentMonth } from "@/lib/date-ranges";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { transactions, categories } from "@/lib/db/schema";
+import { transactions, categories, assetLots, assets } from "@/lib/db/schema";
 import { getEffectiveBudgets } from "./budget-inheritance";
 import { buildChildrenMap } from "./category-hierarchy";
 import {
@@ -18,6 +20,7 @@ import {
   type TopMerchant,
   type SpendingSummaryResult,
   type NetBalanceResult,
+  type TransferGroup,
 } from "@/lib/validators/reports";
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -208,10 +211,54 @@ export class ReportService {
       }));
     }
 
+    // Optionally include transfer breakdown
+    let transfers: TransferGroup[] | undefined;
+    if (input.includeTransfers) {
+      const transferRows = this.db
+        .select({
+          assetId: assets.id,
+          assetName: assets.name,
+          assetType: assets.type,
+          quantity: assetLots.quantity,
+          amount: transactions.amount,
+        })
+        .from(assetLots)
+        .innerJoin(assets, eq(assetLots.assetId, assets.id))
+        .innerJoin(transactions, eq(assetLots.transactionId, transactions.id))
+        .where(and(gte(assetLots.date, dateFrom), lte(assetLots.date, dateTo)))
+        .all();
+
+      const assetMap = new Map<
+        number,
+        { name: string; type: string; purchases: number; sales: number }
+      >();
+      for (const row of transferRows) {
+        const existing = assetMap.get(row.assetId) ?? {
+          name: row.assetName,
+          type: row.assetType,
+          purchases: 0,
+          sales: 0,
+        };
+        if (row.quantity > 0) existing.purchases += row.amount;
+        else existing.sales += row.amount;
+        assetMap.set(row.assetId, existing);
+      }
+
+      transfers = Array.from(assetMap.entries()).map(([assetId, d]) => ({
+        assetId,
+        assetName: d.name,
+        assetType: d.type,
+        purchases: d.purchases,
+        sales: d.sales,
+        net: d.purchases - d.sales,
+      }));
+    }
+
     return {
       period: { dateFrom, dateTo, ...period },
       comparePeriod,
       groups,
+      transfers,
     };
   }
 
@@ -223,7 +270,7 @@ export class ReportService {
     if (input.month) {
       const [y, m] = input.month.split("-").map(Number);
       dateFrom = `${input.month}-01`;
-      const lastDay = new Date(y, m, 0).getDate();
+      const lastDay = Temporal.PlainYearMonth.from({ year: y, month: m }).daysInMonth;
       dateTo = `${input.month}-${String(lastDay).padStart(2, "0")}`;
     } else {
       dateFrom = input.dateFrom!;
@@ -354,15 +401,16 @@ export class ReportService {
   }
 
   trends(input: TrendsInput): TrendPoint[] {
+    const currentMonth = getCurrentMonth();
     // Build month series for the last N months using a recursive CTE
     const rows = this.db.all<{ month: string; total: number; count: number }>(
       sql`
         WITH RECURSIVE months(m) AS (
-          SELECT strftime('%Y-%m', 'now', '-' || (${input.months} - 1) || ' months')
+          SELECT strftime('%Y-%m', ${currentMonth} || '-01', '-' || (${input.months} - 1) || ' months')
           UNION ALL
           SELECT strftime('%Y-%m', m || '-01', '+1 month')
           FROM months
-          WHERE m < strftime('%Y-%m', 'now')
+          WHERE m < ${currentMonth}
         )
         SELECT
           months.m AS month,

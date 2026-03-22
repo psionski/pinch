@@ -34,12 +34,10 @@ import {
   DeleteReceiptsBatchSchema,
 } from "@/lib/validators/receipts";
 import {
-  GetExchangeRateSchema,
+  GetPriceSchema,
   ConvertCurrencySchema,
-  GetMarketPriceSchema,
-  ExchangeRateResultSchema,
+  PriceResultSchema,
   ConvertResultSchema,
-  MarketPriceResultSchema,
   ProviderStatusSchema,
   SetApiKeyBodySchema,
 } from "@/lib/validators/financial";
@@ -67,6 +65,18 @@ import {
   TopMerchantSchema,
   BudgetStatusItemSchema,
 } from "@/lib/validators/reports";
+import {
+  NetWorthQuerySchema,
+  NetWorthPointSchema,
+  AssetPerformanceQuerySchema,
+  AssetPerformanceItemSchema,
+  AllocationResultSchema,
+  CurrencyExposureItemSchema,
+  RealizedPnlQuerySchema,
+  RealizedPnlResultSchema,
+  AssetHistoryQuerySchema,
+  AssetHistoryResultSchema,
+} from "@/lib/validators/portfolio-reports";
 import { ErrorResponseSchema } from "@/lib/validators/common";
 
 // ─── Named component schemas ────────────────────────────────────────────────
@@ -76,9 +86,8 @@ const AssetWithMetrics = AssetWithMetricsSchema.meta({ id: "AssetWithMetrics" })
 const AssetLot = AssetLotResponseSchema.meta({ id: "AssetLot" });
 const AssetPrice = AssetPriceResponseSchema.meta({ id: "AssetPrice" });
 const Portfolio = PortfolioResponseSchema.meta({ id: "Portfolio" });
-const ExchangeRateResult = ExchangeRateResultSchema.meta({ id: "ExchangeRateResult" });
+const PriceResult = PriceResultSchema.meta({ id: "PriceResult" });
 const ConvertResult = ConvertResultSchema.meta({ id: "ConvertResult" });
-const MarketPriceResult = MarketPriceResultSchema.meta({ id: "MarketPriceResult" });
 const ProviderStatus = ProviderStatusSchema.meta({ id: "ProviderStatus" });
 const SuccessSchema = z.object({ success: z.boolean() }).meta({ id: "SuccessResponse" });
 const Transaction = TransactionResponseSchema.meta({ id: "Transaction" });
@@ -91,6 +100,12 @@ const Budget = BudgetResponseSchema.meta({ id: "Budget" });
 const BudgetStatus = BudgetStatusItemSchema.meta({ id: "BudgetStatusItem" });
 const Recurring = RecurringResponseSchema.meta({ id: "RecurringTemplate" });
 const ReceiptRecord = ReceiptResponseSchema.meta({ id: "Receipt" });
+const NetWorthPoint = NetWorthPointSchema.meta({ id: "NetWorthPoint" });
+const AssetPerformanceItem = AssetPerformanceItemSchema.meta({ id: "AssetPerformanceItem" });
+const AllocationResult = AllocationResultSchema.meta({ id: "AllocationResult" });
+const CurrencyExposureItem = CurrencyExposureItemSchema.meta({ id: "CurrencyExposureItem" });
+const RealizedPnlResult = RealizedPnlResultSchema.meta({ id: "RealizedPnlResult" });
+const AssetHistoryResult = AssetHistoryResultSchema.meta({ id: "AssetHistoryResult" });
 const SummaryResult = SpendingSummaryResultSchema.meta({ id: "SpendingSummaryResult" });
 const CategorySpendingItem = CategorySpendingItemSchema.meta({ id: "CategorySpendingItem" });
 const BudgetStatsItem = BudgetStatsItemSchema.meta({ id: "BudgetStatsItem" });
@@ -191,6 +206,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
         name: "Assets",
         description: "Asset and portfolio tracking (savings, investments, crypto)",
       },
+      { name: "Settings", description: "App settings (timezone, etc.)" },
     ],
     paths: {
       "/api/transactions": {
@@ -290,7 +306,10 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           summary: "Bulk-move transactions matching filters to a new category",
           tags: ["Categories"],
           body: RecategorizeSchema,
-          response: z.object({ updated: z.number().int() }),
+          response: z.union([
+            z.object({ updated: z.number().int() }),
+            z.object({ wouldUpdate: z.number().int(), dryRun: z.literal(true) }),
+          ]),
           errors: [400, 500],
         }),
       },
@@ -300,7 +319,13 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           summary: "Merge source category into target",
           tags: ["Categories"],
           body: MergeCategoriesSchema,
-          response: SuccessSchema,
+          response: z.object({
+            merged: z.literal(true),
+            sourceCategoryName: z.string(),
+            targetCategoryName: z.string(),
+            transactionsMoved: z.number().int(),
+            budgetsTransferred: z.number().int(),
+          }),
           errors: [400, 500],
         }),
       },
@@ -546,13 +571,13 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           errors: [400, 404, 500],
         }),
       },
-      "/api/financial/exchange-rate": {
+      "/api/financial/price": {
         get: op({
-          id: "getExchangeRate",
-          summary: "Get an exchange rate between two currencies",
+          id: "getPrice",
+          summary: "Get a price for a currency pair, crypto, stock, or ETF",
           tags: ["Financial"],
-          query: GetExchangeRateSchema,
-          response: ExchangeRateResult,
+          query: GetPriceSchema,
+          response: PriceResult,
           errors: [400, 404, 500],
         }),
       },
@@ -563,16 +588,6 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           tags: ["Financial"],
           query: ConvertCurrencySchema,
           response: ConvertResult,
-          errors: [400, 404, 500],
-        }),
-      },
-      "/api/financial/market-price": {
-        get: op({
-          id: "getMarketPrice",
-          summary: "Get a market price for a crypto, stock, or ETF",
-          tags: ["Financial"],
-          query: GetMarketPriceSchema,
-          response: MarketPriceResult,
           errors: [400, 404, 500],
         }),
       },
@@ -729,6 +744,101 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
           errors: [500],
         }),
       },
+      "/api/portfolio/net-worth": {
+        get: {
+          operationId: "getNetWorthHistory",
+          summary: "Net worth time series",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            query: NetWorthQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Net worth time series",
+              content: { "application/json": { schema: z.array(NetWorthPoint) } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/performance": {
+        get: {
+          operationId: "getAssetPerformance",
+          summary: "All assets ranked by performance",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            query: AssetPerformanceQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Asset performance table",
+              content: { "application/json": { schema: z.array(AssetPerformanceItem) } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/allocation": {
+        get: {
+          operationId: "getAllocation",
+          summary: "Portfolio allocation by asset and type",
+          tags: ["Portfolio Reports"],
+          responses: {
+            "200": {
+              description: "Allocation breakdown",
+              content: { "application/json": { schema: AllocationResult } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/currency-exposure": {
+        get: {
+          operationId: "getCurrencyExposure",
+          summary: "Net worth by currency",
+          tags: ["Portfolio Reports"],
+          responses: {
+            "200": {
+              description: "Currency exposure breakdown",
+              content: { "application/json": { schema: z.array(CurrencyExposureItem) } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/portfolio/realized-pnl": {
+        get: {
+          operationId: "getRealizedPnl",
+          summary: "Realized P&L from sells",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            query: RealizedPnlQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Realized P&L breakdown",
+              content: { "application/json": { schema: RealizedPnlResult } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
+      "/api/assets/{id}/history": {
+        get: {
+          operationId: "getAssetHistory",
+          summary: "Combined lot + price timeline for one asset",
+          tags: ["Portfolio Reports"],
+          requestParams: {
+            path: z.object({ id: z.string().meta({ description: "Asset ID" }) }),
+            query: AssetHistoryQuerySchema,
+          },
+          responses: {
+            "200": {
+              description: "Asset history with lots and price timeline",
+              content: { "application/json": { schema: AssetHistoryResult } },
+            },
+            "404": {
+              description: "Asset not found",
+              content: { "application/json": { schema: ErrorSchema } },
+            },
+          },
+        } satisfies ZodOpenApiOperationObject,
+      },
       "/api/receipts/{id}/image": {
         get: {
           operationId: "getReceiptImage",
@@ -759,6 +869,23 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
             },
           },
         },
+      },
+      "/api/settings/timezone": {
+        get: op({
+          id: "getTimezone",
+          summary: "Get the configured timezone",
+          tags: ["Settings"],
+          response: z.object({ timezone: z.string().nullable() }),
+          errors: [500],
+        }),
+        put: op({
+          id: "setTimezone",
+          summary: "Set the app timezone",
+          tags: ["Settings"],
+          body: z.object({ timezone: z.string() }),
+          response: z.object({ timezone: z.string() }),
+          errors: [400, 500],
+        }),
       },
     },
   });

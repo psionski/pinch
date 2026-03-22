@@ -1,20 +1,26 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  isoToday,
+  offsetDate,
+  daysBetween,
+  isoDateFromMs,
   computePresetRange,
   computeCompareRange,
   getCurrentMonth,
   getCurrentMonthInfo,
   getPreviousMonthRange,
+  setUserTimezone,
   DEFAULT_PRESET,
   PRESET_LABELS,
 } from "@/lib/date-ranges";
 import type { DateRange } from "@/lib/date-ranges";
 
-// Pin "now" to 2026-03-19 for deterministic tests
+// Pin "now" to 2026-03-19 UTC for deterministic tests
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 2, 19)); // March 19, 2026
+  vi.setSystemTime(new Date(Date.UTC(2026, 2, 19))); // March 19, 2026 UTC
+  setUserTimezone("UTC"); // default to UTC for all tests
 });
 
 afterEach(() => {
@@ -81,14 +87,14 @@ describe("computePresetRange", () => {
   });
 
   it("handles year boundaries correctly for 12m in January", () => {
-    vi.setSystemTime(new Date(2026, 0, 15)); // January 15, 2026
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 15))); // January 15, 2026 UTC
     const range = computePresetRange("12m");
     expect(range.dateFrom).toBe("2025-02-01");
     expect(range.dateTo).toBe("2026-01-31");
   });
 
   it("last-month at January wraps to December of previous year", () => {
-    vi.setSystemTime(new Date(2026, 0, 10)); // January 10, 2026
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 10))); // January 10, 2026 UTC
     const range = computePresetRange("last-month");
     expect(range.dateFrom).toBe("2025-12-01");
     expect(range.dateTo).toBe("2025-12-31");
@@ -155,7 +161,7 @@ describe("getCurrentMonth", () => {
   });
 
   it("zero-pads single-digit months", () => {
-    vi.setSystemTime(new Date(2026, 0, 15)); // January
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 15))); // January UTC
     expect(getCurrentMonth()).toBe("2026-01");
   });
 });
@@ -172,7 +178,7 @@ describe("getCurrentMonthInfo", () => {
   });
 
   it("handles February correctly", () => {
-    vi.setSystemTime(new Date(2026, 1, 10)); // February 2026
+    vi.setSystemTime(new Date(Date.UTC(2026, 1, 10))); // February 2026 UTC
     const info = getCurrentMonthInfo();
     expect(info.monthEnd).toBe("2026-02-28");
   });
@@ -191,5 +197,104 @@ describe("getPreviousMonthRange", () => {
     const { prevMonthStart, prevMonthEnd } = getPreviousMonthRange("2026-01");
     expect(prevMonthStart).toBe("2025-12-01");
     expect(prevMonthEnd).toBe("2025-12-31");
+  });
+});
+
+// ─── isoToday ────────────────────────────────────────────────────────────────
+
+describe("isoToday", () => {
+  it("returns the current date as YYYY-MM-DD (defaults to UTC)", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 19, 23, 30)));
+    expect(isoToday()).toBe("2026-03-19");
+  });
+
+  it("handles UTC midnight boundary correctly", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 20, 0, 30)));
+    expect(isoToday()).toBe("2026-03-20");
+  });
+
+  it("returns correct date when user timezone is ahead of UTC", () => {
+    // 22:30 UTC on March 19 = 00:30 on March 20 in Europe/Helsinki (UTC+2)
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 19, 22, 30)));
+    setUserTimezone("Europe/Helsinki");
+    expect(isoToday()).toBe("2026-03-20");
+  });
+
+  it("returns correct date when user timezone is behind UTC", () => {
+    // 03:00 UTC on March 20 = 22:00 on March 19 in America/New_York (UTC-5)
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 20, 3, 0)));
+    setUserTimezone("America/New_York");
+    expect(isoToday()).toBe("2026-03-19");
+  });
+});
+
+// ─── timezone-aware getCurrentMonth ─────────────────────────────────────────
+
+describe("timezone-aware getCurrentMonth", () => {
+  it("returns correct month when timezone crosses month boundary", () => {
+    // March 31 23:00 UTC = April 1 01:00 in Europe/Helsinki (UTC+2 in winter, UTC+3 in summer)
+    // In March, Helsinki is UTC+2, so 23:00 UTC = 01:00 April 1
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 31, 23, 0)));
+    setUserTimezone("Europe/Helsinki");
+    expect(getCurrentMonth()).toBe("2026-04");
+  });
+
+  it("uses UTC when no timezone configured", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 31, 23, 0)));
+    expect(getCurrentMonth()).toBe("2026-03");
+  });
+});
+
+// ─── timezone-aware computePresetRange ──────────────────────────────────────
+
+describe("timezone-aware computePresetRange", () => {
+  it("this-month uses timezone-aware current month", () => {
+    // March 31 23:00 UTC = April 1 in Helsinki → "this-month" should be April
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 31, 23, 0)));
+    setUserTimezone("Europe/Helsinki");
+    const range = computePresetRange("this-month");
+    expect(range.dateFrom).toBe("2026-04-01");
+    expect(range.dateTo).toBe("2026-04-30");
+  });
+});
+
+// ─── offsetDate ──────────────────────────────────────────────────────────────
+
+describe("offsetDate", () => {
+  it("adds positive days", () => {
+    expect(offsetDate("2026-03-19", 5)).toBe("2026-03-24");
+  });
+
+  it("subtracts days", () => {
+    expect(offsetDate("2026-03-01", -1)).toBe("2026-02-28");
+  });
+
+  it("crosses year boundaries", () => {
+    expect(offsetDate("2025-12-31", 1)).toBe("2026-01-01");
+  });
+});
+
+// ─── daysBetween ─────────────────────────────────────────────────────────────
+
+describe("daysBetween", () => {
+  it("returns 0 for the same date", () => {
+    expect(daysBetween("2026-03-19", "2026-03-19")).toBe(0);
+  });
+
+  it("returns positive count for chronological dates", () => {
+    expect(daysBetween("2026-03-01", "2026-03-10")).toBe(9);
+  });
+
+  it("returns negative for reversed dates", () => {
+    expect(daysBetween("2026-03-10", "2026-03-01")).toBe(-9);
+  });
+});
+
+// ─── isoDateFromMs ───────────────────────────────────────────────────────────
+
+describe("isoDateFromMs", () => {
+  it("converts a Unix timestamp in ms to YYYY-MM-DD", () => {
+    const ms = Date.UTC(2026, 2, 19, 14, 30);
+    expect(isoDateFromMs(ms)).toBe("2026-03-19");
   });
 });

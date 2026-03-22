@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ReceiptResponse } from "@/lib/validators/receipts";
 import type { PaginatedTransactionsResponse } from "@/lib/validators/transactions";
+import { Temporal } from "@js-temporal/polyfill";
 
 interface ReceiptDialogProps {
   receiptId: number | null;
@@ -25,7 +26,7 @@ function formatCurrency(cents: number): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+  return Temporal.PlainDate.from(iso.slice(0, 10)).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",

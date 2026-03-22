@@ -59,3 +59,42 @@ describe("list", () => {
     expect(all.map((s) => s.key).sort()).toEqual(["a", "b"]);
   });
 });
+
+describe("getTimezone", () => {
+  it("returns null when no timezone is configured", () => {
+    expect(service.getTimezone()).toBeNull();
+  });
+
+  it("returns the configured timezone", () => {
+    service.setTimezone("Europe/Amsterdam");
+    expect(service.getTimezone()).toBe("Europe/Amsterdam");
+  });
+
+  it("can be updated", () => {
+    service.setTimezone("America/New_York");
+    expect(service.getTimezone()).toBe("America/New_York");
+
+    service.setTimezone("Asia/Tokyo");
+    expect(service.getTimezone()).toBe("Asia/Tokyo");
+  });
+});
+
+describe("setTimezone", () => {
+  it("accepts valid IANA timezone identifiers", () => {
+    expect(() => service.setTimezone("UTC")).not.toThrow();
+    expect(() => service.setTimezone("Europe/Amsterdam")).not.toThrow();
+    expect(() => service.setTimezone("America/Los_Angeles")).not.toThrow();
+    expect(() => service.setTimezone("Asia/Kolkata")).not.toThrow();
+    expect(() => service.setTimezone("Pacific/Auckland")).not.toThrow();
+  });
+
+  it("rejects invalid timezone identifiers", () => {
+    expect(() => service.setTimezone("Not/A/Timezone")).toThrow("Invalid IANA timezone");
+    expect(() => service.setTimezone("")).toThrow("Invalid IANA timezone");
+  });
+
+  it("stores timezone in settings table", () => {
+    service.setTimezone("Europe/Berlin");
+    expect(service.get("timezone")).toBe("Europe/Berlin");
+  });
+});

@@ -6,10 +6,12 @@ import {
   LayoutDashboard,
   ArrowLeftRight,
   Tags,
-  BarChart3,
   Wallet,
   Repeat,
   TrendingUp,
+  DollarSign,
+  PieChart,
+  Settings,
 } from "lucide-react";
 
 import {
@@ -17,21 +19,74 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
-const navItems = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const topItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { href: "/categories", label: "Categories", icon: Tags },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/budgets", label: "Budgets", icon: Wallet },
-  { href: "/assets", label: "Assets", icon: TrendingUp },
-  { href: "/recurring", label: "Recurring", icon: Repeat },
 ];
+
+const navGroups: NavGroup[] = [
+  {
+    label: "Track",
+    items: [
+      { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/recurring", label: "Recurring", icon: Repeat },
+    ],
+  },
+  {
+    label: "Plan",
+    items: [
+      { href: "/budgets", label: "Budgets", icon: Wallet },
+      { href: "/categories", label: "Categories", icon: Tags },
+    ],
+  },
+  {
+    label: "Wealth",
+    items: [
+      { href: "/assets", label: "Assets", icon: TrendingUp },
+      { href: "/reports/cash-flow", label: "Cash Flow", icon: DollarSign },
+      { href: "/reports/portfolio", label: "Portfolio", icon: PieChart },
+    ],
+  },
+];
+
+const bottomItems: NavItem[] = [
+  { href: "/settings", label: "Settings", icon: Settings },
+];
+
+function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }): React.ReactElement {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
+        tooltip={item.label}
+      >
+        <Link href={item.href}>
+          <item.icon />
+          <span>{item.label}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
 
 export function AppSidebar(): React.ReactElement {
   const pathname = usePathname();
@@ -47,19 +102,33 @@ export function AppSidebar(): React.ReactElement {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
-                    tooltip={item.label}
-                  >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+              {topItems.map((item) => (
+                <NavMenuItem key={item.href} item={item} pathname={pathname} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <NavMenuItem key={item.href} item={item} pathname={pathname} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {bottomItems.map((item) => (
+                <NavMenuItem key={item.href} item={item} pathname={pathname} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>

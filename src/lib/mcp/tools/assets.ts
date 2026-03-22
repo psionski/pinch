@@ -13,7 +13,10 @@ import {
   getAssetLotService,
   getAssetPriceService,
   getPortfolioService,
+  getFinancialDataService,
 } from "@/lib/api/services";
+import { getDb } from "@/lib/db";
+import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -31,11 +34,19 @@ export function registerAssetTools(server: McpServer): void {
         "Create a new asset to track in your portfolio. " +
         "Types: 'deposit' (savings/bank accounts), 'investment' (stocks/ETFs), 'crypto', 'other'. " +
         "Currency defaults to 'EUR'. " +
-        "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 100. " +
-        "Example: create_asset({ name: 'Emergency Fund', type: 'deposit', currency: 'EUR' })",
+        "To enable automatic price tracking, first call search_symbol with the asset name to discover the " +
+        "correct symbol, then pass the result as symbolMap: { [provider]: [symbol] }. " +
+        "For foreign currency deposits, use search_symbol with the currency code (e.g. 'USD') to find the exchange rate provider mapping. " +
+        "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 100.",
       inputSchema: CreateAssetSchema,
     },
-    (input) => ok(getAssetService().create(input))
+    (input) => {
+      const asset = getAssetService().create(input);
+      if (asset.symbolMap) {
+        triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
+      }
+      return ok(asset);
+    }
   );
 
   server.registerTool(
@@ -68,7 +79,9 @@ export function registerAssetTools(server: McpServer): void {
     "update_asset",
     {
       description:
-        "Update asset metadata (name, icon, color, notes). " +
+        "Update asset metadata (name, icon, color, notes, symbolMap). " +
+        "To enable or change automatic price tracking, use search_symbol first, then set symbolMap " +
+        "to { [provider]: [symbol] } from the search results. Set symbolMap to null to disable automatic pricing. " +
         "Does not affect lots or prices. Use buy_asset/sell_asset to record transactions.",
       inputSchema: IdSchema.merge(UpdateAssetSchema),
     },
@@ -76,6 +89,9 @@ export function registerAssetTools(server: McpServer): void {
       const { id, ...rest } = input;
       const asset = getAssetService().update(id, rest);
       if (!asset) return notFound(`Asset ${id} not found`);
+      if (rest.symbolMap) {
+        triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
+      }
       return ok(asset);
     }
   );
@@ -85,7 +101,9 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Delete an asset and all its lots and price history. " +
-        "The linked transfer transactions are kept (they record the cash flow).",
+        "The linked transfer transactions are kept (they record the cash flow). " +
+        "To find orphaned transfer transactions after deletion, use list_transactions with " +
+        "the asset's name as a search query.",
       inputSchema: IdSchema,
     },
     (input) => {
@@ -105,6 +123,9 @@ export function registerAssetTools(server: McpServer): void {
         "Example: buy 10 SPX at €345.63 → quantity: 10, pricePerUnit: 34563. " +
         "IMPORTANT for EUR deposits: pricePerUnit must be 100 (€1.00 per unit). Use quantity to represent the EUR amount " +
         "(e.g. quantity: 5000, pricePerUnit: 100 for a €5,000 deposit). " +
+        "For foreign currency deposits (e.g. USD): pricePerUnit is the EUR cost per unit of foreign currency in cents. " +
+        "Example: if 1 USD = €0.92, use quantity: 10000, pricePerUnit: 92 for a $10,000 deposit (total cost €9,200). " +
+        "Use get_price with symbol='USD', currency='EUR' to find the current exchange rate. " +
         "Returns { lot, transaction }.",
       inputSchema: IdSchema.merge(BuyAssetSchema),
     },
@@ -125,6 +146,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Record an asset sale or withdrawal. Creates a transfer transaction (cash in) + negative lot atomically. " +
         "Params: id (asset ID), quantity (positive number to sell), pricePerUnit (cents), date (YYYY-MM-DD). " +
+        "For EUR deposit withdrawals, use pricePerUnit: 100. For foreign currency withdrawals, use the current EUR exchange rate in cents. " +
         "Returns error if quantity exceeds current holdings. " +
         "Returns { lot, transaction }.",
       inputSchema: IdSchema.merge(SellAssetSchema),
@@ -145,7 +167,7 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Record a current price snapshot for an asset. " +
-        "Use get_market_price first to fetch the latest price, then call this to persist it. " +
+        "Use get_price first to fetch the latest price, then call this to persist it. " +
         "Params: id (asset ID), pricePerUnit (cents), recordedAt (optional ISO datetime, defaults to now). " +
         "This updates currentValue and P&L calculations.",
       inputSchema: IdSchema.merge(RecordPriceSchema),
@@ -167,20 +189,12 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Get the full portfolio: all assets with holdings + P&L, cash balance, total asset value, net worth, and allocation percentages. " +
         "Net worth = cash balance (income - expenses) + total asset value. " +
-        "Transfers are excluded from the cash balance calculation.",
+        "Transfers are excluded from the cash balance calculation. " +
+        "For detailed analysis see: get_allocation, get_asset_performance, get_net_worth_history, " +
+        "get_realized_pnl, get_currency_exposure, get_asset_history.",
       inputSchema: z.object({}),
     },
     () => ok(getPortfolioService().getPortfolio())
-  );
-
-  server.registerTool(
-    "get_price_history",
-    {
-      description:
-        "Get the price history (time series) for a single asset, ordered oldest to newest. Useful for charting.",
-      inputSchema: IdSchema,
-    },
-    (input) => ok(getAssetPriceService().getHistory(input.id))
   );
 
   server.registerTool(
@@ -191,6 +205,13 @@ export function registerAssetTools(server: McpServer): void {
         "Positive quantity = buy/deposit, negative = sell/withdrawal.",
       inputSchema: IdSchema,
     },
-    (input) => ok(getAssetLotService().listLots(input.id))
+    (input) => {
+      try {
+        return ok(getAssetLotService().listLots(input.id));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "List lots failed";
+        return notFound(msg);
+      }
+    }
   );
 }

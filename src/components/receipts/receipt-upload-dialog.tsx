@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { isoToday } from "@/lib/date-ranges";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,11 +30,6 @@ interface ReceiptUploadDialogProps {
   onUploaded: (receiptId: number) => void;
 }
 
-function todayString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export function ReceiptUploadDialog({
   open,
   onOpenChange,
@@ -42,7 +38,7 @@ export function ReceiptUploadDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [merchant, setMerchant] = useState("");
-  const [date, setDate] = useState(todayString());
+  const [date, setDate] = useState(isoToday());
   const [total, setTotal] = useState("");
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -51,7 +47,7 @@ export function ReceiptUploadDialog({
   function reset(): void {
     setFile(null);
     setMerchant("");
-    setDate(todayString());
+    setDate(isoToday());
     setTotal("");
     setError(null);
   }

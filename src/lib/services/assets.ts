@@ -1,13 +1,15 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { assets, assetLots, assetPrices } from "@/lib/db/schema";
+import { assets, assetLots } from "@/lib/db/schema";
 import type {
   CreateAssetInput,
   UpdateAssetInput,
   AssetResponse,
   AssetWithMetrics,
 } from "@/lib/validators/assets";
+import { resolvePrice } from "./price-resolver";
+import { utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -17,18 +19,13 @@ function parseAsset(row: schema.Asset): AssetResponse {
     name: row.name,
     type: row.type as AssetResponse["type"],
     currency: row.currency,
+    symbolMap: row.symbolMap ? (JSON.parse(row.symbolMap) as Record<string, string>) : null,
     icon: row.icon,
     color: row.color,
     notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
   };
-}
-
-/** For EUR deposits with no price, assume 1 unit = €1.00 (100 cents). */
-function depositFallbackPrice(asset: AssetResponse): number | null {
-  if (asset.type === "deposit" && asset.currency === "EUR") return 100;
-  return null;
 }
 
 export class AssetService {
@@ -41,6 +38,7 @@ export class AssetService {
         name: input.name,
         type: input.type,
         currency: input.currency,
+        symbolMap: input.symbolMap ? JSON.stringify(input.symbolMap) : null,
         icon: input.icon ?? null,
         color: input.color ?? null,
         notes: input.notes ?? null,
@@ -68,6 +66,8 @@ export class AssetService {
     if (input.name !== undefined) updates.name = input.name;
     if (input.type !== undefined) updates.type = input.type;
     if (input.currency !== undefined) updates.currency = input.currency;
+    if ("symbolMap" in input)
+      updates.symbolMap = input.symbolMap ? JSON.stringify(input.symbolMap) : null;
     if ("icon" in input) updates.icon = input.icon ?? null;
     if ("color" in input) updates.color = input.color ?? null;
     if ("notes" in input) updates.notes = input.notes ?? null;
@@ -111,19 +111,12 @@ export class AssetService {
       }
     }
 
-    const currentHoldings = queue.reduce((sum, e) => sum + e.qty, 0);
+    const currentHoldings = parseFloat(queue.reduce((sum, e) => sum + e.qty, 0).toFixed(8));
     const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0));
 
-    // Latest price
-    const latestPrice = this.db
-      .select({ pricePerUnit: assetPrices.pricePerUnit })
-      .from(assetPrices)
-      .where(eq(assetPrices.assetId, asset.id))
-      .orderBy(sql`${assetPrices.recordedAt} DESC`)
-      .limit(1)
-      .get();
-
-    const pricePerUnit = latestPrice?.pricePerUnit ?? depositFallbackPrice(asset);
+    // Unified price resolution: user override → market → lot → deposit
+    const resolved = resolvePrice(this.db, asset);
+    const pricePerUnit = resolved?.price ?? null;
 
     const currentValue = pricePerUnit !== null ? Math.round(currentHoldings * pricePerUnit) : null;
     const pnl = currentValue !== null ? currentValue - costBasis : null;

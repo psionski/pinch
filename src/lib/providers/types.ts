@@ -1,14 +1,11 @@
 // ─── Provider Result Types ─────────────────────────────────────────────────────
 
-export interface ExchangeRateResult {
-  base: string;
-  quote: string;
-  rate: number;
-  date: string; // YYYY-MM-DD
-  provider: string;
-}
-
-export interface MarketPriceResult {
+/**
+ * Unified price result. Works for both market prices and exchange rates:
+ * - Crypto/stocks: symbol="bitcoin", price=80000, currency="EUR"
+ * - Exchange rates: symbol="USD", price=0.92, currency="EUR" (1 USD = 0.92 EUR)
+ */
+export interface PriceResult {
   symbol: string;
   price: number;
   currency: string;
@@ -20,18 +17,39 @@ export interface MarketPriceResult {
 
 export interface FinancialDataProvider {
   name: string;
-  supportsExchangeRates: boolean;
-  supportsMarketPrices: boolean;
 
-  /** Fetch a single exchange rate. Returns null if unavailable. */
-  getExchangeRate?(base: string, quote: string, date?: string): Promise<ExchangeRateResult | null>;
+  /**
+   * Fetch a price for a symbol in a given currency.
+   * For exchange rate providers: symbol is the base currency (e.g. "USD"),
+   * currency is the quote (e.g. "EUR"), and price is the rate.
+   */
+  getPrice?(symbol: string, currency: string, date?: string): Promise<PriceResult | null>;
 
-  /** Fetch all available rates for a base currency on a given date. */
-  getExchangeRates?(base: string, date?: string): Promise<ExchangeRateResult[]>;
+  /** Fetch all available prices/rates for a symbol (e.g. all currency pairs for "USD"). */
+  getPrices?(symbol: string, date?: string): Promise<PriceResult[]>;
 
-  /** Fetch price for a symbol. Returns null if unavailable. */
-  getPrice?(symbol: string, currency: string, date?: string): Promise<MarketPriceResult | null>;
+  /** Fetch daily prices for a symbol over a date range. */
+  getPriceRange?(
+    symbol: string,
+    currency: string,
+    from: string,
+    to: string
+  ): Promise<PriceResult[]>;
+
+  /** Search for a symbol by name/query. Returns matching symbols for auto-discovery. */
+  searchSymbol?(query: string): Promise<SymbolSearchResult[]>;
 
   /** Verify API key is valid and service is reachable. */
   healthCheck?(): Promise<boolean>;
 }
+
+export interface SymbolSearchResult {
+  provider: string;
+  symbol: string;
+  name: string;
+  type?: string; // "crypto", "stock", "etf", etc.
+}
+
+// Legacy aliases — keep during transition, remove later if unused
+export type ExchangeRateResult = PriceResult;
+export type MarketPriceResult = PriceResult;

@@ -1,4 +1,5 @@
-import type { MarketPriceResult, FinancialDataProvider } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
+import { isoToday } from "@/lib/date-ranges";
 
 const BASE_URL = "https://www.alphavantage.co/query";
 
@@ -9,26 +10,17 @@ const BASE_URL = "https://www.alphavantage.co/query";
  */
 export class AlphaVantageProvider implements FinancialDataProvider {
   readonly name = "alpha-vantage";
-  readonly supportsExchangeRates = false;
-  readonly supportsMarketPrices = true;
 
   constructor(private apiKey: string) {}
 
-  async getPrice(
-    symbol: string,
-    currency = "USD",
-    date?: string
-  ): Promise<MarketPriceResult | null> {
-    if (date && date < today()) {
+  async getPrice(symbol: string, currency = "USD", date?: string): Promise<PriceResult | null> {
+    if (date && date < isoToday()) {
       return this.getHistoricalPrice(symbol, currency, date);
     }
     return this.getCurrentPrice(symbol, currency);
   }
 
-  private async getCurrentPrice(
-    symbol: string,
-    currency: string
-  ): Promise<MarketPriceResult | null> {
+  private async getCurrentPrice(symbol: string, currency: string): Promise<PriceResult | null> {
     const url = new URL(BASE_URL);
     url.searchParams.set("function", "GLOBAL_QUOTE");
     url.searchParams.set("symbol", symbol);
@@ -49,7 +41,7 @@ export class AlphaVantageProvider implements FinancialDataProvider {
       symbol,
       price,
       currency: currency.toUpperCase(),
-      date: today(),
+      date: isoToday(),
       provider: this.name,
     };
   }
@@ -58,7 +50,7 @@ export class AlphaVantageProvider implements FinancialDataProvider {
     symbol: string,
     currency: string,
     date: string
-  ): Promise<MarketPriceResult | null> {
+  ): Promise<PriceResult | null> {
     const url = new URL(BASE_URL);
     url.searchParams.set("function", "TIME_SERIES_DAILY");
     url.searchParams.set("symbol", symbol);
@@ -92,6 +84,26 @@ export class AlphaVantageProvider implements FinancialDataProvider {
     };
   }
 
+  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
+    const url = new URL(BASE_URL);
+    url.searchParams.set("function", "SYMBOL_SEARCH");
+    url.searchParams.set("keywords", query);
+    url.searchParams.set("apikey", this.apiKey);
+
+    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as AlphaVantageSearchResponse;
+    if (!data.bestMatches?.length) return [];
+
+    return data.bestMatches.slice(0, 10).map((m) => ({
+      provider: this.name,
+      symbol: m["1. symbol"],
+      name: `${m["2. name"]} (${m["1. symbol"]})`,
+      type: m["3. type"]?.toLowerCase() ?? "stock",
+    }));
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       const url = new URL(BASE_URL);
@@ -108,14 +120,14 @@ export class AlphaVantageProvider implements FinancialDataProvider {
   }
 }
 
+interface AlphaVantageSearchResponse {
+  bestMatches?: Array<Record<string, string>>;
+}
+
 interface AlphaVantageQuoteResponse {
   "Global Quote"?: Record<string, string>;
 }
 
 interface AlphaVantageDailyResponse {
   "Time Series (Daily)"?: Record<string, Record<string, string>>;
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }

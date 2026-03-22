@@ -8,8 +8,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (isErrorResponse(input)) return input;
 
   try {
-    getCategoryService().merge(input);
-    return NextResponse.json({ success: true });
+    const result = getCategoryService().merge(input);
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal error";
     return errorResponse(message, "INTERNAL_ERROR", 500);

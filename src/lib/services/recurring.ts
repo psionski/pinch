@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
@@ -8,6 +9,7 @@ import type {
   UpdateRecurringInput,
   RecurringResponse,
 } from "@/lib/validators/recurring";
+import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -24,78 +26,56 @@ function parseTags(raw: string | null): string[] | null {
 
 // ─── Date math helpers ────────────────────────────────────────────────────────
 
-/**
- * Parse a YYYY-MM-DD string into a Date object (UTC midnight).
- * Using explicit UTC construction avoids timezone shifting.
- */
-function parseDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
-}
-
-function formatDate(date: Date): string {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+/** Convert Temporal dayOfWeek (1=Mon..7=Sun) to JS convention (0=Sun..6=Sat). */
+function toJsDow(temporalDow: number): number {
+  return temporalDow % 7;
 }
 
 /**
- * Compute the next occurrence of a recurring template after `afterDate`.
+ * Compute the next occurrence of a recurring template after `afterDate` (YYYY-MM-DD).
  * Returns null if the template is inactive, has ended, or has no future occurrences.
  */
-export function computeNextOccurrence(r: RecurringTransaction, afterDate: Date): string | null {
+export function computeNextOccurrence(r: RecurringTransaction, afterDate: string): string | null {
   if (!r.isActive) return null;
-  if (r.endDate && parseDate(r.endDate) <= afterDate) return null;
 
-  const startDate = parseDate(r.startDate);
-  // The "cursor" is one day after afterDate
-  const cursor = new Date(afterDate);
-  cursor.setUTCDate(cursor.getUTCDate() + 1);
+  const after = Temporal.PlainDate.from(afterDate);
+  if (r.endDate && Temporal.PlainDate.compare(Temporal.PlainDate.from(r.endDate), after) <= 0) {
+    return null;
+  }
 
-  let candidate: Date;
+  const start = Temporal.PlainDate.from(r.startDate);
+  const cursor = after.add({ days: 1 });
+  const base = Temporal.PlainDate.compare(cursor, start) < 0 ? start : cursor;
+
+  let candidate: Temporal.PlainDate;
 
   switch (r.frequency) {
     case "daily": {
-      // The next occurrence is simply cursor, as long as it's >= startDate
-      candidate = cursor < startDate ? new Date(startDate) : new Date(cursor);
+      candidate = base;
       break;
     }
     case "weekly": {
-      const targetDay = r.dayOfWeek ?? startDate.getUTCDay();
-      candidate = cursor < startDate ? new Date(startDate) : new Date(cursor);
-      // Advance to the correct day of week
-      const diff = (targetDay - candidate.getUTCDay() + 7) % 7;
-      candidate.setUTCDate(candidate.getUTCDate() + diff);
+      // r.dayOfWeek uses JS convention (0=Sun..6=Sat), Temporal uses 1=Mon..7=Sun
+      const targetDow = r.dayOfWeek ?? toJsDow(start.dayOfWeek);
+      const baseDow = toJsDow(base.dayOfWeek);
+      const diff = (((targetDow - baseDow) % 7) + 7) % 7;
+      candidate = base.add({ days: diff });
       break;
     }
     case "monthly": {
-      const targetDay = r.dayOfMonth ?? startDate.getUTCDate();
-      // Start from the cursor's year/month and try to land on targetDay
-      candidate = cursor < startDate ? new Date(startDate) : new Date(cursor);
-      // Set to the desired day in the current month
-      candidate.setUTCDate(1); // avoid overflow when adjusting months
-      if (cursor < startDate) {
-        candidate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1));
-      } else {
-        candidate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
-      }
-      candidate.setUTCDate(targetDay);
-      // If that date is in the past or before startDate, advance one month
-      if (candidate < (cursor < startDate ? startDate : cursor)) {
-        candidate.setUTCMonth(candidate.getUTCMonth() + 1);
-        candidate.setUTCDate(1);
-        candidate.setUTCDate(targetDay);
+      const targetDay = r.dayOfMonth ?? start.day;
+      // Try the target day in the base's month (constrain clips to last day if needed)
+      candidate = base.with({ day: targetDay });
+      // If that's before base, advance one month
+      if (Temporal.PlainDate.compare(candidate, base) < 0) {
+        candidate = base.add({ months: 1 }).with({ day: 1 }).with({ day: targetDay });
       }
       break;
     }
     case "yearly": {
-      const targetMonth = startDate.getUTCMonth();
-      const targetDay = startDate.getUTCDate();
-      const base = cursor < startDate ? startDate : cursor;
-      candidate = new Date(Date.UTC(base.getUTCFullYear(), targetMonth, targetDay));
-      if (candidate < base) {
-        candidate = new Date(Date.UTC(base.getUTCFullYear() + 1, targetMonth, targetDay));
+      candidate = Temporal.PlainDate.from({ year: base.year, month: start.month, day: start.day });
+      if (Temporal.PlainDate.compare(candidate, base) < 0) {
+        candidate = candidate.add({ years: 1 });
       }
       break;
     }
@@ -103,37 +83,41 @@ export function computeNextOccurrence(r: RecurringTransaction, afterDate: Date):
       return null;
   }
 
-  if (r.endDate && candidate > parseDate(r.endDate)) return null;
-  return formatDate(candidate);
+  if (r.endDate && Temporal.PlainDate.compare(candidate, Temporal.PlainDate.from(r.endDate)) > 0) {
+    return null;
+  }
+  return candidate.toString();
 }
 
 /**
  * Enumerate all occurrence dates for a recurring template between `fromDate` (exclusive)
- * and `upToDate` (inclusive).
+ * and `upToDate` (inclusive). Both are YYYY-MM-DD strings.
  */
-function occurrencesBetween(r: RecurringTransaction, fromDate: Date, upToDate: Date): string[] {
+function occurrencesBetween(r: RecurringTransaction, fromDate: string, upToDate: string): string[] {
   const results: string[] = [];
-  let cursor = new Date(fromDate);
+  const end = Temporal.PlainDate.from(upToDate);
+  let cursor = fromDate;
 
   while (true) {
     const next = computeNextOccurrence(r, cursor);
     if (!next) break;
-    const nextDate = parseDate(next);
-    if (nextDate > upToDate) break;
+    if (Temporal.PlainDate.compare(Temporal.PlainDate.from(next), end) > 0) break;
     results.push(next);
-    cursor = nextDate;
+    cursor = next;
   }
 
   return results;
 }
 
-function parseRecurring(row: RecurringTransaction, afterDate: Date): RecurringResponse {
+function parseRecurring(row: RecurringTransaction, afterDateStr: string): RecurringResponse {
   return {
     ...row,
     type: row.type as "income" | "expense",
     frequency: row.frequency as "daily" | "weekly" | "monthly" | "yearly",
     tags: parseTags(row.tags),
-    nextOccurrence: computeNextOccurrence(row, afterDate),
+    nextOccurrence: computeNextOccurrence(row, afterDateStr),
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
   };
 }
 
@@ -161,17 +145,17 @@ export class RecurringService {
       })
       .returning()
       .all();
-    return parseRecurring(row, new Date());
+    return parseRecurring(row, isoToday());
   }
 
   list(): RecurringResponse[] {
-    const now = new Date();
+    const today = isoToday();
     return this.db
       .select()
       .from(recurringTransactions)
       .orderBy(recurringTransactions.description)
       .all()
-      .map((r) => parseRecurring(r, now));
+      .map((r) => parseRecurring(r, today));
   }
 
   getById(id: number): RecurringResponse | null {
@@ -180,7 +164,7 @@ export class RecurringService {
       .from(recurringTransactions)
       .where(eq(recurringTransactions.id, id))
       .all();
-    return row ? parseRecurring(row, new Date()) : null;
+    return row ? parseRecurring(row, isoToday()) : null;
   }
 
   update(id: number, input: UpdateRecurringInput): RecurringResponse | null {
@@ -208,7 +192,7 @@ export class RecurringService {
       .returning()
       .all();
 
-    return rows.length > 0 ? parseRecurring(rows[0], new Date()) : null;
+    return rows.length > 0 ? parseRecurring(rows[0], isoToday()) : null;
   }
 
   delete(id: number): boolean {
@@ -226,8 +210,8 @@ export class RecurringService {
    * up to and including today.
    * Returns the total number of transactions created.
    */
-  generatePending(upTo?: Date): number {
-    const upToDate = upTo ?? new Date();
+  generatePending(upTo?: string): number {
+    const upToStr = upTo ?? isoToday();
     const active = this.db
       .select()
       .from(recurringTransactions)
@@ -238,19 +222,21 @@ export class RecurringService {
 
     this.db.transaction((tx) => {
       for (const r of active) {
-        // Start generating from the day after lastGenerated, or from startDate - 1 day
-        const fromStr = r.lastGenerated ?? null;
-        const fromDate = fromStr
-          ? parseDate(fromStr)
-          : (() => {
-              const d = parseDate(r.startDate);
-              d.setUTCDate(d.getUTCDate() - 1);
-              return d;
-            })();
+        const fromStr = r.lastGenerated
+          ? r.lastGenerated
+          : Temporal.PlainDate.from(r.startDate).subtract({ days: 1 }).toString();
 
-        if (r.endDate && parseDate(r.endDate) < fromDate) continue;
+        if (
+          r.endDate &&
+          Temporal.PlainDate.compare(
+            Temporal.PlainDate.from(r.endDate),
+            Temporal.PlainDate.from(fromStr)
+          ) < 0
+        ) {
+          continue;
+        }
 
-        const dates = occurrencesBetween(r, fromDate, upToDate);
+        const dates = occurrencesBetween(r, fromStr, upToStr);
         if (dates.length === 0) continue;
 
         tx.insert(transactions)

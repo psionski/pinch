@@ -10,8 +10,25 @@ import type {
   CategoryResponse,
   CategoryWithCountResponse,
 } from "@/lib/validators/categories";
+import { utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
+
+function parseCategory(row: schema.Category): CategoryResponse {
+  return {
+    ...row,
+    createdAt: utcToLocal(row.createdAt),
+    updatedAt: utcToLocal(row.updatedAt),
+  };
+}
+
+export interface MergeResult {
+  merged: true;
+  sourceCategoryName: string;
+  targetCategoryName: string;
+  transactionsMoved: number;
+  budgetsTransferred: number;
+}
 
 export class CategoryService {
   constructor(private db: Db) {}
@@ -27,7 +44,7 @@ export class CategoryService {
       })
       .returning()
       .all();
-    return row;
+    return parseCategory(row);
   }
 
   /** Returns all categories with transaction counts. Parent/child hierarchy is represented via `parentId`. */
@@ -49,14 +66,14 @@ export class CategoryService {
     }
 
     return allCategories.map((cat) => ({
-      ...cat,
+      ...parseCategory(cat),
       transactionCount: countMap.get(cat.id) ?? 0,
     }));
   }
 
   getById(id: number): CategoryResponse | null {
     const [row] = this.db.select().from(categories).where(eq(categories.id, id)).all();
-    return row ?? null;
+    return row ? parseCategory(row) : null;
   }
 
   update(id: number, input: UpdateCategoryInput): CategoryResponse | null {
@@ -73,7 +90,7 @@ export class CategoryService {
       .returning()
       .all();
 
-    return rows.length > 0 ? rows[0] : null;
+    return rows.length > 0 ? parseCategory(rows[0]) : null;
   }
 
   delete(id: number): boolean {
@@ -83,7 +100,7 @@ export class CategoryService {
 
   /**
    * Bulk-move transactions matching the given filters to a new category.
-   * Returns the number of transactions updated.
+   * When dryRun is true, returns the count without modifying data.
    */
   recategorize(input: RecategorizeInput): number {
     const filters: SQL[] = [];
@@ -106,6 +123,15 @@ export class CategoryService {
 
     const where = filters.length > 0 ? and(...filters) : undefined;
 
+    if (input.dryRun) {
+      const [row] = this.db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(transactions)
+        .where(where)
+        .all();
+      return row?.count ?? 0;
+    }
+
     return this.db
       .update(transactions)
       .set({
@@ -123,21 +149,32 @@ export class CategoryService {
    * - Non-conflicting budgets transferred to target (conflicting ones are dropped)
    * - Source category deleted (cascade-deletes remaining budgets)
    */
-  merge(input: MergeCategoriesInput): void {
+  merge(input: MergeCategoriesInput): MergeResult {
     const { sourceCategoryId, targetCategoryId } = input;
+
+    const source = this.getById(sourceCategoryId);
+    if (!source) throw new Error(`Source category ${sourceCategoryId} not found`);
+    const target = this.getById(targetCategoryId);
+    if (!target) throw new Error(`Target category ${targetCategoryId} not found`);
+
+    let transactionsMoved = 0;
+    let budgetsTransferred = 0;
 
     this.db.transaction((tx) => {
       // Move all transactions to target
-      tx.update(transactions)
+      transactionsMoved = tx
+        .update(transactions)
         .set({
           categoryId: targetCategoryId,
           updatedAt: sql`(datetime('now'))`,
         })
         .where(eq(transactions.categoryId, sourceCategoryId))
-        .run();
+        .returning()
+        .all().length;
 
       // Transfer budgets that don't conflict with an existing target budget for the same month
-      tx.update(budgets)
+      budgetsTransferred = tx
+        .update(budgets)
         .set({ categoryId: targetCategoryId })
         .where(
           and(
@@ -145,10 +182,19 @@ export class CategoryService {
             sql`${budgets.month} NOT IN (SELECT month FROM budgets WHERE category_id = ${targetCategoryId})`
           )
         )
-        .run();
+        .returning()
+        .all().length;
 
       // Delete source category — cascade-deletes any remaining source budgets
       tx.delete(categories).where(eq(categories.id, sourceCategoryId)).run();
     });
+
+    return {
+      merged: true,
+      sourceCategoryName: source.name,
+      targetCategoryName: target.name,
+      transactionsMoved,
+      budgetsTransferred,
+    };
   }
 }

@@ -14,26 +14,34 @@ const DateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
   .optional();
 
-// ─── Exchange Rate ─────────────────────────────────────────────────────────────
+// ─── Price (unified: exchange rates + market prices) ─────────────────────────
 
-export const GetExchangeRateSchema = z.object({
-  base: CurrencyCodeSchema.describe("Base currency code (e.g. USD)"),
-  quote: CurrencyCodeSchema.describe("Quote currency code (e.g. EUR)"),
+export const GetPriceSchema = z.object({
+  symbol: z
+    .string()
+    .min(1)
+    .describe(
+      "Symbol to look up — currency code for exchange rates (e.g. 'USD'), " +
+        "CoinGecko ID for crypto (e.g. 'bitcoin'), or ticker for stocks (e.g. 'AAPL')"
+    ),
+  currency: CurrencyCodeSchema.optional()
+    .default("EUR")
+    .describe("Target currency for the price. Defaults to EUR."),
   date: DateSchema.describe("Date in YYYY-MM-DD format. Defaults to today."),
 });
 
-export type GetExchangeRateInput = z.infer<typeof GetExchangeRateSchema>;
+export type GetPriceInput = z.infer<typeof GetPriceSchema>;
 
-export const ExchangeRateResultSchema = z.object({
-  base: z.string(),
-  quote: z.string(),
-  rate: z.number(),
+export const PriceResultSchema = z.object({
+  symbol: z.string(),
+  price: z.number(),
+  currency: z.string(),
   date: z.string(),
   provider: z.string(),
   stale: z.boolean(),
 });
 
-export type ExchangeRateResultResponse = z.infer<typeof ExchangeRateResultSchema>;
+export type PriceResultResponse = z.infer<typeof PriceResultSchema>;
 
 // ─── Convert Currency ─────────────────────────────────────────────────────────
 
@@ -55,29 +63,6 @@ export const ConvertResultSchema = z.object({
 });
 
 export type ConvertResultResponse = z.infer<typeof ConvertResultSchema>;
-
-// ─── Market Price ─────────────────────────────────────────────────────────────
-
-export const GetMarketPriceSchema = z.object({
-  symbol: z.string().min(1).describe("Asset symbol or CoinGecko ID (e.g. 'bitcoin', 'AAPL')"),
-  currency: CurrencyCodeSchema.optional()
-    .default("EUR")
-    .describe("Target currency for the price. Defaults to EUR."),
-  date: DateSchema.describe("Date in YYYY-MM-DD format. Defaults to today."),
-});
-
-export type GetMarketPriceInput = z.infer<typeof GetMarketPriceSchema>;
-
-export const MarketPriceResultSchema = z.object({
-  symbol: z.string(),
-  price: z.number(),
-  currency: z.string(),
-  date: z.string(),
-  provider: z.string(),
-  stale: z.boolean(),
-});
-
-export type MarketPriceResultResponse = z.infer<typeof MarketPriceResultSchema>;
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 

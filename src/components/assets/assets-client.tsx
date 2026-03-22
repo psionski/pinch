@@ -10,11 +10,23 @@ import { AssetFormDialog } from "./asset-form-dialog";
 import { BuySellDialog } from "./buy-sell-dialog";
 import { DepositWithdrawDialog } from "./deposit-withdraw-dialog";
 import { RecordPriceDialog } from "./record-price-dialog";
+import { AllocationChart } from "@/components/portfolio/allocation-chart";
+import { CurrencyExposure } from "@/components/portfolio/currency-exposure";
+import { PerformanceTable } from "@/components/portfolio/performance-table";
 import { formatCurrency } from "@/lib/format";
-import type { AssetWithMetrics } from "@/lib/validators/assets";
+import type { AssetWithMetrics, PortfolioResponse } from "@/lib/validators/assets";
+import type {
+  AssetPerformanceItem,
+  AllocationResult,
+  CurrencyExposureItem,
+} from "@/lib/validators/portfolio-reports";
 
 interface AssetsClientProps {
   initialAssets: AssetWithMetrics[];
+  portfolio: PortfolioResponse;
+  performance: AssetPerformanceItem[];
+  allocation: AllocationResult;
+  currencyExposure: CurrencyExposureItem[];
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -38,7 +50,83 @@ function PnlBadge({ pnl }: { pnl: number | null }): React.ReactElement | null {
   );
 }
 
-export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactElement {
+function SummaryCards({ portfolio }: { portfolio: PortfolioResponse }): React.ReactElement {
+  const { netWorth, cashBalance, totalAssetValue, pnl } = portfolio;
+  const totalInvested = portfolio.assets.reduce((s, a) => s + a.costBasis, 0);
+  const pnlPct = totalInvested > 0 && pnl !== null ? (pnl / totalInvested) * 100 : null;
+
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <Card>
+        <CardHeader className="pb-1">
+          <CardTitle className="text-muted-foreground text-xs font-medium uppercase">
+            Net Worth
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold">{formatCurrency(netWorth)}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-1">
+          <CardTitle className="text-muted-foreground text-xs font-medium uppercase">
+            Cash Balance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold">{formatCurrency(cashBalance)}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-1">
+          <CardTitle className="text-muted-foreground text-xs font-medium uppercase">
+            Total Invested
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold">{formatCurrency(totalInvested)}</p>
+          <p className="text-muted-foreground text-xs">Value: {formatCurrency(totalAssetValue)}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-1">
+          <CardTitle className="text-muted-foreground text-xs font-medium uppercase">
+            Total P&amp;L
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {pnl !== null ? (
+            <>
+              <p
+                className={`flex items-center gap-1 text-xl font-bold ${pnl >= 0 ? "text-emerald-600" : "text-destructive"}`}
+              >
+                {pnl >= 0 ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />}
+                {pnl >= 0 ? "+" : ""}
+                {formatCurrency(pnl)}
+              </p>
+              {pnlPct !== null && (
+                <p className="text-muted-foreground text-xs">
+                  {pnlPct >= 0 ? "+" : ""}
+                  {pnlPct.toFixed(1)}%
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-muted-foreground text-xl">—</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function AssetsClient({
+  initialAssets,
+  portfolio,
+  performance,
+  allocation,
+  currencyExposure,
+}: AssetsClientProps): React.ReactElement {
   const [assets, setAssets] = useState(initialAssets);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -155,108 +243,121 @@ export function AssetsClient({ initialAssets }: AssetsClientProps): React.ReactE
           worth.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {assets.map((asset) => (
-            <Card key={asset.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      {asset.icon && <span className="text-lg">{asset.icon}</span>}
-                      <CardTitle className="text-base">{asset.name}</CardTitle>
-                    </div>
-                    <Badge variant="secondary" className="mt-1 text-xs">
-                      {TYPE_LABELS[asset.type] ?? asset.type}
-                    </Badge>
-                  </div>
-                  <Link href={`/assets/${asset.id}`}>
-                    <Button variant="ghost" size="icon" className="size-7">
-                      <ArrowRight className="size-4" />
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-1 text-sm">
-                  <div className="text-muted-foreground flex justify-between">
-                    <span>Holdings</span>
-                    <span className="font-mono">
-                      {asset.currentHoldings}{" "}
-                      {asset.type === "deposit" ? asset.currency : asset.name}
-                    </span>
-                  </div>
-                  <div className="text-muted-foreground flex justify-between">
-                    <span>Cost basis</span>
-                    <span className="font-mono">{formatCurrency(asset.costBasis)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Current value</span>
-                    <span className="font-mono font-medium">
-                      {asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">P&amp;L</span>
-                    <PnlBadge pnl={asset.pnl} />
-                  </div>
-                </div>
+        <>
+          <SummaryCards portfolio={portfolio} />
 
-                <div className="flex gap-2 pt-1">
-                  {asset.type === "deposit" ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => setDepositingAsset(asset)}
-                      >
-                        Deposit
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <AllocationChart data={allocation} />
+            <CurrencyExposure data={currencyExposure} />
+          </div>
+
+          <PerformanceTable data={performance} />
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {assets.map((asset) => (
+              <Card key={asset.id}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        {asset.icon && <span className="text-lg">{asset.icon}</span>}
+                        <CardTitle className="text-base">{asset.name}</CardTitle>
+                      </div>
+                      <Badge variant="secondary" className="mt-1 text-xs">
+                        {TYPE_LABELS[asset.type] ?? asset.type}
+                      </Badge>
+                    </div>
+                    <Link href={`/assets/${asset.id}`}>
+                      <Button variant="ghost" size="icon" className="size-7">
+                        <ArrowRight className="size-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => setWithdrawingAsset(asset)}
-                      >
-                        Withdraw
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => setBuyingAsset(asset)}
-                      >
-                        Buy
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => setSellingAsset(asset)}
-                      >
-                        Sell
-                      </Button>
-                    </>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => setPricingAsset(asset)}>
-                    Price
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1 text-sm">
+                    <div className="text-muted-foreground flex justify-between">
+                      <span>Holdings</span>
+                      <span className="font-mono">
+                        {asset.currentHoldings}{" "}
+                        {asset.type === "deposit" ? asset.currency : asset.name}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground flex justify-between">
+                      <span>Cost basis</span>
+                      <span className="font-mono">{formatCurrency(asset.costBasis)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Current value</span>
+                      <span className="font-mono font-medium">
+                        {asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">P&amp;L</span>
+                      <PnlBadge pnl={asset.pnl} />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    {asset.type === "deposit" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setDepositingAsset(asset)}
+                        >
+                          Deposit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setWithdrawingAsset(asset)}
+                        >
+                          Withdraw
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setBuyingAsset(asset)}
+                        >
+                          Buy
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setSellingAsset(asset)}
+                        >
+                          Sell
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => setPricingAsset(asset)}>
+                      Price
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
 
-      <AssetFormDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        onSubmit={handleCreate}
-        loading={loading}
-      />
+      {showCreate && (
+        <AssetFormDialog
+          open={showCreate}
+          onOpenChange={setShowCreate}
+          onSubmit={handleCreate}
+          loading={loading}
+        />
+      )}
 
       {buyingAsset && (
         <BuySellDialog

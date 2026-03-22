@@ -51,9 +51,10 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 │         │                    │                │
 │  ┌──────┴────────────────────┴───────────┐   │
 │  │         Service Layer (shared)         │   │
-│  │   TransactionService, CategoryService  │   │
-│  │   ReportService, BudgetService         │   │
-│  │   RecurringService                     │   │
+│  │   Transactions, Categories, Reports,   │   │
+│  │   Budgets, Recurring, Receipts,        │   │
+│  │   Assets, Portfolio, FinancialData,    │   │
+│  │   Settings                             │   │
 │  └──────────────────┬────────────────────┘   │
 │                     │                         │
 │  ┌──────────────────┴────────────────────┐   │
@@ -76,7 +77,7 @@ Key: API routes and MCP tools call the **same service layer**. No logic duplicat
 
 **Why Tailscale-first:** Single user, personal VPS. Tailscale gives us mutual WireGuard authentication at the network level — good enough to start without building login flows.
 
-**Future: app-level auth.** The architecture should not make auth hard to add later. Keep auth concerns isolated (middleware/route guards), so we can slot in session-based or token-based auth when needed (e.g., shared access, public exposure).
+**Future: app-level auth.** The architecture should not make auth hard to add later. Keep auth concerns isolated (middleware/route guards), so we can slot in session-based or token-based auth when needed (e.g., shared access, public exposure). **Note:** Once auth is added and pages call `cookies()`/`headers()`, Next.js will automatically treat them as dynamic — at that point, remove the `export const dynamic = "force-dynamic"` lines from page files, as they'll be redundant.
 
 ## Database Schema
 
@@ -155,6 +156,59 @@ CREATE TABLE recurring_transactions (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- App-level settings (key-value store for API keys, timezone, preferences)
+CREATE TABLE settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Unified price cache: market prices, exchange rates, and any other provider data.
+-- Exchange rates are stored as prices: symbol='USD', currency='EUR', price=0.92 means 1 USD = 0.92 EUR.
+CREATE TABLE market_prices (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', or currency code: 'USD'
+  price         TEXT NOT NULL,           -- string to avoid float imprecision
+  currency      TEXT NOT NULL,           -- target currency (e.g. 'EUR')
+  date          TEXT NOT NULL,           -- YYYY-MM-DD
+  provider      TEXT NOT NULL,
+  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(symbol, currency, date)
+);
+
+-- Assets: anything you own that has value (deposit, investment, crypto, other)
+CREATE TABLE assets (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  type        TEXT NOT NULL CHECK(type IN ('deposit', 'investment', 'crypto', 'other')),
+  currency    TEXT NOT NULL DEFAULT 'EUR',
+  symbol_map  TEXT,                     -- JSON: {"coingecko":"bitcoin"} for auto price tracking
+  icon        TEXT,
+  color       TEXT,
+  notes       TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Lots: every buy/sell/deposit/withdrawal event
+CREATE TABLE asset_lots (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  quantity        REAL NOT NULL,         -- positive = buy/deposit, negative = sell/withdraw
+  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
+  date            TEXT NOT NULL,
+  transaction_id  INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+  notes           TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Price snapshots: user-recorded or auto-fetched asset valuations
+CREATE TABLE asset_prices (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
+  recorded_at     TEXT NOT NULL
+);
+
 -- Full-text search for transaction descriptions and merchants
 CREATE VIRTUAL TABLE transactions_fts USING fts5(
   description,
@@ -166,6 +220,8 @@ CREATE VIRTUAL TABLE transactions_fts USING fts5(
 ```
 
 **FTS5 sync:** The service layer keeps `transactions_fts` in sync with the `transactions` table on insert/update/delete. This powers text search in `list_transactions` and the MCP `list_transactions` tool.
+
+**Price resolution:** When valuing an asset, the unified price resolver (`src/lib/services/price-resolver.ts`) checks in order: user-recorded `asset_prices` → provider data in `market_prices` (via `symbolMap`) → lot cost basis → deposit identity (EUR deposits = €1.00).
 
 **`updated_at` management:** SQLite has no auto-update trigger for timestamps. The service layer is responsible for setting `updated_at = datetime('now')` on every UPDATE call. No triggers needed — services are the single mutation path.
 
@@ -189,6 +245,16 @@ CREATE INDEX idx_budgets_category_month ON budgets(category_id, month);
 -- Recurring lookups
 CREATE INDEX idx_recurring_active ON recurring_transactions(is_active);
 CREATE INDEX idx_recurring_frequency ON recurring_transactions(frequency, is_active);
+
+-- Market prices
+CREATE INDEX idx_market_prices_symbol ON market_prices(symbol, date);
+
+-- Asset lots & prices
+CREATE INDEX idx_asset_lots_asset ON asset_lots(asset_id);
+CREATE INDEX idx_asset_lots_date ON asset_lots(asset_id, date);
+CREATE INDEX idx_asset_lots_transaction ON asset_lots(transaction_id);
+CREATE INDEX idx_asset_prices_asset ON asset_prices(asset_id);
+CREATE INDEX idx_asset_prices_latest ON asset_prices(asset_id, recorded_at);
 
 -- FTS5 sync triggers (keep full-text index in sync with transactions table)
 CREATE TRIGGER transactions_ai AFTER INSERT ON transactions BEGIN
@@ -217,7 +283,7 @@ PRAGMA cache_size = -64000;    -- 64MB cache
 PRAGMA busy_timeout = 5000;
 ```
 
-## MCP Tools (36 tools)
+## MCP Tools (59 tools)
 
 ### Transactions (8 tools)
 | Tool | Description |
@@ -277,6 +343,45 @@ PRAGMA busy_timeout = 5000;
 | `get_top_merchants` | Highest-spend merchants with transaction counts and averages |
 | `get_net_balance` | Income minus expenses, optionally filtered by date range |
 
+### Portfolio Reports (6 tools)
+| Tool | Description |
+|------|-------------|
+| `get_net_worth_history` | Net worth time series. Params: window (3m/6m/12m/ytd/all), interval (daily/weekly/monthly). Returns date + cash + assets + total per point. |
+| `get_asset_performance` | All assets ranked by performance. Returns cost basis, current value, P&L, P&L %, annualized return per asset. |
+| `get_allocation` | Current portfolio allocation by asset and by type. |
+| `get_currency_exposure` | Net worth breakdown by currency. |
+| `get_realized_pnl` | Realized P&L from sells in a date range, using FIFO cost basis. |
+| `get_asset_history` | Combined lot + price + value timeline for one asset. Params: asset ID, window. |
+
+### Assets (10 tools)
+| Tool | Description |
+|------|-------------|
+| `create_asset` | Create an asset (name, type, currency, symbolMap, icon, color) |
+| `list_assets` | All assets with current holdings, cost basis, current value, P&L |
+| `get_asset` | Single asset with full details |
+| `update_asset` | Update asset metadata |
+| `delete_asset` | Delete an asset and its lots |
+| `buy_asset` | Record purchase/deposit — creates transfer transaction + lot atomically |
+| `sell_asset` | Record sale/withdrawal — creates transfer transaction + negative lot atomically |
+| `record_price` | Update current price for an asset |
+| `list_lots` | Lot history for a single asset |
+| `get_price_history` | Price time series for a single asset |
+
+### Financial Data (5 tools)
+| Tool | Description |
+|------|-------------|
+| `convert_currency` | Convert amount between currencies (cache-first, provider fallback) |
+| `get_price` | Unified price lookup — exchange rates, crypto, stocks, ETFs |
+| `search_symbol` | Search for market symbols across all providers |
+| `list_providers` | List configured financial data providers with status |
+| `set_api_key` | Configure an API key for a provider |
+
+### Settings (2 tools)
+| Tool | Description |
+|------|-------------|
+| `get_timezone` | Get the configured user timezone |
+| `set_timezone` | Set the user timezone (IANA identifier) |
+
 ### Escape Hatch (2 tools)
 | Tool | Description |
 |------|-------------|
@@ -318,6 +423,12 @@ export function initCronJobs(): void {
   cron.schedule("0 3 * * *", async () => {
     await backupDatabase();
   });
+
+  // Schedule market price auto-fetch — daily at 04:00
+  // For each asset with a symbolMap, fetches today's price from the linked provider
+  cron.schedule("0 4 * * *", async () => {
+    await autoRecordMarketPrices();
+  });
 }
 ```
 
@@ -339,7 +450,7 @@ The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint a
 **Key decisions:**
 - **Stateless mode:** `sessionIdGenerator: undefined` — no `Mcp-Session-Id` headers, no SSE resumption. This is the simplest model and fits Next.js route handlers perfectly. The AI assistant makes independent tool calls; there is no multi-turn MCP session state to preserve.
 - **JSON responses:** `enableJsonResponse: true` — returns plain JSON instead of SSE. Simpler to debug, no streaming needed for our tool calls.
-- **Request/Response compatibility:** Uses `WebStandardStreamableHTTPServerTransport` which works natively with Next.js App Router's Web `Request`/`Response` — no Node.js shim needed.
+- **Request/Response compatibility:** Uses `WebStandardStreamableHTTPServerTransport` which works natively with Next.js App Router's Web `Request`/`Response`.
 - **Tool registration:** Factor tool registration into a shared `registerTools(server)` function so the per-request server setup is minimal.
 - **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt image uploads. This is how unknown AI clients discover that binary uploads go through REST, not MCP. Tool descriptions on `create_transactions` reference `receipt_id` and point to the instructions for the upload flow.
 
@@ -360,7 +471,7 @@ export async function POST(req: Request): Promise<Response> {
     ].join(" "),
   });
   registerTools(server);
-  const transport = new NodeStreamableHTTPServerTransport({
+  const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
@@ -378,6 +489,9 @@ export async function POST(req: Request): Promise<Response> {
 - **Recent transactions:** Last 10-20 entries, quick list with category badges
 - **Budget alerts:** Categories approaching (>80%) or over budget, sorted by severity
 - **Upcoming recurring:** Next 5 recurring transactions due
+- **Net worth card + sparkline:** Total net worth with 6-month mini area chart
+- **Top movers:** Assets with biggest P&L change this month
+- **Allocation mini-donut:** Portfolio allocation at a glance
 
 ### Transactions (`/transactions`)
 - Full transaction list, sortable columns (date, amount, category, merchant)
@@ -395,13 +509,23 @@ export async function POST(req: Request): Promise<Response> {
 - Merge UI: select source → target, preview affected transactions, confirm
 - Click-through to filtered transaction list
 
-### Reports (`/reports`)
-- **Date range picker** with presets (this month, last month, last 3/6/12 months, YTD, custom)
-- **Spending by category:** Horizontal bar chart
-- **Trends:** Multi-line chart (total + selected categories over time)
-- **Merchant breakdown:** Table with merchant, total spend, transaction count, avg transaction
-- **Budget vs actual:** Grouped bar chart (budget bar + actual bar per category)
-- **Income vs expenses:** Summary card + trend chart
+### Assets (`/assets`)
+- **Summary cards:** Total net worth, total invested, total P&L (absolute + %), cash balance
+- **Performance table:** Sortable columns — name, type, holdings, cost basis, current value, P&L, annualized return
+- **Allocation donut chart** + **currency exposure bar**
+- **Asset detail** (`/assets/[id]`): value-over-time chart with buy/sell markers, lot history table, price history chart, P&L breakdown
+
+### Cash Flow (`/reports/cash-flow`)
+Date range picker, spending by category, trends, merchant breakdown, budget vs actual, income vs expenses. (`/reports` redirects here.)
+
+### Portfolio (`/reports/portfolio`)
+Net worth over time, allocation breakdown, performance ranking, realized vs unrealized P&L, transfer flow.
+
+*Assets, Cash Flow, and Portfolio are grouped under a "Wealth" section in the sidebar as flat navigation items.*
+
+### Settings (`/settings`)
+- Timezone selector (required on first run — onboarding gate redirects here)
+- API key management for financial data providers
 
 ### Budgets (`/budgets`)
 - Set monthly budgets per category (form with amount input)
@@ -518,21 +642,26 @@ Receipt images are uploaded via a **companion REST endpoint** (not MCP — see R
 ```
 src/
 ├── instrumentation.ts           # Next.js hook — starts cron jobs on server boot
-├── app/                         # Pages: /, /transactions, /categories, /reports,
-│   │                            #   /budgets, /recurring, /api-docs
+├── app/                         # Pages: /, /transactions, /categories, /reports
+│   │                            #   (cash-flow + portfolio), /budgets, /recurring,
+│   │                            #   /assets, /settings, /api-docs
 │   └── api/                     # REST routes per domain + /api/mcp (MCP endpoint)
 │       └── mcp/route.ts         #   + /api/openapi (spec endpoint)
-├── components/                  # Per-domain dirs (budgets/, categories/, …)
+├── components/                  # Per-domain dirs (budgets/, categories/, assets/,
+│   │                            #   portfolio/, dashboard/, …)
 │   └── ui/                      #   + shadcn/ui primitives
 ├── lib/
 │   ├── api/                     # Route helpers (parseBody, errorResponse), service
 │   │                            #   factory functions, OpenAPI spec
 │   ├── db/                      # Drizzle schema, connection singleton, seed
 │   ├── services/                # One service per domain — single source of truth
+│   ├── providers/               # Financial data providers (ECB, Frankfurter,
+│   │                            #   CoinGecko, Alpha Vantage, Open Exchange Rates)
 │   ├── mcp/                     # MCP server init + tools/ (one file per domain)
 │   ├── validators/              # Zod schemas shared by API, MCP, and forms
-│   ├── utils/                   # Date helpers, currency formatting
-│   └── cron.ts                  # Recurring generation (02:00) + backup (03:00)
+│   ├── utils/                   # Currency formatting
+│   ├── date-ranges.ts           # All date/time utilities (timezone-aware)
+│   └── cron.ts                  # Recurring (02:00) + backup (03:00) + market prices (04:00)
 ├── test/                        # All tests — not colocated with source
 data/                            # Runtime (gitignored): pinch.db, backups/, receipts/
 drizzle/                         # Generated migrations
@@ -544,550 +673,14 @@ Each sprint is a self-contained chunk of work that results in something testable
 
 Sprints are organized into two phases: **MVP** and **Full App**.
 
-**Completed sprints (1-17):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio).
+**Completed sprints (1-19):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio), portfolio reports backend (asset–market price linking via symbolMap, unified price resolver, portfolio report services — net worth history, asset performance, allocation, currency exposure, realized P&L, asset history), portfolio reports UI (reports sidebar with Cash Flow / Portfolio sub-pages, portfolio reports page, enhanced assets page with summary cards and charts, asset detail enhancements, dashboard net worth sparkline / top movers / allocation donut).
 
 ---
 
-### Sprint 16: Financial Data Service
-**Goal:** A provider-based service for fetching exchange rates and asset prices from public APIs, with SQLite caching. The UI and MCP clients use this to convert currencies (e.g. a receipt in USD → EUR) and update asset valuations. Historical queries supported. Users configure API keys via a settings table.
-
-#### The problem
-
-Pinch stores amounts in cents with an implicit EUR base currency, but users encounter other currencies constantly: receipts from abroad, foreign-currency assets (Sprint 17), crypto priced in USD. Today, the AI has to guess exchange rates or ask the user. The app needs a reliable, self-hosted way to look up current and historical rates/prices.
-
-#### Design principles
-
-- **Provider abstraction:** A common interface (`FinancialDataProvider`) so backends are pluggable. Ship with free-tier providers; users can swap in premium ones by adding API keys.
-- **Cache-first:** Every fetched rate/price is stored in SQLite. Subsequent lookups for the same pair+date hit the cache. Reduces API calls and gives offline resilience.
-- **TTL-based freshness:** Current-day lookups have a configurable staleness window (default: 1 hour for exchange rates, 15 minutes for asset prices). Historical lookups (past dates) are considered immutable once cached.
-- **Graceful degradation:** If all providers fail, return the most recent cached value (if any) with a `stale: true` flag. Never block a transaction on a rate lookup.
-
-#### Providers to ship
-
-| Provider | Type | Free tier | API key required | Notes |
-|----------|------|-----------|------------------|-------|
-| **ECB (European Central Bank)** | Exchange rates | Unlimited | No | Daily reference rates, ~30 currencies. 1-day lag. Default provider for EUR pairs. |
-| **Frankfurter** | Exchange rates | Unlimited | No | Wraps ECB data with a clean REST API. Historical back to 1999. Good fallback. |
-| **Open Exchange Rates** | Exchange rates | 1,000 req/month | Yes | Real-time rates, 170+ currencies. For users who need intraday or exotic pairs. |
-| **CoinGecko** | Crypto prices | ~30 req/min | No (optional pro key) | Current + historical prices for major cryptos. Prices in any fiat. |
-| **Alpha Vantage** | Stock/ETF prices | 25 req/day | Yes (free key) | Daily/intraday stock prices. Good for ETFs and equities. |
-
-Each provider implements the same interface. The service tries providers in priority order per query type.
-
-#### Schema additions
-
-```sql
--- App-level settings (key-value store for API keys, preferences, etc.)
-CREATE TABLE settings (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-
--- Cached exchange rates
-CREATE TABLE exchange_rates (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  base          TEXT NOT NULL,           -- e.g. 'USD'
-  quote         TEXT NOT NULL,           -- e.g. 'EUR'
-  rate          REAL NOT NULL,           -- 1 base = rate quote (e.g. 0.92)
-  date          TEXT NOT NULL,           -- YYYY-MM-DD
-  provider      TEXT NOT NULL,           -- which provider supplied this
-  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(base, quote, date)
-);
-
--- Cached asset/commodity prices (complements asset_prices in Sprint 17)
-CREATE TABLE market_prices (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', 'SPX'
-  price         REAL NOT NULL,           -- in the asset's native currency
-  currency      TEXT NOT NULL,           -- what currency the price is in
-  date          TEXT NOT NULL,           -- YYYY-MM-DD
-  provider      TEXT NOT NULL,
-  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(symbol, currency, date)
-);
-
-CREATE INDEX idx_exchange_rates_pair ON exchange_rates(base, quote, date);
-CREATE INDEX idx_market_prices_symbol ON market_prices(symbol, date);
-```
-
-**Why separate from `asset_prices`?** `asset_prices` (Sprint 17) tracks user-specific asset valuations linked to portfolio lots. `market_prices` is a shared cache of raw market data — an asset's price update can be sourced from `market_prices`, but they serve different purposes. The financial data service populates `market_prices`; the asset price service reads from it when updating portfolio valuations.
-
-#### Provider interface
-
-```typescript
-interface ExchangeRateResult {
-  base: string;
-  quote: string;
-  rate: number;
-  date: string;         // YYYY-MM-DD
-  provider: string;
-}
-
-interface MarketPriceResult {
-  symbol: string;
-  price: number;
-  currency: string;
-  date: string;
-  provider: string;
-}
-
-interface FinancialDataProvider {
-  name: string;
-  supportsExchangeRates: boolean;
-  supportsMarketPrices: boolean;
-
-  // Exchange rates
-  getExchangeRate?(base: string, quote: string, date?: string): Promise<ExchangeRateResult | null>;
-  getExchangeRates?(base: string, date?: string): Promise<ExchangeRateResult[]>;   // all pairs for a base
-
-  // Market prices
-  getPrice?(symbol: string, currency: string, date?: string): Promise<MarketPriceResult | null>;
-  getPriceRange?(symbol: string, currency: string, from: string, to: string): Promise<MarketPriceResult[]>;
-
-  // Exchange rate time series
-  getExchangeRateRange?(base: string, quote: string, from: string, to: string): Promise<ExchangeRateResult[]>;
-
-  // Health check — verify API key is valid, service is reachable
-  healthCheck?(): Promise<boolean>;
-}
-```
-
-#### Service layer
-
-- **`FinancialDataService`** — orchestrates providers and cache:
-  - `getExchangeRate(base, quote, date?)` — cache-first lookup. If cached and fresh, return it. Otherwise try providers in priority order, cache result, return it. `date` defaults to today.
-  - `getExchangeRates(base, date?)` — all available pairs for a base currency on a given date.
-  - `getExchangeRateRange(base, quote, from, to)` — fetch a full time series of exchange rates for a date range. Uses provider range endpoints (e.g. Frankfurter `/timeseries`) to get all dates in one API call. Bulk-caches all returned points. Returns array of `ExchangeRateResult`.
-  - `convert(amount, from, to, date?)` — convenience: look up rate + multiply. Returns `{ converted: number, rate: number, date: string, stale: boolean }`.
-  - `getMarketPrice(symbol, currency?, date?)` — same pattern for asset prices. Currency defaults to EUR.
-  - `getMarketPriceRange(symbol, currency, from, to)` — fetch a full time series of market prices. Uses provider range endpoints (e.g. CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`) to get all dates in one API call. Bulk-caches all returned points. Returns array of `MarketPriceResult`.
-  - `ensurePriceHistory(symbol, currency, from, to)` — checks cache for gaps in the date range, fetches only the missing segments via `getMarketPriceRange`. Idempotent — safe to call repeatedly.
-  - `ensureExchangeRateHistory(base, quote, from, to)` — same pattern for exchange rates.
-  - `getProviderStatus()` — list configured providers with health status (reachable, key valid, rate limits).
-  - `setApiKey(provider, key)` — store in `settings` table.
-  - `getApiKey(provider)` — read from `settings` table.
-
-- **`SettingsService`** — generic key-value CRUD on the `settings` table. Used by financial data service for API keys, and available for future app settings.
-
-#### MCP tools
-
-| Tool | Description |
-|------|-------------|
-| `convert_currency` | Convert an amount between currencies. Params: `amount` (cents), `from`, `to`, `date` (optional, defaults to today). Returns converted amount (cents), rate used, source provider, whether the rate is stale. Primary use case: receipt in foreign currency → EUR. |
-| `get_exchange_rate` | Look up an exchange rate. Params: `base`, `quote`, `date` (optional). Returns rate, date, provider. |
-| `get_market_price` | Look up a market price. Params: `symbol`, `currency` (optional, default EUR), `date` (optional). Returns price, currency, date, provider. |
-| `list_providers` | List configured financial data providers with status (active, API key set, healthy). |
-| `set_api_key` | Configure an API key for a provider. Params: `provider`, `key`. |
-
-#### API routes
-
-- `GET /api/financial/exchange-rate` — `?base=USD&quote=EUR&date=2025-01-15`
-- `GET /api/financial/convert` — `?amount=1250&from=USD&to=EUR&date=2025-01-15`
-- `GET /api/financial/market-price` — `?symbol=bitcoin&currency=EUR&date=2025-01-15`
-- `GET /api/financial/providers` — list provider status
-- `POST /api/financial/providers/[provider]/key` — set API key
-
-#### Cron integration
-
-- **Daily rate fetch (08:00):** For each currency the user holds assets in (once Sprint 17 lands), fetch today's rate vs EUR and cache it. Until then, no-op — rates are fetched on demand.
-- **Startup warm:** On server start, if the cache has no rate for today for common pairs (USD/EUR, GBP/EUR), fetch them proactively.
-
-#### Integration with existing features
-
-- **Receipt flow:** When the AI uploads a receipt in a foreign currency, it calls `convert_currency` to get the EUR equivalent before creating transactions. The MCP server `instructions` field is updated to mention this capability.
-- **Sprint 17 bridge:** `AssetPriceService.record()` can optionally source from `FinancialDataService.getMarketPrice()` instead of requiring manual input. A future "update all prices" button/tool fetches latest prices for all tracked assets in one go.
-
-#### Project structure additions
-
-```
-src/
-├── lib/
-│   ├── services/
-│   │   ├── financial-data.ts       # Orchestrator: cache + provider fallback
-│   │   └── settings.ts             # Generic key-value settings CRUD
-│   ├── providers/
-│   │   ├── types.ts                # FinancialDataProvider interface
-│   │   ├── ecb.ts                  # ECB exchange rates (free, no key)
-│   │   ├── frankfurter.ts          # Frankfurter API (free, no key)
-│   │   ├── open-exchange-rates.ts  # Open Exchange Rates (key required)
-│   │   ├── coingecko.ts            # CoinGecko crypto prices
-│   │   └── alpha-vantage.ts        # Alpha Vantage stock prices
-│   ├── mcp/tools/
-│   │   └── financial.ts            # MCP tool registrations
-│   └── validators/
-│       └── financial.ts            # Zod schemas for rate/price queries
-├── app/api/
-│   └── financial/
-│       ├── exchange-rate/route.ts
-│       ├── convert/route.ts
-│       ├── market-price/route.ts
-│       └── providers/
-│           ├── route.ts            # GET list providers
-│           └── [provider]/
-│               └── key/route.ts    # POST set API key
-```
-
-#### Testing strategy
-
-- **Provider tests:** Mock HTTP responses for each provider. Verify parsing of ECB XML, Frankfurter JSON, CoinGecko JSON, etc.
-- **Service tests:** Real SQLite (via `makeTestDb()`). Verify cache-first behavior, TTL expiry, provider fallback, stale flag.
-- **Integration tests:** API routes with mocked providers — verify correct responses, error handling, key management.
-
-**Done when:** `convert_currency` MCP tool can answer "what's 15.99 USD in EUR for 2025-01-15?" by hitting ECB/Frankfurter (no API key needed), caching the result, and returning the converted amount. A second call for the same pair+date hits the cache instantly. `get_market_price` can fetch BTC price from CoinGecko. Provider status is visible via `list_providers`. API keys are stored securely in the settings table.
-
-### Sprint 17: Assets & Net Worth Tracking
-**Goal:** Unified asset model for tracking net worth across savings, investments, crypto, and foreign currencies. Adds a `transfer` transaction type so asset purchases don't pollute spending reports. Replaces the previously planned separate Accounts (old Sprint 18) and Investments (old Sprint 19) sprints with a single, more powerful abstraction.
-
-#### Design principles
-
-Every financial holding is an **asset** — a bank deposit, a stock position, a crypto wallet, a foreign currency account. All assets are tracked uniformly through **lots** (quantity × price-per-unit events). This eliminates the need for separate account/holdings/transfers tables.
-
-- **Savings deposit (EUR):** 5,000 units at €1.00/unit. Withdrawal = sell 1,000 at €1.00.
-- **Foreign currency deposit:** 1,000 USD at €0.92/unit. Exchange rate changes = P&L.
-- **Stocks:** 10 SPX at €345.63/unit. Price moves = P&L.
-- **Crypto:** 0.5 BTC at €80,000/unit. Same math.
-
-One model, zero special cases.
-
-#### Schema additions
-
-```sql
--- Assets: anything you own that has value
-CREATE TABLE assets (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT NOT NULL,            -- "Emergency Fund", "SPX", "BTC", "USD Savings"
-  type        TEXT NOT NULL CHECK(type IN ('deposit', 'investment', 'crypto', 'other')),
-  currency    TEXT NOT NULL DEFAULT 'EUR',  -- the currency this asset is denominated in
-  icon        TEXT,                     -- emoji or icon name
-  color       TEXT,                     -- hex color for charts
-  notes       TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Lots: every buy/sell/deposit/withdrawal event
-CREATE TABLE asset_lots (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  quantity        REAL NOT NULL,         -- positive = buy/deposit, negative = sell/withdraw
-  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
-  date            TEXT NOT NULL,          -- ISO 8601 date
-  transaction_id  INTEGER REFERENCES transactions(id) ON DELETE SET NULL,  -- optional cash-side link
-  notes           TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Price snapshots: current and historical valuations
-CREATE TABLE asset_prices (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
-  recorded_at     TEXT NOT NULL           -- ISO 8601 datetime
-);
-
--- Indices
-CREATE INDEX idx_asset_lots_asset ON asset_lots(asset_id);
-CREATE INDEX idx_asset_lots_date ON asset_lots(asset_id, date);
-CREATE INDEX idx_asset_lots_transaction ON asset_lots(transaction_id);
-CREATE INDEX idx_asset_prices_asset ON asset_prices(asset_id);
-CREATE INDEX idx_asset_prices_latest ON asset_prices(asset_id, recorded_at);
-```
-
-#### Transaction type extension
-
-The `transactions.type` CHECK constraint gains `'transfer'`:
-
-```sql
-CHECK(type IN ('income', 'expense', 'transfer'))
-```
-
-**Transfer semantics:**
-- A `transfer` transaction records cash leaving (or entering) your account to buy (or sell) an asset
-- Transfers are **included in balance calculations** (they affect how much cash you have)
-- Transfers are **excluded from spending reports**, savings rate, category budgets, and category breakdowns
-- A transfer transaction is optionally linked to an asset lot via `asset_lots.transaction_id`
-
-#### Derived calculations
-
-| Metric | Formula |
-|--------|---------|
-| Current holdings | `SUM(quantity)` from `asset_lots` per asset |
-| Cost basis | `SUM(quantity × price_per_unit)` for positive lots (buys), or weighted-average for partial sells |
-| Current value | `SUM(quantity) × latest_price` from `asset_prices` |
-| P&L | Current value − cost basis (`null` if no price recorded) |
-| Net worth | Cash balance (from transactions) + total current value of all assets |
-| Savings rate | `(income − expenses) / income` — transfers excluded from both sides |
-
-**Deposit assets** (type `'deposit'`): if no price is recorded in `asset_prices`, assume price = 100 (€1.00 in cents) for same-currency deposits. Only foreign-currency deposits need explicit price updates.
-
-#### Service layer
-
-- `AssetService`: `create`, `list` (with current holdings + latest price + P&L), `getById`, `update`, `delete`
-- `AssetLotService`: `buy` (atomic — creates transfer transaction + lot in one DB transaction), `sell` (atomic — creates transfer transaction + negative lot), `listLots` (history for an asset)
-- `AssetPriceService`: `record` (insert price snapshot), `getLatest` (per asset), `getHistory` (time series for charting)
-- `PortfolioService`: `getPortfolio` (cash + all assets), `getPnL` (aggregate P&L across all assets), `getAllocation` (percentage breakdown by asset)
-- **Existing report updates:** `ReportService.spendingSummary`, `categoryBreakdown`, `trends` — add `WHERE type != 'transfer'` filter. `get_net_balance` tool — transfers still count (cash moved is cash moved).
-- **Existing budget updates:** `BudgetService.getForMonth` — exclude transfers from spend calculations.
-
-#### MCP tools
-
-| Tool | Description |
-|------|-------------|
-| `create_asset` | Create an asset (name, type, currency, icon, color) |
-| `list_assets` | All assets with current holdings, cost basis, current value, P&L |
-| `get_asset` | Single asset with full details |
-| `update_asset` | Update asset metadata (name, icon, color, notes) |
-| `delete_asset` | Delete an asset and its lots |
-| `buy_asset` | Record a purchase/deposit: asset, quantity, price per unit (cents), date. Creates a `transfer` transaction + asset lot atomically. |
-| `sell_asset` | Record a sale/withdrawal: asset, quantity, price per unit (cents), date. Creates a `transfer` transaction + negative lot atomically. |
-| `record_price` | Update current price for an asset. Used after checking a quote/rate. |
-| `get_portfolio` | Full portfolio: all assets with holdings + P&L + net worth + allocation percentages |
-| `get_price_history` | Price time series for a single asset (for charting) |
-| `list_lots` | Lot history for a single asset (buy/sell events) |
-
-#### API routes
-
-- `GET/POST /api/assets` — list + create
-- `GET/PATCH/DELETE /api/assets/[id]` — single asset CRUD
-- `POST /api/assets/[id]/buy` — record purchase/deposit
-- `POST /api/assets/[id]/sell` — record sale/withdrawal
-- `GET /api/assets/[id]/lots` — lot history
-- `GET/POST /api/assets/[id]/prices` — price history + record new price
-- `GET /api/portfolio` — net worth, allocation, aggregate P&L
-
-#### UI
-
-- **Assets page** (`/assets`): asset cards/list showing name, type, icon, current holdings, current value, P&L (color-coded green/red), allocation %
-- **Asset detail view**: lot history table (date, quantity, price, linked transaction), price chart (sparkline or full chart), P&L breakdown
-- **Dashboard additions**: net worth card (cash + assets), portfolio allocation donut chart, top movers (assets with biggest P&L change)
-- **Transaction list**: transfer type shown with distinct styling (e.g., arrow icon, muted color), filterable (show/hide transfers)
-- **Quick actions**: "Buy asset" / "Sell asset" modals accessible from asset cards and transaction page
-- **Sidebar**: add "Assets" nav item between Budgets and Recurring
-
-#### Project structure additions
-
-```
-src/
-├── app/
-│   ├── assets/
-│   │   ├── page.tsx              # Assets list
-│   │   └── [id]/
-│   │       └── page.tsx          # Asset detail (lots, prices, P&L)
-│   └── api/
-│       ├── assets/
-│       │   ├── route.ts          # GET/POST
-│       │   └── [id]/
-│       │       ├── route.ts      # GET/PATCH/DELETE
-│       │       ├── buy/route.ts
-│       │       ├── sell/route.ts
-│       │       ├── lots/route.ts
-│       │       └── prices/route.ts
-│       └── portfolio/
-│           └── route.ts          # GET net worth + allocation
-├── components/
-│   └── assets/                   # Asset cards, lot table, price chart, buy/sell modals
-├── lib/
-│   ├── services/
-│   │   ├── assets.ts
-│   │   ├── asset-lots.ts
-│   │   ├── asset-prices.ts
-│   │   └── portfolio.ts
-│   ├── mcp/tools/
-│   │   └── assets.ts
-│   └── validators/
-│       └── assets.ts
-```
-
-**Done when:** "Bought 10 SPX for €3,456.32" via MCP creates a transfer transaction (cash balance drops by €3,456.32, excluded from spending) + an asset lot (10 units at €345.63). "SPX is now €360" records a price → P&L shows +€143.70. "Deposited €1,000 to savings" creates a transfer + deposit lot. Dashboard shows net worth across cash + all assets. Savings rate stays clean.
-
----
-
-### Sprint 18: Portfolio & Asset Reports — Backend
-**Goal:** Service layer, API routes, and MCP tools for common portfolio/asset analytics. All computed from lots + prices — no snapshots.
-
-#### Phase 1: Asset–market price linking
-
-Today `assets` and `market_prices` are completely disconnected. An asset like "Bitcoin" has no way to know its market symbol is `'bitcoin'` (CoinGecko) or that prices should come from `market_prices`. Everything relies on manual `record_price` calls. This phase bridges the gap.
-
-##### Schema change
-
-Add a nullable `symbol` column to `assets`:
-
-```sql
-ALTER TABLE assets ADD COLUMN symbol TEXT;  -- nullable: NULL = manual/no market data
-```
-
-`symbol` holds the provider-specific identifier: `'bitcoin'` for CoinGecko, `'AAPL'` for AlphaVantage, etc. When set, the system can automatically fetch and resolve prices. When `NULL`, the asset relies on user-provided `asset_prices` snapshots only (e.g. real estate, private funds, collectibles).
-
-##### Unified price resolver
-
-A new utility used by both `attachMetrics()` (current valuation) and `PortfolioReportService` (historical reports):
-
-```
-resolvePrice(asset, date) → { price: number, source: 'market' | 'user' | 'lot' | 'deposit' } | null
-```
-
-Resolution order for a given `(asset, date)`:
-1. **User override** — if an `asset_prices` entry exists within ±1 day of `date`, use it. User-recorded prices are intentional and take precedence (handles NAV overrides, illiquid valuations, corrections).
-2. **Market price** — if the asset has a `symbol`, look up `market_prices` for `(symbol, asset.currency, date)`. Accept exact match or nearest within 7 days (prefer earlier).
-3. **Lot cost basis** — fall back to the most recent lot's `price_per_unit` before `date`.
-4. **Deposit identity** — same-currency deposits: price is always 1 (1 unit = 1 currency unit).
-
-Why user prices beat market prices: a user who manually records a price is making a deliberate statement ("this is what my asset is actually worth"). For illiquid assets there's no market data at all. For market-linked assets, users rarely record manual prices — so in practice, step 2 handles most lookups.
-
-##### Autorecord cron upgrade
-
-The daily cron gains a new job: for each asset where `symbol IS NOT NULL`, fetch today's market price via `FinancialDataService.getMarketPrice(asset.symbol, asset.currency)` and write an `asset_prices` snapshot via `AssetPriceService.record()`. This keeps `asset_prices` dense for market-linked assets without manual intervention, and ensures `attachMetrics()` (which reads from `asset_prices`) stays current.
-
-##### Backfill on symbol assignment
-
-When an asset's `symbol` is set (on creation or via update):
-1. Call `ensurePriceHistory(symbol, asset.currency, earliestLotDate, today)` to populate `market_prices`.
-2. For non-EUR assets, also call `ensureExchangeRateHistory(asset.currency, 'EUR', earliestLotDate, today)`.
-3. This is async / best-effort — don't block the API response. If it fails, reports fall back gracefully through the resolver chain.
-
-##### Validator & API changes
-
-- `CreateAssetInput` / `UpdateAssetInput`: add optional `symbol: z.string().optional()`
-- `AssetResponse`: include `symbol: string | null`
-- MCP `create_asset` / `update_asset` tool descriptions updated to mention the symbol field
-- MCP `instructions` updated: "When creating an investment or crypto asset, ask the user for the ticker/symbol so prices can be tracked automatically."
-
-#### Reports
-
-| Report | What it answers | How it's computed |
-|--------|----------------|-------------------|
-| **Net worth over time** | "How has my total wealth changed?" | For each date point: sum of transactions up to that date (cash) + sum of lot quantities up to that date × nearest recorded price. Configurable window (3/6/12 months, YTD, all time). |
-| **Asset performance** | "How is each asset doing?" | Per asset: cost basis (from lots), current value (quantity × latest price), P&L (absolute + %), annualized return. Sortable by P&L, value, return %. |
-| **Portfolio allocation** | "Where is my money?" | Percentage breakdown: cash vs each asset, optionally grouped by asset type (deposits/investments/crypto). Current + historical (allocation at month boundaries). |
-| **Asset history** | "What happened with this specific asset?" | Per asset: lot timeline (buys/sells with quantities, prices, running total), price chart overlay, value over time. |
-| **Currency exposure** | "How exposed am I to each currency?" | Group all assets by currency, sum current values, show as percentages of total net worth. |
-| **Realized vs unrealized P&L** | "What have I actually locked in vs what's on paper?" | Realized: P&L from sell lots (sell price − average cost basis at time of sell). Unrealized: current value − remaining cost basis. |
-| **Income/expense/transfer summary** | "Where did my money go this month, including transfers?" | Extends existing `get_spending_summary` with a transfer breakdown: how much went to each asset type, net cash flow after transfers. |
-
-#### Service layer
-
-- `PortfolioReportService`:
-  - `getNetWorthTimeSeries(window)` — time series of total net worth (cash + assets) at configurable intervals (daily/weekly/monthly)
-  - `getAssetPerformance(dateRange?)` — per-asset P&L table with cost basis, current value, absolute P&L, percentage return, annualized return
-  - `getAllocationHistory(window)` — portfolio allocation at month boundaries over time
-  - `getCurrencyExposure()` — current value grouped by currency
-  - `getRealizedPnL(dateRange?)` — P&L from completed sells, using weighted-average cost basis
-  - `getAssetHistory(assetId, window)` — combined lot + price timeline for a single asset
-  - `getTransferSummary(month)` — transfer amounts grouped by destination asset/type
-
-- **Extend existing** `ReportService`:
-  - `spendingSummary` gains an optional `includeTransfers` flag — when true, returns a separate `transfers` section showing money moved to assets
-  - `trends` gains a `netWorth` mode alongside the existing spending mode
-
-#### MCP tools
-
-| Tool | Description |
-|------|-------------|
-| `get_net_worth_history` | Net worth time series. Params: window (3m/6m/12m/ytd/all), interval (daily/weekly/monthly). Returns date + cash + assets + total per point. |
-| `get_asset_performance` | All assets ranked by performance. Params: optional date range. Returns cost basis, current value, P&L, P&L %, annualized return per asset. |
-| `get_allocation` | Current portfolio allocation by asset and by type. |
-| `get_currency_exposure` | Net worth breakdown by currency. |
-| `get_realized_pnl` | Realized P&L from sells in a date range. |
-| `get_asset_history` | Combined lot + price + value timeline for one asset. Params: asset ID, window. |
-
-#### API routes
-
-- `GET /api/portfolio/net-worth` — `?window=6m&interval=monthly`
-- `GET /api/portfolio/performance` — `?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/portfolio/allocation` — `?historical=true&window=12m`
-- `GET /api/portfolio/currency-exposure`
-- `GET /api/portfolio/realized-pnl` — `?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/assets/[id]/history` — `?window=12m`
-- `GET /api/reports/summary` — extended with `?includeTransfers=true`
-
-#### Price data strategy
-
-Reports need dense historical price data — a 6-month daily net worth chart for N assets needs up to 180 × N price points plus exchange rates for non-EUR assets. Fetching these one-by-one would be slow and blow API rate limits. Instead, we use **range queries + backfill**.
-
-**How it works:**
-
-1. **Backfill on asset creation.** When an asset is created (or first linked to a market symbol), call `FinancialDataService.ensurePriceHistory()` to populate `market_prices` from the asset's earliest lot date through today. One API call per asset via provider range endpoints (CoinGecko `/market_chart/range`, AlphaVantage `TIME_SERIES_DAILY`, Frankfurter `/timeseries`). Same for exchange rates on non-EUR assets via `ensureExchangeRateHistory()`.
-2. **Daily cron keeps it current.** The existing autorecord cron fetches today's prices for all tracked assets. Combined with the backfill, `market_prices` stays dense over time.
-3. **Reports read from cache.** `PortfolioReportService` reads directly from `market_prices` and `exchange_rates` — no provider calls at report time. For each (asset, date) pair, find the exact or nearest cached price.
-4. **Gap-fill on report generation.** Before computing a report, call `ensurePriceHistory()` / `ensureExchangeRateHistory()` for each asset's date range. These are idempotent — they check what's already cached and only fetch missing segments. This covers assets created before this feature existed, or gaps from provider outages.
-
-**Price resolution** uses the unified `resolvePrice(asset, date)` from Phase 1 (user override → market price → lot cost basis → deposit identity). Reports call this for each (asset, date) point in the series.
-
-#### Key implementation notes
-
-- **Annualized return** uses time-weighted calculation: `((current_value / cost_basis) ^ (365 / days_held)) - 1`. Only meaningful for assets held > 30 days.
-- **Deposit assets** (type `'deposit'`, same currency): price is always 1, so P&L is always 0 and net worth contribution = sum of lots. Skip price lookups for these.
-- All reports should handle the **empty state** gracefully (no assets yet, no prices recorded).
-
-**Done when:** Assets can be linked to market symbols (`create_asset name:"Bitcoin" type:crypto symbol:bitcoin`), prices backfill automatically, and the daily cron keeps them current. The AI can ask "how has my net worth changed over the last 6 months?" and get a time series. "Which of my assets is performing best?" returns a ranked P&L table. All endpoints return correct data tested against known lot + price fixtures. Manual `record_price` overrides market data for assets like real estate or private funds.
-
----
-
-### Sprint 19: Portfolio & Asset Reports — UI
-**Goal:** Web UI pages and dashboard widgets for visualizing portfolio reports from Sprint 18.
-
-#### Assets page enhancements (`/assets`)
-
-- **Performance table**: sortable columns — asset name, type, holdings, cost basis, current value, P&L (€), P&L (%), annualized return. Color-coded green/red for P&L.
-- **Allocation donut chart**: interactive — click a segment to navigate to asset detail
-- **Currency exposure bar**: horizontal stacked bar showing % per currency
-- **Summary cards row**: total net worth, total invested, total P&L (absolute + %), cash balance
-
-#### Asset detail page enhancements (`/assets/[id]`)
-
-- **Value over time chart**: line chart combining price history × holdings quantity. Overlay lot events (buy/sell markers on the timeline).
-- **Lot history table**: date, type (buy/sell), quantity, price per unit, total value, running holdings total, linked transaction (clickable)
-- **P&L card**: cost basis, current value, unrealized P&L, realized P&L (from sells)
-- **Price history chart**: standalone price line chart with "record price" quick action
-
-#### New page: Portfolio Reports (`/portfolio`)
-
-- **Net worth over time**: area chart (stacked: cash + each asset, or grouped by asset type). Date range picker with presets.
-- **Allocation over time**: stacked area or stacked bar chart showing allocation % shifts month-over-month
-- **Performance ranking**: horizontal bar chart — assets sorted by P&L % or absolute P&L, toggleable
-- **Realized vs unrealized P&L**: grouped bar chart or summary cards
-- **Transfer flow**: Sankey-style or simple bar chart showing money flow from cash → asset types per month
-
-#### Dashboard additions
-
-- **Net worth card**: prominent, showing total net worth with trend arrow (vs last month)
-- **Net worth sparkline**: mini area chart (last 6 months) below or beside the card
-- **Top movers**: 2-3 assets with biggest P&L change (absolute or %) this month
-- **Allocation mini-donut**: small donut chart in the dashboard grid
-
-#### Responsive considerations
-
-- Charts should degrade gracefully on mobile (hide legends, simplify to key metrics)
-- Performance table → card layout on small screens
-- Portfolio page tabs on mobile instead of side-by-side sections
-
-#### Project structure additions
-
-```
-src/
-├── app/
-│   └── portfolio/
-│       └── page.tsx                  # Portfolio reports page
-├── components/
-│   ├── portfolio/                    # Portfolio-specific charts and widgets
-│   │   ├── net-worth-chart.tsx
-│   │   ├── allocation-chart.tsx
-│   │   ├── performance-table.tsx
-│   │   ├── currency-exposure.tsx
-│   │   ├── pnl-summary.tsx
-│   │   └── transfer-flow.tsx
-│   └── assets/                       # Enhanced asset components
-│       ├── value-chart.tsx           # Asset value over time with lot markers
-│       └── price-chart.tsx           # Price history with record action
-```
-
-**Done when:** Portfolio page shows net worth over time, allocation breakdown, and performance ranking with real data. Asset detail pages show value charts with buy/sell markers. Dashboard includes net worth card with sparkline. All charts are responsive.
-
----
 ### Sprint 20: Onboarding & Initial Setup
 **Goal:** Make it easy for new users to enter their current financial state without fabricating transaction history. Includes an interactive first-run experience.
+
+**Partially done:** Timezone support is implemented. Settings page (`/settings`) with timezone selector, onboarding gate (middleware redirects to `/settings` until timezone is set), MCP tools (`get_timezone`, `set_timezone`), and all date functions are timezone-aware. See `src/lib/date-ranges.ts`, `src/lib/services/settings.ts`, `src/middleware.ts`.
 
 #### The problem
 
@@ -1182,7 +775,7 @@ src/
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
 - [ ] Performance: check query efficiency, add missing indices if needed
-- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app.
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting.
 - [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.

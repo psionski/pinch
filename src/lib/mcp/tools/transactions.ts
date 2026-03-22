@@ -20,7 +20,9 @@ export function registerTransactionTools(server: McpServer): void {
     {
       description:
         "Add a single transaction. Amounts are in cents (e.g. 1210 = €12.10). " +
-        "type defaults to 'expense'. date must be YYYY-MM-DD.",
+        "type defaults to 'expense'. date is YYYY-MM-DD (defaults to today if omitted). " +
+        "description = what was purchased, merchant = where it was purchased (optional). " +
+        "Use list_categories to find valid categoryId values.",
       inputSchema: CreateTransactionSchema,
     },
     (input) => ok(getTransactionService().create(input))
@@ -30,8 +32,9 @@ export function registerTransactionTools(server: McpServer): void {
     "create_transactions",
     {
       description:
-        "Batch-add multiple transactions in one call. Optionally link all of them " +
-        "to an uploaded receipt via receipt_id (see server instructions for the upload flow).",
+        "Batch-add multiple transactions in one call. Amounts are in cents (e.g. 1210 = €12.10). " +
+        "Use list_categories to find valid categoryId values. " +
+        "Optionally link all of them to an uploaded receipt via receipt_id (see server instructions for the upload flow).",
       inputSchema: CreateTransactionsBatchSchema,
     },
     (input) => ok(getTransactionService().createBatch(input))

@@ -1,4 +1,4 @@
-import type { ExchangeRateResult, FinancialDataProvider } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 
 const BASE_URL = "https://api.frankfurter.app";
 
@@ -9,36 +9,30 @@ const BASE_URL = "https://api.frankfurter.app";
  */
 export class FrankfurterProvider implements FinancialDataProvider {
   readonly name = "frankfurter";
-  readonly supportsExchangeRates = true;
-  readonly supportsMarketPrices = false;
 
-  async getExchangeRate(
-    base: string,
-    quote: string,
-    date?: string
-  ): Promise<ExchangeRateResult | null> {
+  async getPrice(symbol: string, currency: string, date?: string): Promise<PriceResult | null> {
     const endpoint = date ? `${BASE_URL}/${date}` : `${BASE_URL}/latest`;
-    const url = `${endpoint}?from=${encodeURIComponent(base)}&to=${encodeURIComponent(quote)}`;
+    const url = `${endpoint}?from=${encodeURIComponent(symbol)}&to=${encodeURIComponent(currency)}`;
 
     const res = await fetch(url, { next: { revalidate: 0 } });
     if (!res.ok) return null;
 
     const data = (await res.json()) as FrankfurterResponse;
-    const rate = data.rates?.[quote];
+    const rate = data.rates?.[currency];
     if (rate === undefined) return null;
 
     return {
-      base,
-      quote,
-      rate,
+      symbol,
+      price: rate,
+      currency,
       date: data.date,
       provider: this.name,
     };
   }
 
-  async getExchangeRates(base: string, date?: string): Promise<ExchangeRateResult[]> {
+  async getPrices(symbol: string, date?: string): Promise<PriceResult[]> {
     const endpoint = date ? `${BASE_URL}/${date}` : `${BASE_URL}/latest`;
-    const url = `${endpoint}?from=${encodeURIComponent(base)}`;
+    const url = `${endpoint}?from=${encodeURIComponent(symbol)}`;
 
     const res = await fetch(url, { next: { revalidate: 0 } });
     if (!res.ok) return [];
@@ -46,13 +40,50 @@ export class FrankfurterProvider implements FinancialDataProvider {
     const data = (await res.json()) as FrankfurterResponse;
     if (!data.rates) return [];
 
-    return Object.entries(data.rates).map(([quote, rate]) => ({
-      base,
-      quote,
-      rate,
+    return Object.entries(data.rates).map(([currency, rate]) => ({
+      symbol,
+      price: rate,
+      currency,
       date: data.date,
       provider: this.name,
     }));
+  }
+
+  async getPriceRange(
+    symbol: string,
+    currency: string,
+    from: string,
+    to: string
+  ): Promise<PriceResult[]> {
+    const url = `${BASE_URL}/${from}..${to}?from=${encodeURIComponent(symbol)}&to=${encodeURIComponent(currency)}`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as FrankfurterTimeseriesResponse;
+    if (!data.rates) return [];
+
+    return Object.entries(data.rates).map(([date, rates]) => ({
+      symbol,
+      price: rates[currency],
+      currency,
+      date,
+      provider: this.name,
+    }));
+  }
+
+  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
+    const res = await fetch(`${BASE_URL}/currencies`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as Record<string, string>;
+    const q = query.toUpperCase();
+    return Object.entries(data)
+      .filter(([code, name]) => code.includes(q) || name.toUpperCase().includes(q))
+      .map(([code, name]) => ({
+        provider: this.name,
+        symbol: code,
+        name,
+        type: "currency",
+      }));
   }
 
   async healthCheck(): Promise<boolean> {
@@ -71,4 +102,11 @@ interface FrankfurterResponse {
   date: string;
   base: string;
   rates: Record<string, number>;
+}
+
+interface FrankfurterTimeseriesResponse {
+  base: string;
+  start_date: string;
+  end_date: string;
+  rates: Record<string, Record<string, number>>;
 }

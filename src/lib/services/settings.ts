@@ -39,4 +39,19 @@ export class SettingsService {
   list(): Array<{ key: string; value: string }> {
     return this.db.select().from(settings).all();
   }
+
+  /** Get the user's IANA timezone. Returns null if not yet configured. */
+  getTimezone(): string | null {
+    return this.get("timezone");
+  }
+
+  /** Set the user's IANA timezone. Throws on invalid identifier. */
+  setTimezone(tz: string): void {
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: tz });
+    } catch {
+      throw new Error(`Invalid IANA timezone: ${tz}`);
+    }
+    this.set("timezone", tz);
+  }
 }

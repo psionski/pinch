@@ -1,3 +1,5 @@
+import { Temporal } from "@js-temporal/polyfill";
+
 const currencyFormatter = new Intl.NumberFormat("de-DE", {
   style: "currency",
   currency: "EUR",
@@ -15,16 +17,14 @@ export function formatPercent(value: number): string {
 
 /** Format YYYY-MM to a short month name, e.g. "2026-03" → "Mar 2026" */
 export function formatMonth(yearMonth: string): string {
-  const [year, month] = yearMonth.split("-");
-  const date = new Date(Number(year), Number(month) - 1);
-  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const d = Temporal.PlainYearMonth.from(yearMonth).toPlainDate({ day: 1 });
+  return d.toLocaleString("en-US", { month: "short", year: "numeric" });
 }
 
 /** Format YYYY-MM-DD to a short date, e.g. "2026-03-18" → "Mar 18" */
 export function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const d = Temporal.PlainDate.from(isoDate);
+  return d.toLocaleString("en-US", { month: "short", day: "numeric" });
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -45,23 +45,21 @@ export function formatFrequency(item: {
   dayOfWeek: number | null;
   startDate: string;
 }): string {
-  const startParts = item.startDate.split("-").map(Number);
-
   switch (item.frequency) {
     case "daily":
       return "Daily";
     case "weekly": {
-      const dow =
-        item.dayOfWeek ?? new Date(startParts[0], startParts[1] - 1, startParts[2]).getDay();
+      const d = Temporal.PlainDate.from(item.startDate);
+      const dow = item.dayOfWeek ?? d.dayOfWeek % 7; // Temporal: 1=Mon..7=Sun → convert to 0=Sun..6=Sat
       return `Weekly on ${DAY_NAMES[dow]}`;
     }
     case "monthly": {
-      const dom = item.dayOfMonth ?? startParts[2];
+      const dom = item.dayOfMonth ?? Temporal.PlainDate.from(item.startDate).day;
       return `Monthly on the ${ordinal(dom)}`;
     }
     case "yearly": {
-      const d = new Date(startParts[0], startParts[1] - 1, startParts[2]);
-      return `Yearly on ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+      const d = Temporal.PlainDate.from(item.startDate);
+      return `Yearly on ${d.toLocaleString("en-US", { month: "short", day: "numeric" })}`;
     }
     default:
       return item.frequency;

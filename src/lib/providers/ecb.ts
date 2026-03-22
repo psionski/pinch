@@ -1,4 +1,5 @@
-import type { ExchangeRateResult, FinancialDataProvider } from "./types";
+import type { PriceResult, FinancialDataProvider } from "./types";
+import { isoToday } from "@/lib/date-ranges";
 
 const DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 const HIST_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml";
@@ -11,20 +12,14 @@ const HIST_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml";
  */
 export class EcbProvider implements FinancialDataProvider {
   readonly name = "ecb";
-  readonly supportsExchangeRates = true;
-  readonly supportsMarketPrices = false;
 
-  async getExchangeRate(
-    base: string,
-    quote: string,
-    date?: string
-  ): Promise<ExchangeRateResult | null> {
-    const rates = await this.getExchangeRates(base, date);
-    return rates.find((r) => r.quote === quote) ?? null;
+  async getPrice(symbol: string, currency: string, date?: string): Promise<PriceResult | null> {
+    const prices = await this.getPrices(symbol, date);
+    return prices.find((r) => r.currency === currency) ?? null;
   }
 
-  async getExchangeRates(base: string, date?: string): Promise<ExchangeRateResult[]> {
-    const isHistorical = date && date < today();
+  async getPrices(symbol: string, date?: string): Promise<PriceResult[]> {
+    const isHistorical = date && date < isoToday();
     const url = isHistorical ? HIST_URL : DAILY_URL;
 
     const res = await fetch(url, {
@@ -41,7 +36,7 @@ export class EcbProvider implements FinancialDataProvider {
     // Add EUR itself as a synthetic 1:1 rate.
     rateMap.set("EUR", 1);
 
-    return buildResults(base, rateMap, date ?? latestDateFromXml(xml) ?? today(), this.name);
+    return buildResults(symbol, rateMap, date ?? latestDateFromXml(xml) ?? isoToday(), this.name);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -56,13 +51,7 @@ export class EcbProvider implements FinancialDataProvider {
 
 // ─── XML Parsing ──────────────────────────────────────────────────────────────
 
-/**
- * Parses ECB XML and returns a map of currency → rate (relative to EUR).
- * For the daily feed, returns the single Cube entry.
- * For the historical feed, finds the Cube for the requested date (or the most recent).
- */
 function parseEcbXml(xml: string, date?: string): Map<string, number> | null {
-  // Extract all <Cube time="..."> blocks
   const cubeRegex = /<Cube\s+time=['"]([^'"]+)['"]\s*>([\s\S]*?)<\/Cube>/g;
   let best: { date: string; content: string } | null = null;
 
@@ -75,14 +64,12 @@ function parseEcbXml(xml: string, date?: string): Map<string, number> | null {
         best = { date: cubeDate, content };
         break;
       }
-      // Pick the closest date not after requested date
       if (cubeDate <= date) {
         if (!best || cubeDate > best.date) {
           best = { date: cubeDate, content };
         }
       }
     } else {
-      // No date specified — pick latest
       if (!best || cubeDate > best.date) {
         best = { date: cubeDate, content };
       }
@@ -108,34 +95,25 @@ function latestDateFromXml(xml: string): string | null {
 
 // ─── Rate Conversion ──────────────────────────────────────────────────────────
 
-/**
- * Given a map of EUR-based rates, produce ExchangeRateResult[] for all quotes
- * from the given base currency.
- */
 function buildResults(
-  base: string,
+  symbol: string,
   eurRates: Map<string, number>,
   date: string,
   provider: string
-): ExchangeRateResult[] {
-  const baseInEur = eurRates.get(base);
+): PriceResult[] {
+  const baseInEur = eurRates.get(symbol);
   if (baseInEur === undefined) return [];
 
-  const results: ExchangeRateResult[] = [];
+  const results: PriceResult[] = [];
   for (const [currency, eurRate] of eurRates) {
-    if (currency === base) continue;
-    // 1 base = (eurRate / baseInEur) quote
+    if (currency === symbol) continue;
     results.push({
-      base,
-      quote: currency,
-      rate: eurRate / baseInEur,
+      symbol,
+      price: eurRate / baseInEur,
+      currency,
       date,
       provider,
     });
   }
   return results;
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }

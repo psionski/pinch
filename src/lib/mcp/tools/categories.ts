@@ -74,16 +74,20 @@ export function registerCategoryTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "recategorize",
+    "recategorize_transactions",
     {
       description:
         "Bulk-move transactions matching a filter to a new category. " +
-        "At least one of: sourceCategoryId, merchantPattern, descriptionPattern, dateFrom, dateTo is required.",
+        "merchantPattern and descriptionPattern use case-insensitive substring matching " +
+        '(e.g. "Caf" matches "Cafe Central" and "The Ivy Cafe"). ' +
+        "Set dryRun: true to preview the count of affected transactions without modifying data. " +
+        "At least one filter is required: sourceCategoryId, merchantPattern, descriptionPattern, dateFrom, dateTo. " +
+        "Use list_categories to find valid category IDs.",
       inputSchema: RecategorizeSchema,
     },
     (input) => {
       const count = getCategoryService().recategorize(input);
-      return ok({ updated: count });
+      return ok(input.dryRun ? { wouldUpdate: count, dryRun: true } : { updated: count });
     }
   );
 
@@ -92,12 +96,11 @@ export function registerCategoryTools(server: McpServer): void {
     {
       description:
         "Merge source category into target: all transactions are reassigned to target, " +
-        "non-conflicting budgets are transferred, and the source category is deleted.",
+        "non-conflicting budgets are transferred, and the source category is deleted. " +
+        "Subcategories of the source become top-level (their parentId is set to null). " +
+        "Returns transactionsMoved and budgetsTransferred counts.",
       inputSchema: MergeCategoriesSchema,
     },
-    (input) => {
-      getCategoryService().merge(input);
-      return ok({ merged: true });
-    }
+    (input) => ok(getCategoryService().merge(input))
   );
 }

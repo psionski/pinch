@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { isoToday } from "@/lib/date-ranges";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,14 +31,13 @@ interface DepositWithdrawDialogProps {
   loading?: boolean;
 }
 
-async function fetchExchangeRate(base: string, quote: string): Promise<number | null> {
+async function fetchExchangeRate(from: string, to: string): Promise<number | null> {
   try {
-    const res = await fetch(
-      `/api/financial/exchange-rate?base=${encodeURIComponent(base)}&quote=${encodeURIComponent(quote)}`
-    );
+    const params = new URLSearchParams({ symbol: from, currency: to, date: isoToday() });
+    const res = await fetch(`/api/financial/price?${params}`);
     if (!res.ok) return null;
-    const data = (await res.json()) as { rate: number };
-    return data.rate;
+    const data = (await res.json()) as { price: number };
+    return data.price;
   } catch {
     return null;
   }
@@ -51,7 +51,7 @@ export function DepositWithdrawDialog({
   onSubmit,
   loading,
 }: DepositWithdrawDialogProps): React.ReactElement {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const isEur = asset.currency === "EUR";
 
   const [amount, setAmount] = useState("");
@@ -67,18 +67,23 @@ export function DepositWithdrawDialog({
   const [fetchingAdvancedRate, setFetchingAdvancedRate] = useState(false);
 
   // For non-EUR deposits, exchange rate is always shown.
-  // Initialize loading to true for non-EUR so the effect only needs to set false (async).
+  // Initialize loading to true for non-EUR so the effect only sets false (async).
   const [nonEurRate, setNonEurRate] = useState("");
   const [fetchingNonEurRate, setFetchingNonEurRate] = useState(!isEur);
+  const [rateFetchFailed, setRateFetchFailed] = useState(false);
 
-  // Fetch exchange rate for non-EUR deposits on mount
+  // Fetch exchange rate for non-EUR deposits on open
   useEffect(() => {
     if (!open || isEur) return;
     let cancelled = false;
     void (async () => {
       const rate = await fetchExchangeRate(asset.currency, "EUR");
       if (!cancelled) {
-        if (rate !== null) setNonEurRate(rate.toFixed(4));
+        if (rate !== null) {
+          setNonEurRate(rate.toFixed(4));
+        } else {
+          setRateFetchFailed(true);
+        }
         setFetchingNonEurRate(false);
       }
     })();
@@ -90,11 +95,16 @@ export function DepositWithdrawDialog({
   // Fetch exchange rate for EUR advanced mode when source currency changes
   const fetchAdvancedRate = useCallback((currency: string) => {
     const trimmed = currency.trim().toUpperCase();
-    if (trimmed.length < 3) return;
+    if (trimmed.length < 3) {
+      setExchangeRate("");
+      return;
+    }
     setFetchingAdvancedRate(true);
     void (async () => {
       const rate = await fetchExchangeRate(trimmed, "EUR");
-      if (rate !== null) setExchangeRate(rate.toFixed(4));
+      if (rate !== null) {
+        setExchangeRate(rate.toFixed(4));
+      }
       setFetchingAdvancedRate(false);
     })();
   }, []);
@@ -299,6 +309,9 @@ export function DepositWithdrawDialog({
                     <Loader2 className="text-muted-foreground absolute top-2.5 right-3 size-4 animate-spin" />
                   )}
                 </div>
+                {rateFetchFailed && (
+                  <p className="text-destructive text-xs">Could not fetch rate. Enter manually.</p>
+                )}
               </div>
               {computedEurCost !== null && !Number.isNaN(computedEurCost) && (
                 <p className="text-muted-foreground text-sm">
