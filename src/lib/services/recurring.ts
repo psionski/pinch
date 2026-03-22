@@ -58,7 +58,7 @@ export function computeNextOccurrence(r: RecurringTransaction, afterDate: string
       // r.dayOfWeek uses JS convention (0=Sun..6=Sat), Temporal uses 1=Mon..7=Sun
       const targetDow = r.dayOfWeek ?? toJsDow(start.dayOfWeek);
       const baseDow = toJsDow(base.dayOfWeek);
-      const diff = ((targetDow - baseDow) % 7 + 7) % 7;
+      const diff = (((targetDow - baseDow) % 7) + 7) % 7;
       candidate = base.add({ days: diff });
       break;
     }
@@ -228,7 +228,10 @@ export class RecurringService {
 
         if (
           r.endDate &&
-          Temporal.PlainDate.compare(Temporal.PlainDate.from(r.endDate), Temporal.PlainDate.from(fromStr)) < 0
+          Temporal.PlainDate.compare(
+            Temporal.PlainDate.from(r.endDate),
+            Temporal.PlainDate.from(fromStr)
+          ) < 0
         ) {
           continue;
         }

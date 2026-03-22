@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { eq } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
@@ -33,7 +34,9 @@ export class AssetPriceService {
       .values({
         assetId,
         pricePerUnit: input.pricePerUnit,
-        recordedAt: input.recordedAt ? localToUtc(input.recordedAt) : new Date().toISOString(),
+        recordedAt: input.recordedAt
+          ? localToUtc(input.recordedAt)
+          : Temporal.Now.instant().toString(),
       })
       .returning()
       .all();

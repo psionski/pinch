@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { isoDate } from "./rng";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,26 +41,31 @@ function dateAt(m: MonthSpec, day: number): string {
 /** Generate dates at `step`-day intervals from `from` through `to` (inclusive). */
 function dateRange(from: string, to: string, step: number): string[] {
   const dates: string[] = [];
-  const [fy, fm, fd] = from.split("-").map(Number);
-  const [ty, tm, td] = to.split("-").map(Number);
-  const cur = new Date(fy, fm - 1, fd);
-  const end = new Date(ty, tm - 1, td);
-  while (cur <= end) {
-    dates.push(isoDate(cur.getFullYear(), cur.getMonth() + 1, cur.getDate()));
-    cur.setDate(cur.getDate() + step);
+  let cur = Temporal.PlainDate.from(from);
+  const end = Temporal.PlainDate.from(to);
+  while (Temporal.PlainDate.compare(cur, end) <= 0) {
+    dates.push(cur.toString());
+    cur = cur.add({ days: step });
   }
   return dates;
 }
 
+/** Convert YYYY-MM-DD to days since epoch for interpolation math. */
+function dateToDays(date: string): number {
+  return Temporal.PlainDate.from(date)
+    .since(Temporal.PlainDate.from("1970-01-01"), { largestUnit: "days" })
+    .total("days");
+}
+
 /** Linear interpolation between sorted anchor points. */
 function lerp(anchors: Array<{ date: string; value: number }>, target: string): number {
-  const t = new Date(target).getTime();
-  if (t <= new Date(anchors[0].date).getTime()) return anchors[0].value;
+  const t = dateToDays(target);
+  if (t <= dateToDays(anchors[0].date)) return anchors[0].value;
   const last = anchors[anchors.length - 1];
-  if (t >= new Date(last.date).getTime()) return last.value;
+  if (t >= dateToDays(last.date)) return last.value;
   for (let i = 0; i < anchors.length - 1; i++) {
-    const a = new Date(anchors[i].date).getTime();
-    const b = new Date(anchors[i + 1].date).getTime();
+    const a = dateToDays(anchors[i].date);
+    const b = dateToDays(anchors[i + 1].date);
     if (t >= a && t <= b) {
       const frac = (t - a) / (b - a);
       return anchors[i].value + frac * (anchors[i + 1].value - anchors[i].value);

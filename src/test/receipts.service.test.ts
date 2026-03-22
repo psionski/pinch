@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { makeTestDb } from "./helpers";
 import { ReceiptService } from "@/lib/services/receipts";
 import { transactions } from "@/lib/db/schema";
+import { isoToday } from "@/lib/date-ranges";
 
 // Mock fs operations — we don't want to write real files in tests
 vi.mock("fs", () => ({
@@ -52,8 +53,7 @@ describe("upload", () => {
   });
 
   it("uses today's date when none is provided", () => {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = isoToday();
     const result = service.upload(Buffer.from("img"), ".jpg", {});
     expect(result.date).toBe(today);
   });
@@ -225,8 +225,7 @@ describe("createMetadataOnly", () => {
   });
 
   it("uses today's date when none provided", () => {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = isoToday();
     const result = service.createMetadataOnly({});
     expect(result.date).toBe(today);
   });

@@ -26,15 +26,17 @@ export function chance(p: number): boolean {
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
+import { Temporal } from "@js-temporal/polyfill";
+
 export function isoDate(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
+  return Temporal.PlainYearMonth.from({ year, month }).daysInMonth;
 }
 
 export function isWeekend(year: number, month: number, day: number): boolean {
-  const dow = new Date(year, month - 1, day).getDay();
-  return dow === 0 || dow === 6;
+  const dow = Temporal.PlainDate.from({ year, month, day }).dayOfWeek;
+  return dow === 6 || dow === 7; // Temporal: 6=Sat, 7=Sun
 }

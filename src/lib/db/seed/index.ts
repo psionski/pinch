@@ -14,7 +14,8 @@ import { generateMonth, type TxInput } from "./transactions";
 import { generateBudgets } from "./budgets";
 import { generateRecurringTemplates } from "./recurring";
 import { generateAssets } from "./assets";
-import { daysInMonth, isoDate } from "./rng";
+import { Temporal } from "@js-temporal/polyfill";
+import { isoDate } from "./rng";
 import { logger, seedLogger } from "@/lib/logger";
 
 async function seed(): Promise<void> {
@@ -59,18 +60,18 @@ async function seed(): Promise<void> {
   for (const c of cats) catIds[c.name] = c.id;
 
   // ── Date range (4 months ending with current month) ───────────────────
-  const now = new Date();
-  const todayYear = now.getFullYear();
-  const todayMonth = now.getMonth() + 1;
-  const todayDay = now.getDate();
+  const today = Temporal.Now.plainDateISO();
+  const todayYear = today.year;
+  const todayMonth = today.month;
+  const todayDay = today.day;
 
   const months: Array<{ year: number; month: number; lastDay: number }> = [];
   for (let i = 3; i >= 0; i--) {
-    const d = new Date(todayYear, todayMonth - 1 - i, 1);
-    const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const lastDay = i === 0 ? todayDay : daysInMonth(y, m);
-    months.push({ year: y, month: m, lastDay });
+    const ym = Temporal.PlainYearMonth.from({ year: todayYear, month: todayMonth }).subtract({
+      months: i,
+    });
+    const lastDay = i === 0 ? todayDay : ym.daysInMonth;
+    months.push({ year: ym.year, month: ym.month, lastDay });
   }
 
   const firstMonth = months[0];
@@ -103,9 +104,11 @@ async function seed(): Promise<void> {
   const allTxs: TxInput[] = [];
 
   // Opening balance — the day before the first generated month
-  const preMonth = new Date(firstMonth.year, firstMonth.month - 2, 1);
-  const preLastDay = daysInMonth(preMonth.getFullYear(), preMonth.getMonth() + 1);
-  const openingDate = isoDate(preMonth.getFullYear(), preMonth.getMonth() + 1, preLastDay);
+  const preYm = Temporal.PlainYearMonth.from({
+    year: firstMonth.year,
+    month: firstMonth.month,
+  }).subtract({ months: 1 });
+  const openingDate = isoDate(preYm.year, preYm.month, preYm.daysInMonth);
 
   allTxs.push({
     amount: balance,

@@ -26,7 +26,7 @@ export function clearTimezoneCache(): void {
  * Normalize a UTC timestamp string to something Temporal.Instant can parse.
  * Handles SQLite format ("YYYY-MM-DD HH:MM:SS") and strings missing a Z suffix.
  */
-function normalizeUtc(utcStr: string): string {
+export function normalizeUtc(utcStr: string): string {
   let s = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T");
   if (!/[Zz]$|[+-]\d{2}(:\d{2})?$/.test(s)) s += "Z";
   return s;
@@ -53,10 +53,7 @@ export function localToUtc(localStr: string): string {
   if (/[Zz]$|[+-]\d{2}(:\d{2})?$/.test(localStr)) {
     return Temporal.Instant.from(localStr).toString();
   }
-  return Temporal.PlainDateTime.from(localStr)
-    .toZonedDateTime(tz())
-    .toInstant()
-    .toString();
+  return Temporal.PlainDateTime.from(localStr).toZonedDateTime(tz()).toInstant().toString();
 }
 
 // ─── Today / Current Month ────────────────────────────────────────────────────
@@ -110,10 +107,9 @@ export function getCurrentMonthInfo(): MonthInfo {
   const currentMonth = ym.toString();
   const monthStart = ym.toPlainDate({ day: 1 }).toString();
   const monthEnd = ym.toPlainDate({ day: ym.daysInMonth }).toString();
-  const monthLabel = new Date(ym.year, ym.month - 1).toLocaleString("en", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = ym
+    .toPlainDate({ day: 1 })
+    .toLocaleString("en", { month: "long", year: "numeric" });
   return { currentMonth, monthStart, monthEnd, monthLabel };
 }
 

@@ -99,13 +99,14 @@ export function ValueChart({ data, currency }: ValueChartProps): React.ReactElem
                       return `${label}: ${formatCurrency((value as number) * 100, currency)}`;
                     }}
                     labelFormatter={(label) => {
-                      return Temporal.PlainDate.from(
-                        (label as string).slice(0, 10)
-                      ).toLocaleString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      });
+                      return Temporal.PlainDate.from((label as string).slice(0, 10)).toLocaleString(
+                        "en-US",
+                        {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        }
+                      );
                     }}
                   />
                 }

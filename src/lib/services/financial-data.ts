@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
@@ -10,7 +11,7 @@ import { OpenExchangeRatesProvider } from "@/lib/providers/open-exchange-rates";
 import { CoinGeckoProvider } from "@/lib/providers/coingecko";
 import { AlphaVantageProvider } from "@/lib/providers/alpha-vantage";
 import { financialLogger } from "@/lib/logger";
-import { isoToday, daysBetween } from "@/lib/date-ranges";
+import { isoToday, daysBetween, normalizeUtc } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -65,7 +66,8 @@ export class FinancialDataService {
 
     const cached = this.getCachedPrice(symbol, currency, priceDate);
     if (cached) {
-      const age = Date.now() - new Date(cached.fetchedAt).getTime();
+      const age =
+        Date.now() - Temporal.Instant.from(normalizeUtc(cached.fetchedAt)).epochMilliseconds;
       if (isHistorical || age < PRICE_TTL_MS) {
         financialLogger.debug({ symbol, currency, date: priceDate }, "Price served from cache");
         return { ...toPriceResult(cached), stale: false };
@@ -117,7 +119,9 @@ export class FinancialDataService {
 
     const cached = this.getCachedPricesForSymbol(symbol, priceDate);
     if (cached.length > 0) {
-      const oldestFetch = Math.min(...cached.map((r) => new Date(r.fetchedAt).getTime()));
+      const oldestFetch = Math.min(
+        ...cached.map((r) => Temporal.Instant.from(normalizeUtc(r.fetchedAt)).epochMilliseconds)
+      );
       const age = Date.now() - oldestFetch;
       if (isHistorical || age < PRICE_TTL_MS) {
         financialLogger.debug(
@@ -396,7 +400,7 @@ export class FinancialDataService {
         set: {
           price: String(result.price),
           provider: result.provider,
-          fetchedAt: new Date().toISOString(),
+          fetchedAt: Temporal.Now.instant().toString(),
         },
       })
       .run();

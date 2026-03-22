@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import Database from "better-sqlite3";
 import { mkdirSync, readdirSync, rmSync, statSync } from "fs";
 import { join } from "path";
@@ -29,8 +30,8 @@ export async function runBackup(
 
   mkdirSync(backupDir, { recursive: true });
 
-  const timestamp = new Date()
-    .toISOString()
+  const timestamp = Temporal.Now.instant()
+    .toString()
     .replace(/:/g, "-")
     .replace(/\.\d+Z$/, "");
   const fileName = `pinch-backup-${timestamp}.db`;
