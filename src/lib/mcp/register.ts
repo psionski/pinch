@@ -10,6 +10,7 @@ import { registerFinancialTools } from "./tools/financial";
 import { registerAssetTools } from "./tools/assets";
 import { registerPortfolioReportTools } from "./tools/portfolio-reports";
 import { registerSettingsTools } from "./tools/settings";
+import { registerBackupTools } from "./tools/backups";
 import { mcpLogger } from "@/lib/logger";
 
 /**
@@ -54,4 +55,5 @@ export function registerTools(server: McpServer): void {
   registerAssetTools(server);
   registerPortfolioReportTools(server);
   registerSettingsTools(server);
+  registerBackupTools(server);
 }

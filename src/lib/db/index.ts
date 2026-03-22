@@ -75,6 +75,25 @@ export function getDb(): AppDb {
   return g.__pinchDb;
 }
 
+/**
+ * Close the current DB connection and clear the singleton so the next
+ * `getDb()` call reinitializes from the on-disk file. Used after restore
+ * to pick up the new database without a server restart.
+ */
+export function resetDb(): void {
+  if (g.__pinchDb) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = (g.__pinchDb as any).$client as InstanceType<typeof Database>;
+      client.close();
+    } catch {
+      // Connection may already be closed — safe to ignore
+    }
+    g.__pinchDb = undefined;
+    dbLogger.info("Database connection reset");
+  }
+}
+
 /** Create a fresh DB connection — use in tests or for alternate DB paths. */
 export function createDb(path: string): AppDb {
   const client = initClient(path);

@@ -4,7 +4,34 @@ import { mkdirSync, writeFileSync, readdirSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import Database from "better-sqlite3";
-import { runBackup } from "@/lib/services/backup";
+import {
+  runBackup,
+  listBackups,
+  restoreBackup,
+  parseFilenameTimestamp,
+} from "@/lib/services/backup";
+
+describe("parseFilenameTimestamp", () => {
+  it("extracts UTC ISO from a standard backup filename", () => {
+    expect(parseFilenameTimestamp("pinch-backup-2026-03-22T16-07-49Z.db")).toBe(
+      "2026-03-22T16:07:49Z"
+    );
+  });
+
+  it("extracts UTC ISO from a pre-restore backup filename", () => {
+    expect(parseFilenameTimestamp("pinch-backup-pre-restore-2026-03-22T16-07-49Z.db")).toBe(
+      "2026-03-22T16:07:49Z"
+    );
+  });
+
+  it("returns null for legacy filenames without Z suffix", () => {
+    expect(parseFilenameTimestamp("pinch-backup-2026-03-22T16-07-49.db")).toBeNull();
+  });
+
+  it("returns null for epoch-based filenames", () => {
+    expect(parseFilenameTimestamp("pinch-backup-pre-restore-1774193571481.db")).toBeNull();
+  });
+});
 
 describe("runBackup", () => {
   let tmpDir: string;
@@ -24,7 +51,7 @@ describe("runBackup", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("creates a backup file", async () => {
+  it("creates a backup file with Z-suffixed timestamp", async () => {
     const backupDir = join(tmpDir, "backups");
     const result = await runBackup(dbPath, { backupDir });
 
@@ -33,9 +60,8 @@ describe("runBackup", () => {
 
     const files = readdirSync(backupDir);
     expect(files).toHaveLength(1);
-    expect(files[0]).toMatch(/^pinch-backup-.*\.db$/);
+    expect(files[0]).toMatch(/^pinch-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.db$/);
 
-    // Verify the backup is a valid SQLite database
     const backup = new Database(result.path, { readonly: true });
     const rows = backup.prepare("SELECT * FROM t").all();
     backup.close();
@@ -46,13 +72,11 @@ describe("runBackup", () => {
     const backupDir = join(tmpDir, "backups");
     mkdirSync(backupDir, { recursive: true });
 
-    // Create 3 pre-existing "backup" files with staggered mtimes
     for (let i = 0; i < 3; i++) {
-      const fName = `pinch-backup-2026-01-0${i + 1}T00-00-00.db`;
+      const fName = `pinch-backup-2026-01-0${i + 1}T00-00-00Z.db`;
       writeFileSync(join(backupDir, fName), "fake");
     }
 
-    // Run backup with keep=2 — we'll have 4 total, should keep only 2
     const result = await runBackup(dbPath, { backupDir, keep: 2 });
 
     expect(result.rotatedCount).toBe(2);
@@ -60,8 +84,122 @@ describe("runBackup", () => {
       (f) => f.startsWith("pinch-backup-") && f.endsWith(".db")
     );
     expect(files).toHaveLength(2);
-
-    // The newest backup should be the one we just created
     expect(files).toContain(result.path.split(/[\\/]/).pop());
+  });
+});
+
+describe("listBackups", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(tmpdir(), `pinch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns empty array when backup dir does not exist", () => {
+    expect(listBackups(join(tmpDir, "nonexistent"))).toEqual([]);
+  });
+
+  it("parses timestamps from filenames and sorts newest-first", () => {
+    const backupDir = join(tmpDir, "backups");
+    mkdirSync(backupDir, { recursive: true });
+
+    writeFileSync(join(backupDir, "pinch-backup-2026-03-20T10-00-00Z.db"), "data");
+    writeFileSync(join(backupDir, "pinch-backup-2026-03-21T14-30-00Z.db"), "data");
+    writeFileSync(join(backupDir, "pinch-backup-pre-restore-2026-03-21T14-25-00Z.db"), "data");
+
+    const backups = listBackups(backupDir);
+    expect(backups).toHaveLength(3);
+
+    // In test env _tz defaults to UTC, so local == UTC (without Z suffix)
+    expect(backups[0].createdAt).toBe("2026-03-21T14:30:00");
+    expect(backups[1].createdAt).toBe("2026-03-21T14:25:00");
+    expect(backups[2].createdAt).toBe("2026-03-20T10:00:00");
+  });
+
+  it("skips files without a parseable timestamp", () => {
+    const backupDir = join(tmpDir, "backups");
+    mkdirSync(backupDir, { recursive: true });
+
+    writeFileSync(join(backupDir, "pinch-backup-2026-01-01T00-00-00Z.db"), "data");
+    // Legacy format without Z — skipped
+    writeFileSync(join(backupDir, "pinch-backup-2026-01-01T00-00-00.db"), "data");
+    // Epoch format — skipped
+    writeFileSync(join(backupDir, "pinch-backup-pre-restore-1774193571481.db"), "data");
+    // Non-backup files — skipped
+    writeFileSync(join(backupDir, "random-file.txt"), "data");
+
+    const backups = listBackups(backupDir);
+    expect(backups).toHaveLength(1);
+    expect(backups[0].filename).toBe("pinch-backup-2026-01-01T00-00-00Z.db");
+  });
+});
+
+describe("restoreBackup", () => {
+  let tmpDir: string;
+  let dbPath: string;
+  let backupDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(tmpdir(), `pinch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpDir, { recursive: true });
+    backupDir = join(tmpDir, "backups");
+    dbPath = join(tmpDir, "test.db");
+
+    const db = new Database(dbPath);
+    db.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+    db.exec("INSERT INTO t VALUES (1)");
+    db.close();
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("restores a backup and creates a safety backup with Z-suffixed timestamp", async () => {
+    const backupResult = await runBackup(dbPath, { backupDir });
+    const backupFilename = backupResult.path.split(/[\\/]/).pop()!;
+
+    const db = new Database(dbPath);
+    db.exec("INSERT INTO t VALUES (2)");
+    const beforeRestore = db.prepare("SELECT * FROM t").all();
+    db.close();
+    expect(beforeRestore).toHaveLength(2);
+
+    const result = await restoreBackup(dbPath, backupFilename, backupDir);
+    expect(result.restoredFrom).toBe(backupFilename);
+    expect(result.safetyBackup).toMatch(/^pinch-backup-pre-restore-.*Z\.db$/);
+
+    const restored = new Database(dbPath, { readonly: true });
+    const rows = restored.prepare("SELECT * FROM t").all();
+    restored.close();
+    expect(rows).toHaveLength(1);
+
+    const safety = new Database(join(backupDir, result.safetyBackup), { readonly: true });
+    const safetyRows = safety.prepare("SELECT * FROM t").all();
+    safety.close();
+    expect(safetyRows).toHaveLength(2);
+  });
+
+  it("rejects invalid backup filenames", async () => {
+    await expect(restoreBackup(dbPath, "evil.db", backupDir)).rejects.toThrow(
+      "Invalid backup filename"
+    );
+  });
+
+  it("rejects non-existent backup files", async () => {
+    await expect(
+      restoreBackup(dbPath, "pinch-backup-2099-01-01T00-00-00Z.db", backupDir)
+    ).rejects.toThrow("Backup file not found");
+  });
+
+  it("sanitizes path traversal attempts", async () => {
+    await expect(
+      restoreBackup(dbPath, "../../../etc/passwd", backupDir)
+    ).rejects.toThrow("Invalid backup filename");
   });
 });
