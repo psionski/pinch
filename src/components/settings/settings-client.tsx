@@ -41,8 +41,12 @@ export function SettingsClient({
         body: JSON.stringify({ timezone }),
       });
       if (!res.ok) throw new Error("Failed to save");
-      // Reload so the layout re-reads the timezone and TimezoneInit propagates it
-      window.location.reload();
+      // Full page load so the layout re-reads the timezone and TimezoneInit propagates it
+      if (isFirstSetup) {
+        window.location.href = "/";
+      } else {
+        window.location.reload();
+      }
     } finally {
       setSaving(false);
     }
