@@ -6,29 +6,25 @@ import {
   LayoutDashboard,
   ArrowLeftRight,
   Tags,
-  BarChart3,
   Wallet,
   Repeat,
   TrendingUp,
-  ChevronRight,
   DollarSign,
   PieChart,
   Settings,
 } from "lucide-react";
-import { Collapsible } from "radix-ui";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 interface NavItem {
@@ -37,21 +33,41 @@ interface NavItem {
   icon: React.ComponentType;
 }
 
-const navItemsBefore: NavItem[] = [
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const topItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { href: "/categories", label: "Categories", icon: Tags },
 ];
 
-const reportSubItems = [
-  { href: "/reports/cash-flow", label: "Cash Flow", icon: DollarSign },
-  { href: "/reports/portfolio", label: "Portfolio", icon: PieChart },
+const navGroups: NavGroup[] = [
+  {
+    label: "Track",
+    items: [
+      { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/recurring", label: "Recurring", icon: Repeat },
+    ],
+  },
+  {
+    label: "Plan",
+    items: [
+      { href: "/budgets", label: "Budgets", icon: Wallet },
+      { href: "/categories", label: "Categories", icon: Tags },
+    ],
+  },
+  {
+    label: "Wealth",
+    items: [
+      { href: "/assets", label: "Assets", icon: TrendingUp },
+      { href: "/reports/cash-flow", label: "Cash Flow", icon: DollarSign },
+      { href: "/reports/portfolio", label: "Portfolio", icon: PieChart },
+    ],
+  },
 ];
 
-const navItemsAfter: NavItem[] = [
-  { href: "/budgets", label: "Budgets", icon: Wallet },
-  { href: "/assets", label: "Assets", icon: TrendingUp },
-  { href: "/recurring", label: "Recurring", icon: Repeat },
+const bottomItems: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -74,7 +90,6 @@ function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }): R
 
 export function AppSidebar(): React.ReactElement {
   const pathname = usePathname();
-  const reportsActive = pathname.startsWith("/reports");
 
   return (
     <Sidebar>
@@ -87,37 +102,32 @@ export function AppSidebar(): React.ReactElement {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItemsBefore.map((item) => (
+              {topItems.map((item) => (
                 <NavMenuItem key={item.href} item={item} pathname={pathname} />
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-              <Collapsible.Root defaultOpen={reportsActive} className="group/collapsible">
-                <SidebarMenuItem>
-                  <Collapsible.Trigger asChild>
-                    <SidebarMenuButton tooltip="Reports" isActive={reportsActive}>
-                      <BarChart3 />
-                      <span>Reports</span>
-                      <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                  </Collapsible.Trigger>
-                  <Collapsible.Content>
-                    <SidebarMenuSub>
-                      {reportSubItems.map((sub) => (
-                        <SidebarMenuSubItem key={sub.href}>
-                          <SidebarMenuSubButton asChild isActive={pathname === sub.href}>
-                            <Link href={sub.href}>
-                              <sub.icon />
-                              <span>{sub.label}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </Collapsible.Content>
-                </SidebarMenuItem>
-              </Collapsible.Root>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <NavMenuItem key={item.href} item={item} pathname={pathname} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
-              {navItemsAfter.map((item) => (
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {bottomItems.map((item) => (
                 <NavMenuItem key={item.href} item={item} pathname={pathname} />
               ))}
             </SidebarMenu>
