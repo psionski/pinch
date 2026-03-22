@@ -695,26 +695,27 @@ Uses `transfer` type transactions (already excluded from income/expense reports)
 
 #### First-run setup wizard (Web UI)
 
-Triggered on first visit when no transactions exist. Multi-step flow:
+Triggered on first visit when timezone is not set. Multi-step flow:
 
-1. **Welcome** — brief intro, "Let's set up your starting point"
-2. **Currency** — confirm default currency (EUR), option to change
-3. **Cash balance** — "How much cash do you have right now?" Single input → creates opening balance transfer transaction
+1. **Welcome** — brief intro, "Let's set you up"
+  - Maybe in settings page, and only for first time users (timezone not set)? I think we already have something similar there.
+2. **Timezone** — already implemented in settings. But currently takes new users to "/", instead of the next step.
+3. **Cash balance** (optional) — "How much cash do you have right now?" Single input → creates opening balance transfer transaction (should be clarified "checking account")
 4. **Savings** (optional) — "Do you have any savings accounts?" → for each: name, current balance → creates deposit asset + opening lot
-5. **Investments** (optional) — "Do you own any stocks, ETFs, or crypto?" → for each: name, type (stock/crypto), quantity, approximate cost basis → creates asset + opening lot
+5. **Investments** (optional) — "Do you own any stocks, ETFs, or crypto?" → for each asset: name, type (stock/crypto), quantity, approximate cost basis → creates asset + opening lot
 6. **Data providers** (optional) — "Set up market data for automatic price tracking." Show available providers (CoinGecko, Alpha Vantage, Open Exchange Rates) with brief descriptions and free-tier info. For each, an API key input field. Skip-friendly — free providers (Frankfurter, ECB, CoinGecko without key) work out of the box, so this step is only needed for premium providers or to unlock higher rate limits.
-7. **Categories** — show default categories, let user toggle on/off, rename, add custom ones. Quick and visual (checkboxes + inline edit).
-8. **Done** — summary of what was created, link to dashboard
+8. **Done** — "Save" button appears.
 
-The wizard should be **skippable** ("I'll set this up later") and **re-runnable** (accessible from settings, not just first-run — in case someone wants to add a new asset opening balance later).
+The wizard should be **skippable** ("I'll set this up later") except for the timezone, and the steps should be accessible from settings, not just first-run — in case someone wants to add a new asset opening balance later. Maybe the "wizard" should just be revealing the settings menu options one by one (and "set up later" just reveals all of them and takes you to dashboard, and they will also all be revealed by default if someone has a configured timezone)
 
 #### MCP onboarding tools
 
 | Tool | Description |
 |------|-------------|
-| `set_opening_cash_balance` | Set initial cash balance. Creates a `transfer` transaction dated today (or specified date). Idempotent: if an opening balance transfer already exists, updates it. |
-| `add_opening_asset` | Add an existing asset holding. Params: name, type, currency, quantity, cost_basis_total (cents, optional — defaults to current value if price provided, or quantity × price_per_unit). Creates asset + lot with no transaction link. |
-| `get_onboarding_status` | Returns what's been set up: has opening cash balance, list of assets with opening lots, category count. Helps the AI know what to ask next. |
+| `set_opening_cash_balance` | Set initial cash balance. Thin convenience wrapper — creates a `transfer` transaction via `TransactionService.create()` dated today (or specified date) with a description like "Opening balance". Idempotent: if an opening balance transfer already exists, updates it. Exists purely for AI ergonomics (saves the agent from knowing the transfer-transaction pattern). |
+| `add_opening_asset` | Add an existing asset holding. Params: name, type, currency, quantity, cost_basis_total (cents, optional — defaults to current value if price provided, or quantity × price_per_unit). Creates asset + unlinked lot (via the new `AssetLotService.createOpeningLot()` method). |
+
+No `get_onboarding_status` tool — instead, update the root MCP `INSTRUCTIONS` string (`src/lib/mcp/server.ts`) to extend the existing `get_timezone` flow with onboarding guidance. After the timezone check, instruct the AI to ask about opening balances if the user is new: cash balance, savings, investments, data provider API keys. The AI uses `list_transactions`, `list_assets`, and `list_providers` to determine what's already set up — no dedicated status tool needed.
 
 This lets the AI run the same onboarding conversationally: "What's your current bank balance?" → "Do you have any savings or investments?" → "Do you have API keys for any market data providers?" → enters everything via MCP. The AI should mention that free providers (Frankfurter, CoinGecko) work without keys, and suggest setting up Alpha Vantage (free key, 25 req/day) if the user tracks stocks/ETFs.
 
@@ -724,43 +725,18 @@ After setup (or skippable independently):
 
 - **Guided tour**: highlight key UI areas (sidebar nav, transaction list, add button, filters) using tooltip overlays
 - **First transaction prompt**: "Try adding your first real transaction" with a guided form
-- **MCP hint**: for AI-connected users, show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'"
+- **MCP hint**: show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'. To enable this, tell your AI agent to connect to Pinch via MCP at `<address>/api/mcp`." The `<address>` is derived from the current browser URL origin (e.g. `http://localhost:4000`).
 - **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 21)
 
-#### API routes
+#### API routes & service changes
 
-- `POST /api/onboarding/cash-balance` — set opening cash balance
-- `POST /api/onboarding/asset` — add opening asset holding
-- `GET /api/onboarding/status` — what's been configured
-
-#### Project structure additions
-
-```
-src/
-├── app/
-│   ├── onboarding/
-│   │   └── page.tsx              # Setup wizard
-│   └── api/
-│       └── onboarding/
-│           ├── cash-balance/route.ts
-│           ├── asset/route.ts
-│           └── status/route.ts
-├── components/
-│   └── onboarding/               # Wizard steps, tour overlays
-│       ├── wizard.tsx
-│       ├── steps/
-│       │   ├── welcome.tsx
-│       │   ├── currency.tsx
-│       │   ├── cash-balance.tsx
-│       │   ├── savings.tsx
-│       │   ├── investments.tsx
-│       │   ├── categories.tsx
-│       │   └── summary.tsx
-│       └── guided-tour.tsx
-├── lib/
-│   └── services/
-│       └── onboarding.ts         # Opening balance + status logic
-```
+- **Existing routes reused as-is:**
+  - `POST /api/transactions` — cash opening balance (type `"transfer"`). No changes needed.
+  - `GET/PUT /api/settings/timezone` — timezone step. Already implemented.
+  - `GET /api/financial/providers` + `POST /api/financial/providers/{provider}/key` — data providers step. Already implemented.
+- **New service method:** `AssetLotService.createOpeningLot()` — creates an asset lot with `transaction_id = null`. The DB schema already supports nullable `transaction_id`; only the service layer forces a linked transaction today (via `buy()`/`sell()`).
+- **New API endpoint:** `POST /api/assets/{id}/lots` — thin route that validates input and calls `createOpeningLot()`. Used by the wizard UI and the `add_opening_asset` MCP tool.
+- No new generic settings endpoints needed — onboarding state is derived from existing data (transactions, assets, providers).
 
 **Done when:** A brand new user opens the app, walks through the wizard in under 2 minutes, and lands on a dashboard showing their actual net worth. An AI assistant can do the same via MCP: "I have €5,000 in my bank, €3,000 in savings, and 0.5 BTC" → three tool calls → everything set up. No fake income transactions polluting reports.
 
