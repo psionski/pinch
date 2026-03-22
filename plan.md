@@ -51,9 +51,10 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 │         │                    │                │
 │  ┌──────┴────────────────────┴───────────┐   │
 │  │         Service Layer (shared)         │   │
-│  │   TransactionService, CategoryService  │   │
-│  │   ReportService, BudgetService         │   │
-│  │   RecurringService                     │   │
+│  │   Transactions, Categories, Reports,   │   │
+│  │   Budgets, Recurring, Receipts,        │   │
+│  │   Assets, Portfolio, FinancialData,    │   │
+│  │   Settings                             │   │
 │  └──────────────────┬────────────────────┘   │
 │                     │                         │
 │  ┌──────────────────┴────────────────────┐   │
@@ -155,6 +156,59 @@ CREATE TABLE recurring_transactions (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- App-level settings (key-value store for API keys, timezone, preferences)
+CREATE TABLE settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Unified price cache: market prices, exchange rates, and any other provider data.
+-- Exchange rates are stored as prices: symbol='USD', currency='EUR', price=0.92 means 1 USD = 0.92 EUR.
+CREATE TABLE market_prices (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', or currency code: 'USD'
+  price         TEXT NOT NULL,           -- string to avoid float imprecision
+  currency      TEXT NOT NULL,           -- target currency (e.g. 'EUR')
+  date          TEXT NOT NULL,           -- YYYY-MM-DD
+  provider      TEXT NOT NULL,
+  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(symbol, currency, date)
+);
+
+-- Assets: anything you own that has value (deposit, investment, crypto, other)
+CREATE TABLE assets (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  type        TEXT NOT NULL CHECK(type IN ('deposit', 'investment', 'crypto', 'other')),
+  currency    TEXT NOT NULL DEFAULT 'EUR',
+  symbol_map  TEXT,                     -- JSON: {"coingecko":"bitcoin"} for auto price tracking
+  icon        TEXT,
+  color       TEXT,
+  notes       TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Lots: every buy/sell/deposit/withdrawal event
+CREATE TABLE asset_lots (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  quantity        REAL NOT NULL,         -- positive = buy/deposit, negative = sell/withdraw
+  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
+  date            TEXT NOT NULL,
+  transaction_id  INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+  notes           TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Price snapshots: user-recorded or auto-fetched asset valuations
+CREATE TABLE asset_prices (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
+  recorded_at     TEXT NOT NULL
+);
+
 -- Full-text search for transaction descriptions and merchants
 CREATE VIRTUAL TABLE transactions_fts USING fts5(
   description,
@@ -166,6 +220,8 @@ CREATE VIRTUAL TABLE transactions_fts USING fts5(
 ```
 
 **FTS5 sync:** The service layer keeps `transactions_fts` in sync with the `transactions` table on insert/update/delete. This powers text search in `list_transactions` and the MCP `list_transactions` tool.
+
+**Price resolution:** When valuing an asset, the unified price resolver (`src/lib/services/price-resolver.ts`) checks in order: user-recorded `asset_prices` → provider data in `market_prices` (via `symbolMap`) → lot cost basis → deposit identity (EUR deposits = €1.00).
 
 **`updated_at` management:** SQLite has no auto-update trigger for timestamps. The service layer is responsible for setting `updated_at = datetime('now')` on every UPDATE call. No triggers needed — services are the single mutation path.
 
@@ -189,6 +245,16 @@ CREATE INDEX idx_budgets_category_month ON budgets(category_id, month);
 -- Recurring lookups
 CREATE INDEX idx_recurring_active ON recurring_transactions(is_active);
 CREATE INDEX idx_recurring_frequency ON recurring_transactions(frequency, is_active);
+
+-- Market prices
+CREATE INDEX idx_market_prices_symbol ON market_prices(symbol, date);
+
+-- Asset lots & prices
+CREATE INDEX idx_asset_lots_asset ON asset_lots(asset_id);
+CREATE INDEX idx_asset_lots_date ON asset_lots(asset_id, date);
+CREATE INDEX idx_asset_lots_transaction ON asset_lots(transaction_id);
+CREATE INDEX idx_asset_prices_asset ON asset_prices(asset_id);
+CREATE INDEX idx_asset_prices_latest ON asset_prices(asset_id, recorded_at);
 
 -- FTS5 sync triggers (keep full-text index in sync with transactions table)
 CREATE TRIGGER transactions_ai AFTER INSERT ON transactions BEGIN
@@ -217,7 +283,7 @@ PRAGMA cache_size = -64000;    -- 64MB cache
 PRAGMA busy_timeout = 5000;
 ```
 
-## MCP Tools (41 tools)
+## MCP Tools (59 tools)
 
 ### Transactions (8 tools)
 | Tool | Description |
@@ -287,6 +353,35 @@ PRAGMA busy_timeout = 5000;
 | `get_realized_pnl` | Realized P&L from sells in a date range, using FIFO cost basis. |
 | `get_asset_history` | Combined lot + price + value timeline for one asset. Params: asset ID, window. |
 
+### Assets (10 tools)
+| Tool | Description |
+|------|-------------|
+| `create_asset` | Create an asset (name, type, currency, symbolMap, icon, color) |
+| `list_assets` | All assets with current holdings, cost basis, current value, P&L |
+| `get_asset` | Single asset with full details |
+| `update_asset` | Update asset metadata |
+| `delete_asset` | Delete an asset and its lots |
+| `buy_asset` | Record purchase/deposit — creates transfer transaction + lot atomically |
+| `sell_asset` | Record sale/withdrawal — creates transfer transaction + negative lot atomically |
+| `record_price` | Update current price for an asset |
+| `list_lots` | Lot history for a single asset |
+| `get_price_history` | Price time series for a single asset |
+
+### Financial Data (5 tools)
+| Tool | Description |
+|------|-------------|
+| `convert_currency` | Convert amount between currencies (cache-first, provider fallback) |
+| `get_price` | Unified price lookup — exchange rates, crypto, stocks, ETFs |
+| `search_symbol` | Search for market symbols across all providers |
+| `list_providers` | List configured financial data providers with status |
+| `set_api_key` | Configure an API key for a provider |
+
+### Settings (2 tools)
+| Tool | Description |
+|------|-------------|
+| `get_timezone` | Get the configured user timezone |
+| `set_timezone` | Set the user timezone (IANA identifier) |
+
 ### Escape Hatch (2 tools)
 | Tool | Description |
 |------|-------------|
@@ -328,6 +423,12 @@ export function initCronJobs(): void {
   cron.schedule("0 3 * * *", async () => {
     await backupDatabase();
   });
+
+  // Schedule market price auto-fetch — daily at 04:00
+  // For each asset with a symbolMap, fetches today's price from the linked provider
+  cron.schedule("0 4 * * *", async () => {
+    await autoRecordMarketPrices();
+  });
 }
 ```
 
@@ -349,7 +450,7 @@ The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint a
 **Key decisions:**
 - **Stateless mode:** `sessionIdGenerator: undefined` — no `Mcp-Session-Id` headers, no SSE resumption. This is the simplest model and fits Next.js route handlers perfectly. The AI assistant makes independent tool calls; there is no multi-turn MCP session state to preserve.
 - **JSON responses:** `enableJsonResponse: true` — returns plain JSON instead of SSE. Simpler to debug, no streaming needed for our tool calls.
-- **Request/Response compatibility:** Uses `WebStandardStreamableHTTPServerTransport` which works natively with Next.js App Router's Web `Request`/`Response` — no Node.js shim needed.
+- **Request/Response compatibility:** Uses `WebStandardStreamableHTTPServerTransport` which works natively with Next.js App Router's Web `Request`/`Response`.
 - **Tool registration:** Factor tool registration into a shared `registerTools(server)` function so the per-request server setup is minimal.
 - **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt image uploads. This is how unknown AI clients discover that binary uploads go through REST, not MCP. Tool descriptions on `create_transactions` reference `receipt_id` and point to the instructions for the upload flow.
 
@@ -370,7 +471,7 @@ export async function POST(req: Request): Promise<Response> {
     ].join(" "),
   });
   registerTools(server);
-  const transport = new NodeStreamableHTTPServerTransport({
+  const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
@@ -388,6 +489,9 @@ export async function POST(req: Request): Promise<Response> {
 - **Recent transactions:** Last 10-20 entries, quick list with category badges
 - **Budget alerts:** Categories approaching (>80%) or over budget, sorted by severity
 - **Upcoming recurring:** Next 5 recurring transactions due
+- **Net worth card + sparkline:** Total net worth with 6-month mini area chart
+- **Top movers:** Assets with biggest P&L change this month
+- **Allocation mini-donut:** Portfolio allocation at a glance
 
 ### Transactions (`/transactions`)
 - Full transaction list, sortable columns (date, amount, category, merchant)
@@ -405,13 +509,23 @@ export async function POST(req: Request): Promise<Response> {
 - Merge UI: select source → target, preview affected transactions, confirm
 - Click-through to filtered transaction list
 
-### Reports (`/reports`)
-- **Date range picker** with presets (this month, last month, last 3/6/12 months, YTD, custom)
-- **Spending by category:** Horizontal bar chart
-- **Trends:** Multi-line chart (total + selected categories over time)
-- **Merchant breakdown:** Table with merchant, total spend, transaction count, avg transaction
-- **Budget vs actual:** Grouped bar chart (budget bar + actual bar per category)
-- **Income vs expenses:** Summary card + trend chart
+### Assets (`/assets`)
+- **Summary cards:** Total net worth, total invested, total P&L (absolute + %), cash balance
+- **Performance table:** Sortable columns — name, type, holdings, cost basis, current value, P&L, annualized return
+- **Allocation donut chart** + **currency exposure bar**
+- **Asset detail** (`/assets/[id]`): value-over-time chart with buy/sell markers, lot history table, price history chart, P&L breakdown
+
+### Cash Flow (`/reports/cash-flow`)
+Date range picker, spending by category, trends, merchant breakdown, budget vs actual, income vs expenses. (`/reports` redirects here.)
+
+### Portfolio (`/reports/portfolio`)
+Net worth over time, allocation breakdown, performance ranking, realized vs unrealized P&L, transfer flow.
+
+*Assets, Cash Flow, and Portfolio are grouped under a "Wealth" section in the sidebar as flat navigation items.*
+
+### Settings (`/settings`)
+- Timezone selector (required on first run — onboarding gate redirects here)
+- API key management for financial data providers
 
 ### Budgets (`/budgets`)
 - Set monthly budgets per category (form with amount input)
@@ -528,21 +642,26 @@ Receipt images are uploaded via a **companion REST endpoint** (not MCP — see R
 ```
 src/
 ├── instrumentation.ts           # Next.js hook — starts cron jobs on server boot
-├── app/                         # Pages: /, /transactions, /categories, /reports,
-│   │                            #   /budgets, /recurring, /api-docs
+├── app/                         # Pages: /, /transactions, /categories, /reports
+│   │                            #   (cash-flow + portfolio), /budgets, /recurring,
+│   │                            #   /assets, /settings, /api-docs
 │   └── api/                     # REST routes per domain + /api/mcp (MCP endpoint)
 │       └── mcp/route.ts         #   + /api/openapi (spec endpoint)
-├── components/                  # Per-domain dirs (budgets/, categories/, …)
+├── components/                  # Per-domain dirs (budgets/, categories/, assets/,
+│   │                            #   portfolio/, dashboard/, …)
 │   └── ui/                      #   + shadcn/ui primitives
 ├── lib/
 │   ├── api/                     # Route helpers (parseBody, errorResponse), service
 │   │                            #   factory functions, OpenAPI spec
 │   ├── db/                      # Drizzle schema, connection singleton, seed
 │   ├── services/                # One service per domain — single source of truth
+│   ├── providers/               # Financial data providers (ECB, Frankfurter,
+│   │                            #   CoinGecko, Alpha Vantage, Open Exchange Rates)
 │   ├── mcp/                     # MCP server init + tools/ (one file per domain)
 │   ├── validators/              # Zod schemas shared by API, MCP, and forms
-│   ├── utils/                   # Date helpers, currency formatting
-│   └── cron.ts                  # Recurring generation (02:00) + backup (03:00)
+│   ├── utils/                   # Currency formatting
+│   ├── date-ranges.ts           # All date/time utilities (timezone-aware)
+│   └── cron.ts                  # Recurring (02:00) + backup (03:00) + market prices (04:00)
 ├── test/                        # All tests — not colocated with source
 data/                            # Runtime (gitignored): pinch.db, backups/, receipts/
 drizzle/                         # Generated migrations
