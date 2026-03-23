@@ -804,6 +804,7 @@ Triggered when the `tutorial` setting is `"true"`. Plays after setup / on the da
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
 - [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
+- [ ] Donation button / MCP instructions ("if user is saving lots of money...")
 
 ## Future Considerations (not in scope now, but design should accommodate)
 
