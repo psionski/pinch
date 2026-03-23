@@ -33,13 +33,14 @@ interface DepositWithdrawDialogProps {
 
 async function fetchExchangeRate(
   symbolMap: Record<string, string>,
-  currency: string
+  currency: string,
+  date: string
 ): Promise<number | null> {
   try {
     const params = new URLSearchParams({
       symbolMap: JSON.stringify(symbolMap),
       currency,
-      date: isoToday(),
+      date,
     });
     const res = await fetch(`/api/financial/price?${params}`);
     if (!res.ok) return null;
@@ -77,7 +78,9 @@ export function DepositWithdrawDialog({
     if (!open || isEur || !asset.symbolMap) return;
     let cancelled = false;
     void (async () => {
-      const rate = await fetchExchangeRate(asset.symbolMap!, "EUR");
+      setFetchingNonEurRate(true);
+      setRateFetchFailed(false);
+      const rate = await fetchExchangeRate(asset.symbolMap!, "EUR", date);
       if (!cancelled) {
         if (rate !== null) {
           setNonEurRate(rate.toFixed(4));
@@ -90,7 +93,7 @@ export function DepositWithdrawDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, isEur, asset.symbolMap]);
+  }, [open, isEur, asset.symbolMap, date]);
 
   // Computed EUR cost for non-EUR deposits
   const computedEurCost =
@@ -195,6 +198,7 @@ export function DepositWithdrawDialog({
               id="dep-date"
               type="date"
               value={date}
+              max={today}
               onChange={(e) => setDate(e.target.value)}
               disabled={loading}
             />
