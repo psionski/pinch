@@ -79,6 +79,45 @@ export const SellAssetSchema = z.object({
 });
 export type SellAssetInput = z.infer<typeof SellAssetSchema>;
 
+// ─── Opening Lots (onboarding) ───────────────────────────────────────────────
+
+export const CreateOpeningLotSchema = z.object({
+  quantity: z.number().positive("Quantity must be positive"),
+  pricePerUnit: z.number().int().nonnegative("Price must be a non-negative integer (cents)"),
+  date: IsoDateSchema,
+  notes: z.string().max(2000).optional(),
+});
+export type CreateOpeningLotInput = z.infer<typeof CreateOpeningLotSchema>;
+
+export const SetOpeningCashBalanceSchema = z.object({
+  amount: z.number().int().positive("Amount must be a positive integer (cents)"),
+  date: IsoDateSchema.optional(),
+});
+export type SetOpeningCashBalanceInput = z.infer<typeof SetOpeningCashBalanceSchema>;
+
+export const AddOpeningAssetSchema = z.object({
+  name: z.string().min(1).max(255),
+  type: AssetTypeSchema,
+  currency: z.string().min(1).max(10).default("EUR"),
+  quantity: z.number().positive("Quantity must be positive"),
+  costBasisTotal: z
+    .number()
+    .int()
+    .positive("Cost basis must be a positive integer (cents)")
+    .optional(),
+  pricePerUnit: z
+    .number()
+    .int()
+    .positive("Price per unit must be a positive integer (cents)")
+    .optional(),
+  symbolMap: SymbolMapSchema.optional(),
+  date: IsoDateSchema.optional(),
+  icon: z.string().max(100).optional(),
+  color: z.string().max(20).optional(),
+  notes: z.string().max(2000).optional(),
+});
+export type AddOpeningAssetInput = z.infer<typeof AddOpeningAssetSchema>;
+
 export const AssetLotResponseSchema = z.object({
   id: z.number().int(),
   assetId: z.number().int(),

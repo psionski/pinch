@@ -17,10 +17,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Restore failed";
     if (message.includes("not found") || message.includes("Invalid backup")) {
-      return NextResponse.json(
-        { error: message, code: "NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: message, code: "NOT_FOUND" }, { status: 404 });
     }
     return handleServiceError(err);
   }

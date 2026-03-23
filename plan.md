@@ -719,15 +719,6 @@ No `get_onboarding_status` tool — instead, update the root MCP `INSTRUCTIONS` 
 
 This lets the AI run the same onboarding conversationally: "What's your current bank balance?" → "Do you have any savings or investments?" → "Do you have API keys for any market data providers?" → enters everything via MCP. The AI should mention that free providers (Frankfurter, CoinGecko) work without keys, and suggest setting up Alpha Vantage (free key, 25 req/day) if the user tracks stocks/ETFs.
 
-#### Interactive tutorial
-
-After setup (or skippable independently):
-
-- **Guided tour**: highlight key UI areas (sidebar nav, transaction list, add button, filters) using tooltip overlays
-- **First transaction prompt**: "Try adding your first real transaction" with a guided form
-- **MCP hint**: show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'. To enable this, tell your AI agent to connect to Pinch via MCP at `<address>/api/mcp`." The `<address>` is derived from the current browser URL origin (e.g. `http://localhost:4000`).
-- **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 21)
-
 #### API routes & service changes
 
 - **Existing routes reused as-is:**
@@ -742,7 +733,35 @@ After setup (or skippable independently):
 
 ---
 
-### Sprint 21: Polish & Hardening
+### Sprint 21: Interactive Tutorial & Sample Data
+**Goal:** Help new users discover the app with a guided tour and optional sample data.
+
+#### Seed script changes
+
+The seed script (`src/lib/db/seed/index.ts`) should be updated to:
+- **Set a timezone** (e.g. `Europe/Amsterdam`) in the `settings` table, so the seeded app passes the timezone gate and is immediately usable.
+- **Set `tutorial = "true"`** in the `settings` table. This flag determines whether the onboarding tutorial plays on next page load.
+
+The `tutorial` setting is set to `"false"` (or deleted) when:
+- The user finishes or dismisses the tutorial.
+- The user clicks "Clear sample data" (Sprint 22) — clearing sample data removes the `tutorial` setting along with all other seeded data.
+
+This means the tutorial auto-replays after re-seeding (useful for demos), and never plays for users who set up from scratch (since the seed script is the only thing that sets `tutorial = "true"`).
+
+#### Interactive tutorial
+
+Triggered when the `tutorial` setting is `"true"`. Plays after setup / on the dashboard:
+
+- **Guided tour**: highlight key UI areas (sidebar nav, transaction list, add button, filters) using tooltip overlays
+- **First transaction prompt**: "Try adding your first real transaction" with a guided form
+- **MCP hint**: show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'. To enable this, tell your AI agent to connect to Pinch via MCP at `<address>/api/mcp`." The `<address>` is derived from the current browser URL origin (e.g. `http://localhost:4000`).
+- **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 22)
+
+**Done when:** A user who runs the seed script sees a guided tour on first visit. Users who set up from scratch never see it. The tutorial can be dismissed and doesn't come back.
+
+---
+
+### Sprint 22: Polish & Hardening
 **Goal:** Production readiness.
 
 - [ ] Dark mode (Tailwind dark variant)
@@ -751,14 +770,14 @@ After setup (or skippable independently):
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
 - [ ] Performance: check query efficiency, add missing indices if needed
-- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting.
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting. Also removes the `tutorial` setting.
 - [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
 ---
 
-### Sprint 22: Packaging & Auto-Updates
+### Sprint 23: Packaging & Auto-Updates
 **Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
@@ -766,7 +785,7 @@ After setup (or skippable independently):
 
 ---
 
-### Sprint 23: Documentation & Project Files
+### Sprint 25: Documentation & Project Files
 **Goal:** Make this a proper public open-source project.
 
 - [ ] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
@@ -780,7 +799,7 @@ After setup (or skippable independently):
 
 ---
 
-### Sprint 24: Project Website
+### Sprint 26: Project Website
 **Goal:** Create a public face for the project.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub

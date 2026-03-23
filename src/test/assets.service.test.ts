@@ -388,3 +388,68 @@ describe("PortfolioService", () => {
     expect(portfolio.allocation[0].pct).toBe(100);
   });
 });
+
+// ─── Opening Lots (onboarding) ──────────────────────────────────────────────
+
+describe("AssetLotService.createOpeningLot", () => {
+  it("creates a lot with no linked transaction", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    const lot = lotService.createOpeningLot(asset.id, {
+      quantity: 5000,
+      pricePerUnit: 100,
+      date: "2026-03-20",
+    });
+    expect(lot.id).toBeGreaterThan(0);
+    expect(lot.assetId).toBe(asset.id);
+    expect(lot.quantity).toBe(5000);
+    expect(lot.pricePerUnit).toBe(100);
+    expect(lot.transactionId).toBeNull();
+  });
+
+  it("records a price snapshot when pricePerUnit > 0", () => {
+    const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
+    lotService.createOpeningLot(asset.id, {
+      quantity: 0.5,
+      pricePerUnit: 5000000,
+      date: "2026-03-20",
+    });
+    const updated = assetService.getById(asset.id);
+    expect(updated!.latestPrice).toBe(5000000);
+  });
+
+  it("skips price snapshot when pricePerUnit is 0 but lot still used for pricing", () => {
+    const asset = assetService.create({
+      name: "Unknown Cost",
+      type: "investment",
+      currency: "EUR",
+    });
+    lotService.createOpeningLot(asset.id, {
+      quantity: 10,
+      pricePerUnit: 0,
+      date: "2026-03-20",
+    });
+    // No price snapshot recorded, but price resolver falls back to lot pricePerUnit (0)
+    const updated = assetService.getById(asset.id);
+    expect(updated!.latestPrice).toBe(0);
+    expect(updated!.currentValue).toBe(0);
+  });
+
+  it("throws for non-existent asset", () => {
+    expect(() =>
+      lotService.createOpeningLot(9999, { quantity: 1, pricePerUnit: 100, date: "2026-03-20" })
+    ).toThrow("Asset 9999 not found");
+  });
+
+  it("opening lot contributes to holdings and cost basis", () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    lotService.createOpeningLot(asset.id, {
+      quantity: 3000,
+      pricePerUnit: 100,
+      date: "2026-03-20",
+    });
+    const withMetrics = assetService.getById(asset.id);
+    expect(withMetrics).not.toBeNull();
+    expect(withMetrics!.currentHoldings).toBe(3000);
+    expect(withMetrics!.costBasis).toBe(300000);
+  });
+});

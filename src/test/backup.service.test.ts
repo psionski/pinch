@@ -198,8 +198,8 @@ describe("restoreBackup", () => {
   });
 
   it("sanitizes path traversal attempts", async () => {
-    await expect(
-      restoreBackup(dbPath, "../../../etc/passwd", backupDir)
-    ).rejects.toThrow("Invalid backup filename");
+    await expect(restoreBackup(dbPath, "../../../etc/passwd", backupDir)).rejects.toThrow(
+      "Invalid backup filename"
+    );
   });
 });

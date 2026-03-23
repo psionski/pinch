@@ -1,0 +1,143 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  CreateOpeningLotSchema,
+  SetOpeningCashBalanceSchema,
+  AddOpeningAssetSchema,
+} from "@/lib/validators/assets";
+import {
+  getTransactionService,
+  getAssetService,
+  getAssetLotService,
+  getFinancialDataService,
+} from "@/lib/api/services";
+import { getDb } from "@/lib/db";
+import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
+import { isoToday } from "@/lib/date-ranges";
+import { transactions } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+
+const OPENING_BALANCE_DESC = "Opening balance";
+
+function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
+  return { content: [{ type: "text", text: JSON.stringify(data) }] };
+}
+
+function err(msg: string): { content: [{ type: "text"; text: string }] } {
+  return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
+}
+
+export function registerOnboardingTools(server: McpServer): void {
+  server.registerTool(
+    "set_opening_cash_balance",
+    {
+      description:
+        "Set the user's initial cash (checking account) balance. " +
+        "Creates a 'transfer' transaction with description 'Opening balance'. " +
+        "Idempotent: if an opening balance already exists, updates the amount and date. " +
+        "This balance is included in net worth but excluded from income/expense reports. " +
+        "Params: amount (cents, e.g. 500000 = €5,000.00), date (YYYY-MM-DD, defaults to today).",
+      inputSchema: SetOpeningCashBalanceSchema,
+    },
+    (input) => {
+      const db = getDb();
+      const date = input.date ?? isoToday();
+
+      // Find existing opening balance transaction
+      const existing = db
+        .select()
+        .from(transactions)
+        .where(
+          and(eq(transactions.type, "transfer"), eq(transactions.description, OPENING_BALANCE_DESC))
+        )
+        .get();
+
+      if (existing) {
+        // Update existing
+        const [updated] = db
+          .update(transactions)
+          .set({ amount: input.amount, date })
+          .where(eq(transactions.id, existing.id))
+          .returning()
+          .all();
+        return ok({
+          action: "updated",
+          transaction: { id: updated.id, amount: updated.amount, date: updated.date },
+        });
+      }
+
+      // Create new
+      const tx = getTransactionService().create({
+        amount: input.amount,
+        type: "transfer",
+        description: OPENING_BALANCE_DESC,
+        date,
+      });
+      return ok({
+        action: "created",
+        transaction: { id: tx.id, amount: tx.amount, date: tx.date },
+      });
+    }
+  );
+
+  server.registerTool(
+    "add_opening_asset",
+    {
+      description:
+        "Add an existing asset holding during onboarding — 'I already own this.' " +
+        "Creates the asset and an unlinked opening lot (no transaction). " +
+        "Params: name, type ('deposit'|'investment'|'crypto'|'other'), currency (default 'EUR'), " +
+        "quantity (units held), costBasisTotal (total cost basis in cents, optional), " +
+        "pricePerUnit (cents per unit, optional — used if costBasisTotal omitted, calculated as costBasisTotal/quantity). " +
+        "If neither costBasisTotal nor pricePerUnit is provided, P&L starts from zero (cost basis = 0). " +
+        "For EUR deposits: pricePerUnit is always 100, quantity = EUR amount. " +
+        "symbolMap: provider→symbol mapping for automatic price tracking (use search_symbol first). " +
+        "date: lot date (YYYY-MM-DD, defaults to today).",
+      inputSchema: AddOpeningAssetSchema,
+    },
+    (input) => {
+      try {
+        const date = input.date ?? isoToday();
+
+        // Determine pricePerUnit
+        let pricePerUnit: number;
+        if (input.costBasisTotal !== undefined) {
+          pricePerUnit = Math.round(input.costBasisTotal / input.quantity);
+        } else if (input.pricePerUnit !== undefined) {
+          pricePerUnit = input.pricePerUnit;
+        } else {
+          pricePerUnit = 0;
+        }
+
+        // Create the asset
+        const asset = getAssetService().create({
+          name: input.name,
+          type: input.type,
+          currency: input.currency,
+          symbolMap: input.symbolMap,
+          icon: input.icon,
+          color: input.color,
+          notes: input.notes,
+        });
+
+        // Trigger symbol backfill if symbolMap provided
+        if (asset.symbolMap) {
+          triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
+        }
+
+        // Create opening lot (no linked transaction)
+        const lotInput = CreateOpeningLotSchema.parse({
+          quantity: input.quantity,
+          pricePerUnit,
+          date,
+          notes: input.notes,
+        });
+        const lot = getAssetLotService().createOpeningLot(asset.id, lotInput);
+
+        return ok({ asset, lot });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to add opening asset";
+        return err(msg);
+      }
+    }
+  );
+}

@@ -2,7 +2,12 @@ import { eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { assets, assetLots, assetPrices, transactions } from "@/lib/db/schema";
-import type { BuyAssetInput, SellAssetInput, AssetLotResponse } from "@/lib/validators/assets";
+import type {
+  BuyAssetInput,
+  SellAssetInput,
+  CreateOpeningLotInput,
+  AssetLotResponse,
+} from "@/lib/validators/assets";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 import { utcToLocal } from "@/lib/date-ranges";
 
@@ -153,6 +158,33 @@ export class AssetLotService {
       this.recordPriceSnapshot(assetId, input.pricePerUnit, input.date);
 
       return { lot: parseLot(lotRow), transaction: parseTransaction(txRow) };
+    });
+  }
+
+  /** Create an opening lot (no linked transaction) for onboarding — "I already own this." */
+  createOpeningLot(assetId: number, input: CreateOpeningLotInput): AssetLotResponse {
+    return this.db.transaction(() => {
+      const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
+      if (!asset) throw new Error(`Asset ${assetId} not found`);
+
+      const [lotRow] = this.db
+        .insert(assetLots)
+        .values({
+          assetId,
+          quantity: input.quantity,
+          pricePerUnit: input.pricePerUnit,
+          date: input.date,
+          transactionId: null,
+          notes: input.notes ?? null,
+        })
+        .returning()
+        .all();
+
+      if (input.pricePerUnit > 0) {
+        this.recordPriceSnapshot(assetId, input.pricePerUnit, input.date);
+      }
+
+      return parseLot(lotRow);
     });
   }
 
