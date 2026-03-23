@@ -62,8 +62,7 @@ export function registerReportTools(server: McpServer): void {
   server.registerTool(
     "get_top_merchants",
     {
-      description:
-        "Highest-spend merchants with transaction counts and average amounts.",
+      description: "Highest-spend merchants with transaction counts and average amounts.",
       inputSchema: TopMerchantsSchema,
     },
     (input) => ok(getReportService().topMerchants(input))

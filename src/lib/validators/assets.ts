@@ -91,10 +91,7 @@ export const BuyAssetSchema = z.object({
 export type BuyAssetInput = z.infer<typeof BuyAssetSchema>;
 
 export const SellAssetSchema = z.object({
-  quantity: z
-    .number()
-    .positive("Quantity must be positive")
-    .describe("Number of units to sell"),
+  quantity: z.number().positive("Quantity must be positive").describe("Number of units to sell"),
   pricePerUnit: z
     .number()
     .int()

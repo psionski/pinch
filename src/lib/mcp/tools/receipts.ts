@@ -50,8 +50,7 @@ export function registerReceiptTools(server: McpServer): void {
   server.registerTool(
     "delete_receipt",
     {
-      description:
-        "Delete one or more receipts and their images. Linked transactions are kept.",
+      description: "Delete one or more receipts and their images. Linked transactions are kept.",
       inputSchema: z.object({
         id: z
           .union([

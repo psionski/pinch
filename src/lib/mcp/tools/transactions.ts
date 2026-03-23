@@ -18,8 +18,7 @@ export function registerTransactionTools(server: McpServer): void {
   server.registerTool(
     "create_transaction",
     {
-      description:
-        "Add a single transaction. Use list_categories to find valid categoryId values.",
+      description: "Add a single transaction. Use list_categories to find valid categoryId values.",
       inputSchema: CreateTransactionSchema,
     },
     (input) => ok(getTransactionService().create(input))

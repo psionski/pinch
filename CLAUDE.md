@@ -138,8 +138,6 @@ You can run `npm run dev` to start the dev server, then use the **Pinch MCP tool
 - Imports: use `@/` path alias for `src/`.
 - Prefer named exports over default exports.
 - Keep files under ~300 lines. If longer, split into focused modules.
-- **Commit messages:** [Conventional Commits](https://www.conventionalcommits.org/) — e.g. `feat: add transaction service`, `fix: handle null category on delete`, `chore: update drizzle config`. Use imperative mood in the description.
-- **Branching:** Gitflow — `main` is production, `develop` is the integration branch. Feature branches off `develop` (`feature/...`), release branches (`release/...`), hotfixes off `main` (`hotfix/...`).
 
 ## Documentation
 
@@ -147,10 +145,34 @@ This is intended to be a public open-source project. Maintain documentation acco
 
 - **README.md** — project overview, screenshots, features, setup/install instructions, usage guide, tech stack, contributing guidelines. Keep it up to date as features land.
 - **plan.md** — the project plan and sprint tracker. The plan.md will give you context about this project. Read it and keep it up to date.
-- **API docs** — document REST API endpoints (Swagger, from [openapi.ts](src\lib\api\openapi.ts)) and MCP tools (in their tool descriptions).
+- **API docs** — document REST API endpoints (Swagger, from [openapi.ts](src\lib\api\openapi.ts)) and MCP tools (see section below).
 - **When adding a new API endpoint**, also: add it to OpenAPI spec (`src/lib/api/openapi.ts`), add a corresponding MCP tool if the AI should be able to call it (`src/lib/mcp/tools/`), and add/update validators (`src/lib/validators/`).
 - Keep docs concise and practical. Don't write walls of text — developers should be able to get running in under 5 minutes.
 - Update docs when adding or changing user-facing features. Don't let docs drift from reality.
+
+### MCP Tool Documentation
+
+MCP tool schemas have two documentation surfaces — use each for the right kind of information:
+
+**Tool `description`** — purpose, workflow, and behavioral guidance:
+- What the tool does and when to use it (vs. similar tools).
+- Workflow hints: "call search_symbol first", "use list_categories to find valid IDs".
+- Domain conventions that aren't parameter-specific (EUR deposit pricing rules, idempotency).
+- What the tool returns at a high level (only if non-obvious).
+
+**Zod `.describe()` on schema fields** — field-level documentation for both inputs and outputs:
+- What the value means: `"Amount in cents (e.g. 1210 = €12.10)"`.
+- Format hints: `"YYYY-MM-DD"`, `"ISO 8601 datetime"`.
+- Defaults (inputs only): `"Defaults to today"`, `"Defaults to 'expense'"`.
+- Valid values when not obvious from the enum/type: `"0=Sun, 6=Sat"`.
+- Cross-references (inputs only): `"Category ID — use list_categories to find valid values"`.
+- For output fields, describe anything not self-evident from the field name: `"Can be negative when over budget"`, `"null if no price recorded"`, `"This category + all descendants"`.
+- Skip describes on output fields whose meaning is obvious (e.g. `name`, `id`, `createdAt`).
+
+**Do NOT put in the tool description:**
+- Parameter names, types, or formats that the schema already communicates (no `"Params: amount (cents), date (YYYY-MM-DD)"` blocks).
+- Internal implementation details hidden from the public API (transaction types used internally, how lots are stored, DB column names).
+- Return type field listings — the response schema speaks for itself.
 
 ## What NOT to Do
 

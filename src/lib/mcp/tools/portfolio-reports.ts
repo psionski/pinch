@@ -21,8 +21,7 @@ export function registerPortfolioReportTools(server: McpServer): void {
   server.registerTool(
     "get_net_worth_history",
     {
-      description:
-        "Net worth time series showing cash + asset values over time.",
+      description: "Net worth time series showing cash + asset values over time.",
       inputSchema: z.object({
         window: WindowSchema,
         interval: IntervalSchema,

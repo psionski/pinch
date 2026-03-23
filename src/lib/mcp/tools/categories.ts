@@ -62,8 +62,7 @@ export function registerCategoryTools(server: McpServer): void {
   server.registerTool(
     "delete_category",
     {
-      description:
-        "Delete a category. Transactions in this category will become uncategorized.",
+      description: "Delete a category. Transactions in this category will become uncategorized.",
       inputSchema: IdSchema,
     },
     ({ id }) => {

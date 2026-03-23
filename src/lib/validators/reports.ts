@@ -13,10 +13,7 @@ export const SpendingSummarySchema = z.object({
   type: z.enum(["income", "expense", "all"]).default("expense"),
   compareDateFrom: IsoDateSchema.optional().describe("Start of comparison period (YYYY-MM-DD)"),
   compareDateTo: IsoDateSchema.optional().describe("End of comparison period (YYYY-MM-DD)"),
-  includeTransfers: z
-    .boolean()
-    .default(false)
-    .describe("Include asset transfers in the result"),
+  includeTransfers: z.boolean().default(false).describe("Include asset transfers in the result"),
 });
 
 export type SpendingSummaryInput = z.infer<typeof SpendingSummarySchema>;
@@ -29,14 +26,8 @@ export const CategoryStatsSchema = z
     dateTo: IsoDateSchema.optional().describe("End of date range (YYYY-MM-DD)"),
     month: YearMonthSchema.optional().describe("Month (YYYY-MM) — alternative to dateFrom/dateTo"),
     type: z.enum(["income", "expense", "all"]).default("expense"),
-    includeZeroSpend: z
-      .boolean()
-      .default(true)
-      .describe("Include categories with no transactions"),
-    includeUncategorized: z
-      .boolean()
-      .default(false)
-      .describe("Include uncategorized transactions"),
+    includeZeroSpend: z.boolean().default(true).describe("Include categories with no transactions"),
+    includeUncategorized: z.boolean().default(false).describe("Include uncategorized transactions"),
   })
   .refine((d) => d.month || (d.dateFrom && d.dateTo), {
     message: "Provide either 'month' or both 'dateFrom' and 'dateTo'",
