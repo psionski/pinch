@@ -26,10 +26,6 @@ export function registerFinancialTools(server: McpServer): void {
     {
       description:
         "Convert an amount between currencies using live exchange rates. " +
-        "Params: amount (amount in cents of the source currency, e.g. 1599 = €15.99), " +
-        "from (source currency, e.g. 'USD'), to (target currency, e.g. 'EUR'), " +
-        "date (optional YYYY-MM-DD, defaults to today). " +
-        "Returns converted amount in cents, exchange rate, date, provider, and stale flag. " +
         "Primary use case: receipt in foreign currency → EUR for transaction entry.",
       inputSchema: ConvertCurrencySchema,
     },
@@ -50,11 +46,8 @@ export function registerFinancialTools(server: McpServer): void {
     {
       description:
         "Look up a price for a currency pair, crypto, stock, or ETF. " +
-        "Params: symbol (use search_symbol to find the correct identifier), " +
-        "currency (target currency, optional, defaults to 'EUR'), " +
-        "date (optional YYYY-MM-DD, defaults to today). " +
-        "Works for exchange rates too: symbol='USD', currency='EUR' returns how much 1 USD is worth in EUR. " +
-        "Returns price, date, provider, and stale flag.",
+        "Use search_symbol to find the correct symbol identifier. " +
+        "Works for exchange rates too: symbol='USD', currency='EUR' gives the EUR value of 1 USD.",
       inputSchema: GetPriceSchema,
     },
     async (input) => {
@@ -87,16 +80,10 @@ export function registerFinancialTools(server: McpServer): void {
     "search_symbol",
     {
       description:
-        "Search for a market symbol by name. Use this to discover the correct symbol identifier " +
-        "before creating or updating an asset, or before calling get_price. " +
-        "Params: query (e.g. 'bitcoin', 'apple', 'VWCE', 'S&P 500'). " +
-        "Returns matches with { provider, symbol, name, type }. " +
-        "To enable automatic price tracking on an asset, pick the best match and pass it as " +
-        "symbolMap: { [result.provider]: result.symbol } to create_asset or update_asset. " +
-        "For exchange rates on foreign currency deposits, use the currency code as the query (e.g. 'USD'). " +
-        "If no results, the response will indicate which providers need API keys. " +
-        "If search_symbol returns no results, you can still create the asset without symbolMap — " +
-        "it won't have automatic price tracking. Use record_price to update prices manually.",
+        "Search for a market symbol by name. Use before creating/updating an asset or calling get_price. " +
+        "Pass the best match as symbolMap: { [result.provider]: result.symbol } to create_asset or update_asset " +
+        "for automatic price tracking. For exchange rates, search the currency code (e.g. 'USD'). " +
+        "If no results, you can still create the asset without symbolMap and use record_price manually.",
       inputSchema: z.object({
         query: z.string().min(1, "Search query is required"),
       }),
@@ -116,10 +103,7 @@ export function registerFinancialTools(server: McpServer): void {
   server.registerTool(
     "set_api_key",
     {
-      description:
-        "Configure an API key for a financial data provider. " +
-        "Params: provider (one of: 'open-exchange-rates', 'coingecko', 'alpha-vantage'), key (the API key). " +
-        "Keys are stored securely in the settings table.",
+      description: "Configure an API key for a financial data provider.",
       inputSchema: SetApiKeySchema,
     },
     (input) => {

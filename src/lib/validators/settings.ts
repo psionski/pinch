@@ -14,7 +14,9 @@ export const TimezoneSchema = z.string().refine(
 );
 
 export const SetTimezoneSchema = z.object({
-  timezone: TimezoneSchema,
+  timezone: TimezoneSchema.describe(
+    "IANA timezone identifier (e.g. 'Europe/Amsterdam', 'America/New_York')"
+  ),
 });
 
 export type SetTimezoneInput = z.infer<typeof SetTimezoneSchema>;

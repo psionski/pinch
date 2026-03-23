@@ -32,10 +32,8 @@ export function registerOnboardingTools(server: McpServer): void {
     {
       description:
         "Set the user's initial cash (checking account) balance. " +
-        "Creates a 'transfer' transaction with description 'Opening balance'. " +
         "Idempotent: if an opening balance already exists, updates the amount and date. " +
-        "This balance is included in net worth but excluded from income/expense reports. " +
-        "Params: amount (cents, e.g. 500000 = €5,000.00), date (YYYY-MM-DD, defaults to today).",
+        "This balance is included in net worth but excluded from income/expense reports.",
       inputSchema: SetOpeningCashBalanceSchema,
     },
     (input) => {
@@ -84,14 +82,8 @@ export function registerOnboardingTools(server: McpServer): void {
     {
       description:
         "Add an existing asset holding during onboarding — 'I already own this.' " +
-        "Creates the asset and an unlinked opening lot (no transaction). " +
-        "Params: name, type ('deposit'|'investment'|'crypto'|'other'), currency (default 'EUR'), " +
-        "quantity (units held), costBasisTotal (total cost basis in cents, optional), " +
-        "pricePerUnit (cents per unit, optional — used if costBasisTotal omitted, calculated as costBasisTotal/quantity). " +
-        "If neither costBasisTotal nor pricePerUnit is provided, P&L starts from zero (cost basis = 0). " +
         "For EUR deposits: pricePerUnit is always 100, quantity = EUR amount. " +
-        "symbolMap: provider→symbol mapping for automatic price tracking (use search_symbol first). " +
-        "date: lot date (YYYY-MM-DD, defaults to today).",
+        "Use search_symbol first to get a symbolMap for automatic price tracking.",
       inputSchema: AddOpeningAssetSchema,
     },
     (input) => {

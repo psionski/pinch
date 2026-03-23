@@ -29,9 +29,9 @@ export type CreateReceiptInput = z.infer<typeof CreateReceiptSchema>;
 // ─── List ─────────────────────────────────────────────────────────────────────
 
 export const ListReceiptsSchema = PaginationSchema.extend({
-  dateFrom: IsoDateSchema.optional(),
-  dateTo: IsoDateSchema.optional(),
-  merchant: z.string().max(255).optional(),
+  dateFrom: IsoDateSchema.optional().describe("Start of date range (YYYY-MM-DD)"),
+  dateTo: IsoDateSchema.optional().describe("End of date range (YYYY-MM-DD)"),
+  merchant: z.string().max(255).optional().describe("Filter by merchant (substring match)"),
 });
 
 export type ListReceiptsInput = z.infer<typeof ListReceiptsSchema>;

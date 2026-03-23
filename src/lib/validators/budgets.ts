@@ -16,9 +16,17 @@ export type BudgetResponse = z.infer<typeof BudgetResponseSchema>;
 // ─── Set Budget ───────────────────────────────────────────────────────────────
 
 export const SetBudgetSchema = z.object({
-  categoryId: z.number().int().positive("Category ID is required"),
-  month: YearMonthSchema,
-  amount: z.number().int().positive("Amount must be a positive integer (cents)"),
+  categoryId: z
+    .number()
+    .int()
+    .positive("Category ID is required")
+    .describe("Category to set budget for"),
+  month: YearMonthSchema.describe("Month in YYYY-MM format"),
+  amount: z
+    .number()
+    .int()
+    .positive("Amount must be a positive integer (cents)")
+    .describe("Monthly budget amount in cents (e.g. 50000 = €500.00)"),
 });
 
 export type SetBudgetInput = z.infer<typeof SetBudgetSchema>;
@@ -26,7 +34,7 @@ export type SetBudgetInput = z.infer<typeof SetBudgetSchema>;
 // ─── Get Budget Status ────────────────────────────────────────────────────────
 
 export const GetBudgetStatusSchema = z.object({
-  month: YearMonthSchema,
+  month: YearMonthSchema.describe("Month in YYYY-MM format"),
 });
 
 export type GetBudgetStatusInput = z.infer<typeof GetBudgetStatusSchema>;
@@ -34,8 +42,8 @@ export type GetBudgetStatusInput = z.infer<typeof GetBudgetStatusSchema>;
 // ─── Delete Budget ───────────────────────────────────────────────────────────
 
 export const DeleteBudgetSchema = z.object({
-  categoryId: z.number().int().positive("Category ID is required"),
-  month: YearMonthSchema,
+  categoryId: z.number().int().positive("Category ID is required").describe("Category ID"),
+  month: YearMonthSchema.describe("Month in YYYY-MM format"),
 });
 
 export type DeleteBudgetInput = z.infer<typeof DeleteBudgetSchema>;
@@ -43,7 +51,7 @@ export type DeleteBudgetInput = z.infer<typeof DeleteBudgetSchema>;
 // ─── Reset Budgets ────────────────────────────────────────────────────────────
 
 export const ResetBudgetsSchema = z.object({
-  month: YearMonthSchema,
+  month: YearMonthSchema.describe("Month in YYYY-MM format to reset"),
 });
 
 export type ResetBudgetsInput = z.infer<typeof ResetBudgetsSchema>;

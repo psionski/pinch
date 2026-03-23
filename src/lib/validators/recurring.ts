@@ -29,18 +29,45 @@ export type RecurringResponse = z.infer<typeof RecurringResponseSchema>;
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export const CreateRecurringSchema = z.object({
-  amount: z.number().int().positive("Amount must be a positive integer (cents)"),
-  type: TransactionTypeSchema.default("expense"),
-  description: z.string().min(1, "Description is required").max(500),
-  merchant: z.string().max(255).optional(),
-  categoryId: z.number().int().positive().optional(),
-  frequency: FrequencySchema,
-  // For monthly: day of month (1–31). NULL means use the day from start_date.
-  dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
-  // For weekly: 0=Sun, 1=Mon, …, 6=Sat. NULL means use day from start_date.
-  dayOfWeek: z.number().int().min(0).max(6).nullable().optional(),
-  startDate: IsoDateSchema,
-  endDate: IsoDateSchema.nullable().optional(),
+  amount: z
+    .number()
+    .int()
+    .positive("Amount must be a positive integer (cents)")
+    .describe("Amount in cents (e.g. 1210 = €12.10)"),
+  type: TransactionTypeSchema.default("expense").describe("Defaults to 'expense'"),
+  description: z
+    .string()
+    .min(1, "Description is required")
+    .max(500)
+    .describe("What this recurring charge is for"),
+  merchant: z.string().max(255).optional().describe("Where the charge originates"),
+  categoryId: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Category ID — use list_categories to find valid values"),
+  frequency: FrequencySchema.describe("How often: daily, weekly, monthly, or yearly"),
+  dayOfMonth: z
+    .number()
+    .int()
+    .min(1)
+    .max(31)
+    .nullable()
+    .optional()
+    .describe("Day of month for monthly frequency (1-31). If omitted, uses day from startDate"),
+  dayOfWeek: z
+    .number()
+    .int()
+    .min(0)
+    .max(6)
+    .nullable()
+    .optional()
+    .describe("Day of week for weekly frequency (0=Sun, 6=Sat). If omitted, uses day from startDate"),
+  startDate: IsoDateSchema.describe(
+    "First occurrence date (YYYY-MM-DD). Past dates generate backdated transactions"
+  ),
+  endDate: IsoDateSchema.nullable().optional().describe("Stop generating after this date"),
   notes: z.string().max(2000).optional(),
   tags: z.array(z.string().max(100)).max(20).optional(),
 });
@@ -50,7 +77,7 @@ export type CreateRecurringInput = z.infer<typeof CreateRecurringSchema>;
 // ─── Update ───────────────────────────────────────────────────────────────────
 
 export const UpdateRecurringSchema = z.object({
-  amount: z.number().int().positive().optional(),
+  amount: z.number().int().positive().optional().describe("Amount in cents (e.g. 1210 = €12.10)"),
   type: TransactionTypeSchema.optional(),
   description: z.string().min(1).max(500).optional(),
   merchant: z.string().max(255).nullable().optional(),
@@ -60,7 +87,7 @@ export const UpdateRecurringSchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6).nullable().optional(),
   startDate: IsoDateSchema.optional(),
   endDate: IsoDateSchema.nullable().optional(),
-  isActive: z.boolean().optional(),
+  isActive: z.boolean().optional().describe("Set to false to pause recurring generation"),
   notes: z.string().max(2000).nullable().optional(),
   tags: z.array(z.string().max(100)).max(20).nullable().optional(),
 });

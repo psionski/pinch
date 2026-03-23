@@ -51,9 +51,7 @@ export function registerReceiptTools(server: McpServer): void {
     "delete_receipt",
     {
       description:
-        "Delete one or more receipts and their image files from disk. " +
-        "Linked transactions are kept, only the receipt gets deleted. " +
-        "Pass a single id or an array of ids for bulk delete.",
+        "Delete one or more receipts and their images. Linked transactions are kept.",
       inputSchema: z.object({
         id: z
           .union([

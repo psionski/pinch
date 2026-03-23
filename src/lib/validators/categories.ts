@@ -53,13 +53,30 @@ export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;
 
 export const RecategorizeSchema = z
   .object({
-    targetCategoryId: z.number().int().positive("Target category ID is required"),
-    sourceCategoryId: z.number().int().positive().optional(),
-    merchantPattern: z.string().max(255).optional(),
-    descriptionPattern: z.string().max(255).optional(),
-    dateFrom: IsoDateSchema.optional(),
-    dateTo: IsoDateSchema.optional(),
-    dryRun: z.boolean().optional(),
+    targetCategoryId: z
+      .number()
+      .int()
+      .positive("Target category ID is required")
+      .describe("Category to move matching transactions into"),
+    sourceCategoryId: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Only move transactions currently in this category"),
+    merchantPattern: z
+      .string()
+      .max(255)
+      .optional()
+      .describe("Case-insensitive substring match on merchant"),
+    descriptionPattern: z
+      .string()
+      .max(255)
+      .optional()
+      .describe("Case-insensitive substring match on description"),
+    dateFrom: IsoDateSchema.optional().describe("Start of date range filter (YYYY-MM-DD)"),
+    dateTo: IsoDateSchema.optional().describe("End of date range filter (YYYY-MM-DD)"),
+    dryRun: z.boolean().optional().describe("If true, returns count without modifying data"),
   })
   .refine(
     (data) =>
@@ -81,8 +98,16 @@ export type RecategorizeInput = z.infer<typeof RecategorizeSchema>;
 
 export const MergeCategoriesSchema = z
   .object({
-    sourceCategoryId: z.number().int().positive("Source category ID is required"),
-    targetCategoryId: z.number().int().positive("Target category ID is required"),
+    sourceCategoryId: z
+      .number()
+      .int()
+      .positive("Source category ID is required")
+      .describe("Category to merge from (will be deleted)"),
+    targetCategoryId: z
+      .number()
+      .int()
+      .positive("Target category ID is required")
+      .describe("Category to merge into (keeps existing data)"),
   })
   .refine((data) => data.sourceCategoryId !== data.targetCategoryId, {
     message: "Source and target category must be different",

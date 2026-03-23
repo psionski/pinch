@@ -27,9 +27,7 @@ export function registerSettingsTools(server: McpServer): void {
     "set_timezone",
     {
       description:
-        "Set the user's timezone. Accepts an IANA timezone identifier " +
-        "(e.g. 'Europe/Amsterdam', 'America/New_York', 'UTC'). " +
-        "This affects how 'today' and 'this month' are computed throughout the app.",
+        "Set the user's timezone. Affects how 'today' and 'this month' are computed throughout the app.",
       inputSchema: SetTimezoneSchema,
     },
     (input) => {

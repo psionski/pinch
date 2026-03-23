@@ -3,10 +3,16 @@ import { IsoDateSchema } from "./common";
 
 // ─── Shared Params ───────────────────────────────────────────────────────────
 
-export const WindowSchema = z.enum(["3m", "6m", "12m", "ytd", "all"]).default("6m");
+export const WindowSchema = z
+  .enum(["3m", "6m", "12m", "ytd", "all"])
+  .default("6m")
+  .describe("Time window. Defaults to '6m'");
 export type Window = z.infer<typeof WindowSchema>;
 
-export const IntervalSchema = z.enum(["daily", "weekly", "monthly"]).default("monthly");
+export const IntervalSchema = z
+  .enum(["daily", "weekly", "monthly"])
+  .default("monthly")
+  .describe("Data point interval. Defaults to 'monthly'");
 export type Interval = z.infer<typeof IntervalSchema>;
 
 // ─── Net Worth Time Series ───────────────────────────────────────────────────
@@ -28,8 +34,8 @@ export type NetWorthPoint = z.infer<typeof NetWorthPointSchema>;
 // ─── Asset Performance ───────────────────────────────────────────────────────
 
 export const AssetPerformanceQuerySchema = z.object({
-  from: IsoDateSchema.optional(),
-  to: IsoDateSchema.optional(),
+  from: IsoDateSchema.optional().describe("Start of date range (YYYY-MM-DD)"),
+  to: IsoDateSchema.optional().describe("End of date range (YYYY-MM-DD)"),
 });
 export type AssetPerformanceQuery = z.infer<typeof AssetPerformanceQuerySchema>;
 
@@ -89,8 +95,8 @@ export type CurrencyExposureItem = z.infer<typeof CurrencyExposureItemSchema>;
 // ─── Realized P&L ────────────────────────────────────────────────────────────
 
 export const RealizedPnlQuerySchema = z.object({
-  from: IsoDateSchema.optional(),
-  to: IsoDateSchema.optional(),
+  from: IsoDateSchema.optional().describe("Filter sell dates from (YYYY-MM-DD)"),
+  to: IsoDateSchema.optional().describe("Filter sell dates to (YYYY-MM-DD)"),
 });
 export type RealizedPnlQuery = z.infer<typeof RealizedPnlQuerySchema>;
 
