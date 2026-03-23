@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SymbolMapSchema } from "./assets";
 import { ProviderNameSchema } from "@/lib/providers/types";
+import { PastOrTodayDateSchema } from "./common";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -19,10 +20,7 @@ const CurrencyCodeSchema = z
   .toUpperCase()
   .describe("ISO 4217 currency code or crypto symbol (e.g. USD, EUR, BTC)");
 
-const DateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-  .optional();
+const DateSchema = PastOrTodayDateSchema.optional();
 
 // ─── Price (unified: exchange rates + market prices) ─────────────────────────
 

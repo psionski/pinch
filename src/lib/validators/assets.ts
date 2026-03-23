@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDateSchema } from "./common";
+import { PastOrTodayDateSchema } from "./common";
 import { ProviderNameSchema } from "@/lib/providers/types";
 
 // ─── Asset Type ───────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ export const BuyAssetSchema = z.object({
     .int()
     .positive("Price must be a positive integer (cents)")
     .describe("Price per unit in cents (e.g. 34563 = €345.63). For EUR deposits use 100"),
-  date: IsoDateSchema.describe("Transaction date (YYYY-MM-DD)"),
+  date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
 });
@@ -98,7 +98,7 @@ export const SellAssetSchema = z.object({
     .int()
     .positive("Price must be a positive integer (cents)")
     .describe("Sale price per unit in cents. For EUR withdrawals use 100"),
-  date: IsoDateSchema.describe("Transaction date (YYYY-MM-DD)"),
+  date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
 });
@@ -109,7 +109,7 @@ export type SellAssetInput = z.infer<typeof SellAssetSchema>;
 export const CreateOpeningLotSchema = z.object({
   quantity: z.number().positive("Quantity must be positive"),
   pricePerUnit: z.number().int().nonnegative("Price must be a non-negative integer (cents)"),
-  date: IsoDateSchema,
+  date: PastOrTodayDateSchema,
   notes: z.string().max(2000).optional(),
 });
 export type CreateOpeningLotInput = z.infer<typeof CreateOpeningLotSchema>;
@@ -120,7 +120,7 @@ export const SetOpeningCashBalanceSchema = z.object({
     .int()
     .positive("Amount must be a positive integer (cents)")
     .describe("Opening balance in cents (e.g. 500000 = €5,000.00)"),
-  date: IsoDateSchema.optional().describe("Balance date (YYYY-MM-DD). Defaults to today"),
+  date: PastOrTodayDateSchema.optional().describe("Balance date (YYYY-MM-DD). Defaults to today"),
 });
 export type SetOpeningCashBalanceInput = z.infer<typeof SetOpeningCashBalanceSchema>;
 
@@ -156,7 +156,7 @@ export const AddOpeningAssetSchema = z.object({
   symbolMap: SymbolMapSchema.optional().describe(
     "Provider→symbol mapping for price tracking. Use search_symbol to discover symbols"
   ),
-  date: IsoDateSchema.optional().describe("Lot date (YYYY-MM-DD). Defaults to today"),
+  date: PastOrTodayDateSchema.optional().describe("Lot date (YYYY-MM-DD). Defaults to today"),
   icon: z.string().max(100).optional(),
   color: z.string().max(20).optional(),
   notes: z.string().max(2000).optional(),
