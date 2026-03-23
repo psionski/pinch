@@ -120,7 +120,7 @@ export function AssetFormDialog({
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="asset-currency">Currency</Label>
+            <Label htmlFor="asset-currency">Base currency</Label>
             <Input
               id="asset-currency"
               value={currency}
