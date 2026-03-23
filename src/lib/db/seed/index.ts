@@ -26,8 +26,8 @@ async function seed(): Promise<void> {
   const existingTransactions = await db.select({ id: transactions.id }).from(transactions).limit(1);
   if (existingCategories.length > 0 || existingTransactions.length > 0) {
     seedLogger.error(
-      "Database is not empty. Delete the database file and run migrations before seeding.\n" +
-        "  rm data/pinch.db && npm run db:migrate && npx tsx src/lib/db/seed.ts"
+      "Database is not empty. Delete the database file and run again.\n" +
+        "  rm data/pinch.db && npm run db:seed"
     );
     logger.flush();
     process.exit(1);
