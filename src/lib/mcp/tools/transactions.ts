@@ -18,7 +18,11 @@ export function registerTransactionTools(server: McpServer): void {
   server.registerTool(
     "create_transaction",
     {
-      description: "Add a single transaction. Use list_categories to find valid categoryId values.",
+      description:
+        "Add a single transaction. Use list_categories to find valid categoryId values. " +
+        "When someone sends the user money to a specific asset (e.g. 'Alice sent me 50 EUR to Revolut'), " +
+        "use create_transactions to batch-add an income transaction and a transfer transaction " +
+        "as per the create_transactions tool description.",
       inputSchema: CreateTransactionSchema,
     },
     (input) => ok(getTransactionService().create(input))
@@ -30,7 +34,10 @@ export function registerTransactionTools(server: McpServer): void {
       description:
         "Batch-add multiple transactions in one call. " +
         "Use list_categories to find valid categoryId values. " +
-        "Optionally link all to an uploaded receipt via receiptId.",
+        "Optionally link all to an uploaded receipt via receiptId. " +
+        "When someone sends the user money to a specific asset (e.g. 'Alice sent me 50 EUR to Revolut'), " +
+        "create two transactions in the batch: (1) an income transaction for the amount, and " +
+        "(2) a transfer transaction moving the funds into the destination asset.",
       inputSchema: CreateTransactionsBatchSchema,
     },
     (input) => ok(getTransactionService().createBatch(input))
