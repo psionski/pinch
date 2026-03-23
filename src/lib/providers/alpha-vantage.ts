@@ -84,6 +84,45 @@ export class AlphaVantageProvider implements FinancialDataProvider {
     };
   }
 
+  async getPriceRange(
+    symbol: string,
+    currency = "USD",
+    from: string,
+    to: string
+  ): Promise<PriceResult[]> {
+    // Use full output to cover longer ranges
+    const url = new URL(BASE_URL);
+    url.searchParams.set("function", "TIME_SERIES_DAILY");
+    url.searchParams.set("symbol", symbol);
+    url.searchParams.set("outputsize", "full");
+    url.searchParams.set("apikey", this.apiKey);
+
+    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as AlphaVantageDailyResponse;
+    const series = data["Time Series (Daily)"];
+    if (!series) return [];
+
+    const results: PriceResult[] = [];
+    for (const [date, values] of Object.entries(series)) {
+      if (date < from || date > to) continue;
+      const closeStr = values["4. close"];
+      if (!closeStr) continue;
+      const price = parseFloat(closeStr);
+      if (isNaN(price)) continue;
+      results.push({
+        symbol,
+        price,
+        currency: currency.toUpperCase(),
+        date,
+        provider: this.name,
+      });
+    }
+
+    return results.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
     const url = new URL(BASE_URL);
     url.searchParams.set("function", "SYMBOL_SEARCH");

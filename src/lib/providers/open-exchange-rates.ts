@@ -1,4 +1,4 @@
-import type { PriceResult, FinancialDataProvider } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
 import { isoDateFromMs } from "@/lib/date-ranges";
 
 const BASE_URL = "https://openexchangerates.org/api";
@@ -54,6 +54,62 @@ export class OpenExchangeRatesProvider implements FinancialDataProvider {
     return results;
   }
 
+  async getPriceRange(
+    symbol: string,
+    currency: string,
+    from: string,
+    to: string
+  ): Promise<PriceResult[]> {
+    // OER free tier doesn't have a time-series endpoint, so fetch each date individually.
+    // To limit API usage, cap at 30 days.
+    const dates = generateDateRange(from, to, 30);
+    const results: PriceResult[] = [];
+
+    for (const date of dates) {
+      const url = `${BASE_URL}/historical/${date}.json?app_id=${this.apiKey}&base=USD&symbols=USD,${symbol},${currency}`;
+      const res = await fetch(url, { next: { revalidate: 0 } });
+      if (!res.ok) continue;
+
+      const data = (await res.json()) as OerResponse;
+      if (!data.rates) continue;
+
+      const usdRates = new Map(Object.entries(data.rates));
+      usdRates.set("USD", 1);
+      const baseRate = usdRates.get(symbol);
+      const quoteRate = usdRates.get(currency);
+      if (baseRate === undefined || quoteRate === undefined) continue;
+
+      results.push({
+        symbol,
+        price: quoteRate / baseRate,
+        currency,
+        date,
+        provider: this.name,
+      });
+    }
+
+    return results;
+  }
+
+  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
+    const url = `${BASE_URL}/currencies.json`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as Record<string, string>;
+    const q = query.toUpperCase();
+
+    return Object.entries(data)
+      .filter(([code, name]) => code.includes(q) || name.toUpperCase().includes(q))
+      .slice(0, 20)
+      .map(([code, name]) => ({
+        provider: this.name,
+        symbol: code,
+        name,
+        type: "currency",
+      }));
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       const res = await fetch(`${BASE_URL}/latest.json?app_id=${this.apiKey}&symbols=EUR`, {
@@ -64,6 +120,26 @@ export class OpenExchangeRatesProvider implements FinancialDataProvider {
       return false;
     }
   }
+}
+
+/** Generate YYYY-MM-DD dates between from and to, capped at maxDays. */
+function generateDateRange(from: string, to: string, maxDays: number): string[] {
+  const dates: string[] = [];
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  const start = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+
+  const current = new Date(start);
+  while (current <= end && dates.length < maxDays) {
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, "0");
+    const d = String(current.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
 }
 
 interface OerResponse {
