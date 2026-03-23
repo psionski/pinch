@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IsoDateSchema } from "./common";
+import { ProviderNameSchema } from "@/lib/providers/types";
 
 // ─── Asset Type ───────────────────────────────────────────────────────────────
 
@@ -9,7 +10,7 @@ export type AssetType = z.infer<typeof AssetTypeSchema>;
 // ─── Symbol Map ──────────────────────────────────────────────────────────────
 
 /** Provider → symbol mapping, e.g. { coingecko: "bitcoin", "alpha-vantage": "BTC" } */
-export const SymbolMapSchema = z.record(z.string(), z.string());
+export const SymbolMapSchema = z.partialRecord(ProviderNameSchema, z.string());
 export type SymbolMap = z.infer<typeof SymbolMapSchema>;
 
 // ─── Asset CRUD ───────────────────────────────────────────────────────────────

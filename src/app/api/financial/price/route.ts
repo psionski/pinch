@@ -7,7 +7,11 @@ export async function GET(req: Request): Promise<NextResponse> {
   const input = parseSearchParams(req.url, GetPriceSchema);
   if (isErrorResponse(input)) return input;
 
-  const result = await getFinancialDataService().getPrice(input.symbol, input.currency, input.date);
+  const result = await getFinancialDataService().getPrice(
+    input.symbolMap,
+    input.currency,
+    input.date
+  );
   if (!result) return NextResponse.json({ error: "No price available" }, { status: 404 });
   return NextResponse.json(result);
 }

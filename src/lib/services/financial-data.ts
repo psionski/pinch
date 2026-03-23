@@ -1,17 +1,19 @@
 import { Temporal } from "@js-temporal/polyfill";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { marketPrices } from "@/lib/db/schema";
-import type { FinancialDataProvider, PriceResult, SymbolSearchResult } from "@/lib/providers/types";
+import type {
+  FinancialDataProvider,
+  PriceResult,
+  SymbolSearchResult,
+  ProviderName,
+} from "@/lib/providers/types";
+import type { SymbolMap } from "@/lib/validators/assets";
 import type { SettingsService } from "./settings";
-import { EcbProvider } from "@/lib/providers/ecb";
-import { FrankfurterProvider } from "@/lib/providers/frankfurter";
-import { OpenExchangeRatesProvider } from "@/lib/providers/open-exchange-rates";
-import { CoinGeckoProvider } from "@/lib/providers/coingecko";
-import { AlphaVantageProvider } from "@/lib/providers/alpha-vantage";
+import { getProvider } from "@/lib/providers/registry";
 import { financialLogger } from "@/lib/logger";
-import { isoToday, daysBetween, normalizeUtc } from "@/lib/date-ranges";
+import { isoToday, daysBetween, normalizeUtc, offsetDate } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -20,22 +22,62 @@ type Db = BetterSQLite3Database<typeof schema>;
 /** Staleness window for current-day prices (milliseconds). */
 const PRICE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
+/** Lookback window for cache queries (days). Covers weekends/holidays. */
+const CACHE_LOOKBACK_DAYS = 7;
+
 // ─── Result Types ─────────────────────────────────────────────────────────────
 
 export interface ConvertResult {
   converted: number;
   rate: number;
   date: string;
-  provider: string;
+  provider: ProviderName;
   stale: boolean;
 }
 
 export interface ProviderStatus {
-  name: string;
+  name: ProviderName;
   type: "exchange-rates" | "market-prices" | "both";
   apiKeyRequired: boolean;
   apiKeySet: boolean;
   healthy: boolean | null;
+}
+
+/** Factory type for instantiating providers by name. Used for DI in tests. */
+export type ProviderFactory = (name: ProviderName) => FinancialDataProvider | null;
+
+// ─── Shared Cache Helpers ─────────────────────────────────────────────────────
+
+type MarketPriceRow = typeof schema.marketPrices.$inferSelect;
+
+/**
+ * Find a cached price in market_prices with a 7-day lookback window.
+ * No provider filter — cache key is (symbol, currency, date).
+ */
+export function findCachedPrice(
+  db: Db,
+  symbol: string,
+  currency: string,
+  date: string
+): MarketPriceRow | null {
+  const weekBefore = offsetDate(date, -CACHE_LOOKBACK_DAYS);
+
+  return (
+    db
+      .select()
+      .from(marketPrices)
+      .where(
+        and(
+          eq(marketPrices.symbol, symbol),
+          eq(marketPrices.currency, currency),
+          gte(marketPrices.date, weekBefore),
+          lte(marketPrices.date, date)
+        )
+      )
+      .orderBy(desc(marketPrices.date))
+      .limit(1)
+      .get() ?? null
+  );
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -43,102 +85,103 @@ export interface ProviderStatus {
 export class FinancialDataService {
   private db: Db;
   private settings: SettingsService;
+  private factory: ProviderFactory;
 
-  constructor(db: Db, settings: SettingsService) {
+  constructor(db: Db, settings: SettingsService, factory?: ProviderFactory) {
     this.db = db;
     this.settings = settings;
+    this.factory = factory ?? ((name) => getProvider(name, this.settings));
   }
 
   // ─── Unified Price Lookup ─────────────────────────────────────────────────
 
   /**
-   * Get a price for a symbol in a given currency on a date.
-   * Works for both market assets (crypto, stocks) and exchange rates (currencies).
-   * Cache-first: returns cached value if fresh. Falls back to stale cache if all providers fail.
+   * Get a price for a symbolMap in a given currency on a date.
+   * Iterates symbolMap entries, checking cache then calling each provider.
+   * Falls back to stale cache if all providers fail.
    */
   async getPrice(
-    symbol: string,
+    symbolMap: SymbolMap,
     currency: string,
     date?: string
   ): Promise<(PriceResult & { stale: boolean }) | null> {
     const priceDate = date ?? isoToday();
     const isHistorical = priceDate < isoToday();
+    const entries = symbolMapEntries(symbolMap);
 
-    const cached = this.getCachedPrice(symbol, currency, priceDate);
-    if (cached) {
-      const age =
-        Date.now() - Temporal.Instant.from(normalizeUtc(cached.fetchedAt)).epochMilliseconds;
-      if (isHistorical || age < PRICE_TTL_MS) {
-        financialLogger.debug({ symbol, currency, date: priceDate }, "Price served from cache");
-        return { ...toPriceResult(cached), stale: false };
+    // Phase 1: check cache for each symbol
+    let staleEntry: MarketPriceRow | null = null;
+    for (const [, symbol] of entries) {
+      if (symbol === currency) continue;
+      const cached = findCachedPrice(this.db, symbol, currency, priceDate);
+      if (cached) {
+        const age =
+          Date.now() - Temporal.Instant.from(normalizeUtc(cached.fetchedAt)).epochMilliseconds;
+        if (isHistorical || age < PRICE_TTL_MS) {
+          financialLogger.debug({ symbol, currency, date: priceDate }, "Price served from cache");
+          return { ...toPriceResult(cached), stale: false };
+        }
+        staleEntry ??= cached;
       }
     }
 
-    const providers = this.buildAllProviders();
-    for (const provider of providers) {
+    // Phase 2: try each provider
+    for (const [providerName, symbol] of entries) {
+      if (symbol === currency) continue;
+      const provider = this.factory(providerName);
+      if (!provider) continue;
+
       try {
         const result = await provider.getPrice?.(symbol, currency, priceDate);
         if (result) {
           financialLogger.info(
-            { provider: result.provider, symbol, currency, date: priceDate },
+            { provider: providerName, symbol, currency, date: priceDate },
             "External price fetched"
           );
           this.cachePrice({ ...result, date: priceDate });
-          return { ...result, stale: false };
+          return { ...result, date: priceDate, stale: false };
         }
       } catch (err) {
         financialLogger.warn(
-          { provider: provider.name, symbol, currency, date: priceDate, err },
+          { provider: providerName, symbol, currency, date: priceDate, err },
           "Provider price lookup failed"
         );
       }
     }
 
-    if (cached) {
+    // Phase 3: stale fallback
+    if (staleEntry) {
       financialLogger.warn(
-        { symbol, currency, date: priceDate },
+        { symbol: staleEntry.symbol, currency, date: priceDate },
         "All providers failed, returning stale cache"
       );
-      return { ...toPriceResult(cached), stale: true };
+      return { ...toPriceResult(staleEntry), stale: true };
     }
 
-    financialLogger.warn(
-      { symbol, currency, date: priceDate },
-      "All providers failed, no cached data"
-    );
+    financialLogger.warn({ currency, date: priceDate }, "All providers failed, no cached data");
     return null;
   }
 
   /**
-   * Get all available prices/rates for a symbol on a date.
-   * Primarily useful for exchange rates (e.g. all pairs for "EUR").
+   * Get all available prices/rates for a symbolMap on a date.
+   * Tries each provider's getPrices and returns the first success.
    */
-  async getPrices(symbol: string, date?: string): Promise<(PriceResult & { stale: boolean })[]> {
+  async getPrices(
+    symbolMap: SymbolMap,
+    date?: string
+  ): Promise<(PriceResult & { stale: boolean })[]> {
     const priceDate = date ?? isoToday();
-    const isHistorical = priceDate < isoToday();
+    const entries = symbolMapEntries(symbolMap);
 
-    const cached = this.getCachedPricesForSymbol(symbol, priceDate);
-    if (cached.length > 0) {
-      const oldestFetch = Math.min(
-        ...cached.map((r) => Temporal.Instant.from(normalizeUtc(r.fetchedAt)).epochMilliseconds)
-      );
-      const age = Date.now() - oldestFetch;
-      if (isHistorical || age < PRICE_TTL_MS) {
-        financialLogger.debug(
-          { symbol, date: priceDate, count: cached.length },
-          "Prices served from cache"
-        );
-        return cached.map((r) => ({ ...toPriceResult(r), stale: false }));
-      }
-    }
+    for (const [providerName, symbol] of entries) {
+      const provider = this.factory(providerName);
+      if (!provider?.getPrices) continue;
 
-    const providers = this.buildAllProviders();
-    for (const provider of providers) {
       try {
-        const results = await provider.getPrices?.(symbol, priceDate);
-        if (results && results.length > 0) {
+        const results = await provider.getPrices(symbol, priceDate);
+        if (results.length > 0) {
           financialLogger.info(
-            { provider: provider.name, symbol, date: priceDate, count: results.length },
+            { provider: providerName, symbol, date: priceDate, count: results.length },
             "External prices fetched"
           );
           for (const r of results) this.cachePrice({ ...r, date: priceDate });
@@ -146,18 +189,10 @@ export class FinancialDataService {
         }
       } catch (err) {
         financialLogger.warn(
-          { provider: provider.name, symbol, date: priceDate, err },
+          { provider: providerName, symbol, date: priceDate, err },
           "Provider prices lookup failed"
         );
       }
-    }
-
-    if (cached.length > 0) {
-      financialLogger.warn(
-        { symbol, date: priceDate },
-        "All providers failed, returning stale prices"
-      );
-      return cached.map((r) => ({ ...toPriceResult(r), stale: true }));
     }
 
     return [];
@@ -165,12 +200,13 @@ export class FinancialDataService {
 
   /**
    * Convert an amount (in cents) from one currency to another.
-   * Returns the converted amount in cents.
+   * The symbolMap maps providers to the symbol for the source currency.
    */
   async convert(
     amountCents: number,
     from: string,
     to: string,
+    symbolMap: SymbolMap,
     date?: string
   ): Promise<ConvertResult | null> {
     if (from === to) {
@@ -178,12 +214,12 @@ export class FinancialDataService {
         converted: amountCents,
         rate: 1,
         date: date ?? isoToday(),
-        provider: "none",
+        provider: "frankfurter" as ProviderName,
         stale: false,
       };
     }
 
-    const rateResult = await this.getPrice(from, to, date);
+    const rateResult = await this.getPrice(symbolMap, to, date);
     if (!rateResult) return null;
 
     return {
@@ -198,41 +234,48 @@ export class FinancialDataService {
   // ─── Range Backfill ────────────────────────────────────────────────────────
 
   /**
-   * Ensure market_prices has data for (symbol, currency) over [from, to].
-   * Checks which dates are cached and fetches only missing segments.
-   * Idempotent — safe to call multiple times for the same range.
+   * Ensure market_prices has data for symbolMap in a currency over [from, to].
+   * For each (provider, symbol) entry, checks cached dates and fetches missing ones.
    */
   async ensurePriceHistory(
-    symbol: string,
+    symbolMap: SymbolMap,
     currency: string,
     from: string,
     to: string
   ): Promise<void> {
-    const cached = this.db
-      .select({ date: marketPrices.date })
-      .from(marketPrices)
-      .where(
-        and(
-          eq(marketPrices.symbol, symbol),
-          eq(marketPrices.currency, currency),
-          gte(marketPrices.date, from),
-          lte(marketPrices.date, to)
+    const entries = symbolMapEntries(symbolMap);
+
+    for (const [providerName, symbol] of entries) {
+      if (symbol === currency) continue;
+
+      const cached = this.db
+        .select({ date: marketPrices.date })
+        .from(marketPrices)
+        .where(
+          and(
+            eq(marketPrices.symbol, symbol),
+            eq(marketPrices.currency, currency),
+            gte(marketPrices.date, from),
+            lte(marketPrices.date, to)
+          )
         )
-      )
-      .all();
+        .all();
 
-    const cachedDates = new Set(cached.map((r) => r.date));
+      const cachedDates = new Set(cached.map((r) => r.date));
+      const expectedDays = daysBetween(from, to) + 1;
+      if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) continue;
 
-    const expectedDays = daysBetween(from, to) + 1;
-    if (expectedDays > 0 && cachedDates.size / expectedDays > 0.8) return;
+      const provider = this.factory(providerName);
+      if (!provider?.getPriceRange) continue;
 
-    financialLogger.debug({ symbol, currency, from, to }, "Backfilling price history");
+      financialLogger.debug(
+        { provider: providerName, symbol, currency, from, to },
+        "Backfilling price history"
+      );
 
-    const providers = this.buildAllProviders();
-    for (const provider of providers) {
       try {
-        const results = await provider.getPriceRange?.(symbol, currency, from, to);
-        if (results && results.length > 0) {
+        const results = await provider.getPriceRange(symbol, currency, from, to);
+        if (results.length > 0) {
           let inserted = 0;
           for (const r of results) {
             if (!cachedDates.has(r.date)) {
@@ -241,14 +284,14 @@ export class FinancialDataService {
             }
           }
           financialLogger.info(
-            { provider: provider.name, symbol, currency, from, to, inserted },
+            { provider: providerName, symbol, currency, from, to, inserted },
             "Price history backfilled"
           );
           return;
         }
       } catch (err) {
         financialLogger.warn(
-          { provider: provider.name, symbol, currency, from, to, err },
+          { provider: providerName, symbol, currency, from, to, err },
           "Provider price range lookup failed"
         );
       }
@@ -258,10 +301,10 @@ export class FinancialDataService {
   // ─── Symbol Search ────────────────────────────────────────────────────────
 
   /**
-   * Search for market symbols across all providers.
+   * Search for market symbols across all providers (discovery — broadcasts).
    */
   async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
-    const providers = this.buildAllProviders();
+    const providers = this.buildDiscoveryProviders();
     const results: SymbolSearchResult[] = [];
 
     const searches = providers
@@ -291,55 +334,22 @@ export class FinancialDataService {
   }
 
   async getProviderStatus(): Promise<ProviderStatus[]> {
-    const oerKey = this.getApiKey("open-exchange-rates");
-    const cgKey = this.getApiKey("coingecko");
-    const avKey = this.getApiKey("alpha-vantage");
+    const providers = this.buildDiscoveryProviders();
+    const keyProviders = new Set<string>(["open-exchange-rates", "alpha-vantage"]);
 
-    const statuses: ProviderStatus[] = [
-      {
-        name: "frankfurter",
-        type: "exchange-rates",
-        apiKeyRequired: false,
-        apiKeySet: true,
-        healthy: null,
-      },
-      {
-        name: "ecb",
-        type: "exchange-rates",
-        apiKeyRequired: false,
-        apiKeySet: true,
-        healthy: null,
-      },
-      {
-        name: "open-exchange-rates",
-        type: "exchange-rates",
-        apiKeyRequired: true,
-        apiKeySet: !!oerKey,
-        healthy: null,
-      },
-      {
-        name: "coingecko",
-        type: "market-prices",
-        apiKeyRequired: false,
-        apiKeySet: true,
-        healthy: null,
-      },
-      {
-        name: "alpha-vantage",
-        type: "market-prices",
-        apiKeyRequired: true,
-        apiKeySet: !!avKey,
-        healthy: null,
-      },
-    ];
+    const statuses: ProviderStatus[] = providers.map((p) => ({
+      name: p.name,
+      type: (["frankfurter", "ecb", "open-exchange-rates"].includes(p.name)
+        ? "exchange-rates"
+        : "market-prices") as ProviderStatus["type"],
+      apiKeyRequired: keyProviders.has(p.name),
+      apiKeySet: !keyProviders.has(p.name) || !!this.getApiKey(p.name),
+      healthy: null,
+    }));
 
-    const checks = await Promise.allSettled([
-      new FrankfurterProvider().healthCheck!(),
-      new EcbProvider().healthCheck!(),
-      oerKey ? new OpenExchangeRatesProvider(oerKey).healthCheck!() : Promise.resolve(false),
-      new CoinGeckoProvider(cgKey ?? undefined).healthCheck!(),
-      avKey ? new AlphaVantageProvider(avKey).healthCheck!() : Promise.resolve(false),
-    ]);
+    const checks = await Promise.allSettled(
+      providers.map((p) => (p.healthCheck ? p.healthCheck() : Promise.resolve(false)))
+    );
 
     checks.forEach((result, i) => {
       statuses[i].healthy = result.status === "fulfilled" ? result.value : false;
@@ -352,38 +362,7 @@ export class FinancialDataService {
     return statuses;
   }
 
-  // ─── Cache Helpers ─────────────────────────────────────────────────────────
-
-  private getCachedPrice(
-    symbol: string,
-    currency: string,
-    date: string
-  ): typeof schema.marketPrices.$inferSelect | null {
-    const row =
-      this.db
-        .select()
-        .from(marketPrices)
-        .where(
-          and(
-            eq(marketPrices.symbol, symbol),
-            eq(marketPrices.currency, currency),
-            eq(marketPrices.date, date)
-          )
-        )
-        .get() ?? null;
-    return row;
-  }
-
-  private getCachedPricesForSymbol(
-    symbol: string,
-    date: string
-  ): (typeof schema.marketPrices.$inferSelect)[] {
-    return this.db
-      .select()
-      .from(marketPrices)
-      .where(and(eq(marketPrices.symbol, symbol), eq(marketPrices.date, date)))
-      .all();
-  }
+  // ─── Cache ──────────────────────────────────────────────────────────────────
 
   private cachePrice(result: PriceResult): void {
     this.db
@@ -408,31 +387,38 @@ export class FinancialDataService {
 
   // ─── Provider Builders ─────────────────────────────────────────────────────
 
-  protected buildAllProviders(): FinancialDataProvider[] {
-    const cgKey = this.getApiKey("coingecko") ?? undefined;
-    const providers: FinancialDataProvider[] = [
-      new FrankfurterProvider(),
-      new EcbProvider(),
-      new CoinGeckoProvider(cgKey),
+  /** Build all available providers for discovery operations (search, status). */
+  private buildDiscoveryProviders(): FinancialDataProvider[] {
+    const all: ProviderName[] = [
+      "frankfurter",
+      "ecb",
+      "coingecko",
+      "open-exchange-rates",
+      "alpha-vantage",
     ];
-    const oerKey = this.getApiKey("open-exchange-rates");
-    if (oerKey) providers.push(new OpenExchangeRatesProvider(oerKey));
-    const avKey = this.getApiKey("alpha-vantage");
-    if (avKey) providers.push(new AlphaVantageProvider(avKey));
-    return providers;
+    return all
+      .map((name) => this.factory(name))
+      .filter((p): p is FinancialDataProvider => p !== null);
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function toPriceResult(row: typeof schema.marketPrices.$inferSelect): PriceResult {
+function toPriceResult(row: MarketPriceRow): PriceResult {
   return {
     symbol: row.symbol,
     price: parseFloat(row.price),
     currency: row.currency,
     date: row.date,
-    provider: row.provider,
+    provider: row.provider as ProviderName,
   };
+}
+
+/** Extract defined entries from a SymbolMap (skips undefined values). */
+function symbolMapEntries(symbolMap: SymbolMap): Array<[ProviderName, string]> {
+  return Object.entries(symbolMap)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .map(([name, symbol]) => [name as ProviderName, symbol]);
 }
 
 // Re-export for convenience

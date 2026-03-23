@@ -1,3 +1,16 @@
+import { z } from "zod";
+
+// ─── Provider Names ───────────────────────────────────────────────────────────
+
+export const ProviderNameSchema = z.enum([
+  "frankfurter",
+  "ecb",
+  "coingecko",
+  "open-exchange-rates",
+  "alpha-vantage",
+]);
+export type ProviderName = z.infer<typeof ProviderNameSchema>;
+
 // ─── Provider Result Types ─────────────────────────────────────────────────────
 
 /**
@@ -10,13 +23,13 @@ export interface PriceResult {
   price: number;
   currency: string;
   date: string; // YYYY-MM-DD
-  provider: string;
+  provider: ProviderName;
 }
 
 // ─── Provider Interface ────────────────────────────────────────────────────────
 
 export interface FinancialDataProvider {
-  name: string;
+  readonly name: ProviderName;
 
   /**
    * Fetch a price for a symbol in a given currency.
@@ -44,12 +57,8 @@ export interface FinancialDataProvider {
 }
 
 export interface SymbolSearchResult {
-  provider: string;
+  provider: ProviderName;
   symbol: string;
   name: string;
   type?: string; // "crypto", "stock", "etf", etc.
 }
-
-// Legacy aliases — keep during transition, remove later if unused
-export type ExchangeRateResult = PriceResult;
-export type MarketPriceResult = PriceResult;

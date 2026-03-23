@@ -6,6 +6,7 @@ import { assets } from "@/lib/db/schema";
 import { isNotNull } from "drizzle-orm";
 import { cronLogger } from "@/lib/logger";
 import { isoToday } from "@/lib/date-ranges";
+import type { SymbolMap } from "@/lib/validators/assets";
 
 const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
 
@@ -74,16 +75,11 @@ async function runMarketPriceJob(): Promise<void> {
     let warmed = 0;
     for (const asset of symbolAssets) {
       if (!asset.symbolMap) continue;
-      const map = JSON.parse(asset.symbolMap) as Record<string, string>;
+      const map = JSON.parse(asset.symbolMap) as SymbolMap;
 
       try {
-        for (const symbol of Object.values(map)) {
-          const result = await fds.getPrice(symbol, asset.currency, today);
-          if (result) {
-            warmed++;
-            break;
-          }
-        }
+        const result = await fds.getPrice(map, asset.currency, today);
+        if (result) warmed++;
       } catch {
         // Continue with next asset — individual failures are non-fatal
       }
@@ -100,7 +96,10 @@ async function runMarketPriceJob(): Promise<void> {
 async function warmExchangeRates(): Promise<void> {
   try {
     const svc = getFinancialDataService();
-    await Promise.all([svc.getPrice("USD", "EUR"), svc.getPrice("GBP", "EUR")]);
+    await Promise.all([
+      svc.getPrice({ frankfurter: "USD" }, "EUR"),
+      svc.getPrice({ frankfurter: "GBP" }, "EUR"),
+    ]);
     cronLogger.info("Exchange rate cache warmed (USD/EUR, GBP/EUR)");
   } catch (err) {
     cronLogger.warn({ err }, "Exchange rate warm-up failed (non-fatal)");

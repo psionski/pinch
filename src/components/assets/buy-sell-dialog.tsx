@@ -30,15 +30,6 @@ interface BuySellDialogProps {
   loading?: boolean;
 }
 
-function getFirstSymbolEntry(
-  symbolMap: Record<string, string> | null | undefined
-): { provider: string; symbol: string } | null {
-  if (!symbolMap) return null;
-  const entries = Object.entries(symbolMap);
-  if (entries.length === 0) return null;
-  return { provider: entries[0][0], symbol: entries[0][1] };
-}
-
 export function BuySellDialog({
   open,
   onOpenChange,
@@ -56,12 +47,11 @@ export function BuySellDialog({
   const [fetchingPrice, setFetchingPrice] = useState(false);
 
   const fetchCurrentPrice = useCallback(async (): Promise<void> => {
-    const entry = getFirstSymbolEntry(asset.symbolMap);
-    if (!entry) return;
+    if (!asset.symbolMap) return;
     setFetchingPrice(true);
     try {
       const params = new URLSearchParams({
-        symbol: entry.symbol,
+        symbolMap: JSON.stringify(asset.symbolMap),
         currency: asset.currency,
         date: today,
       });

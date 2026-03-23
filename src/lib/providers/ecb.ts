@@ -1,4 +1,4 @@
-import type { PriceResult, FinancialDataProvider, SymbolSearchResult } from "./types";
+import type { PriceResult, FinancialDataProvider, SymbolSearchResult, ProviderName } from "./types";
 import { isoToday } from "@/lib/date-ranges";
 
 const DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
@@ -228,7 +228,7 @@ function buildResults(
   symbol: string,
   eurRates: Map<string, number>,
   date: string,
-  provider: string
+  provider: ProviderName
 ): PriceResult[] {
   const baseInEur = eurRates.get(symbol);
   if (baseInEur === undefined) return [];

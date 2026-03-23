@@ -26,7 +26,8 @@ export function registerFinancialTools(server: McpServer): void {
     {
       description:
         "Convert an amount between currencies using live exchange rates. " +
-        "Primary use case: receipt in foreign currency → EUR for transaction entry.",
+        "Requires a symbolMap specifying which providers to use (e.g. { frankfurter: 'USD' }). " +
+        "Use search_symbol to find the correct provider→symbol mapping.",
       inputSchema: ConvertCurrencySchema,
     },
     async (input) => {
@@ -34,6 +35,7 @@ export function registerFinancialTools(server: McpServer): void {
         input.amount,
         input.from,
         input.to,
+        input.symbolMap,
         input.date
       );
       if (!result) return notFound(`No exchange rate available for ${input.from}→${input.to}`);
@@ -46,15 +48,17 @@ export function registerFinancialTools(server: McpServer): void {
     {
       description:
         "Look up a price for a currency pair, crypto, stock, or ETF. " +
-        "Use search_symbol to find the correct symbol identifier. " +
-        "Works for exchange rates too: symbol='USD', currency='EUR' gives the EUR value of 1 USD.",
+        "Requires a symbolMap specifying which providers to use " +
+        "(e.g. { coingecko: 'bitcoin' } or { frankfurter: 'USD' }). " +
+        "Use search_symbol to find the correct provider→symbol mapping.",
       inputSchema: GetPriceSchema,
     },
     async (input) => {
       const svc = getFinancialDataService();
-      const result = await svc.getPrice(input.symbol, input.currency, input.date);
+      const result = await svc.getPrice(input.symbolMap, input.currency, input.date);
       if (!result) {
-        const msg = `No price available for ${input.symbol}/${input.currency}`;
+        const symbols = Object.values(input.symbolMap).filter(Boolean).join(", ");
+        const msg = `No price available for ${symbols}/${input.currency}`;
         const hint = await unconfiguredProviderHint(svc);
         return notFound(hint ? `${msg}. ${hint}` : msg);
       }

@@ -131,7 +131,7 @@ describe("resolvePrice", () => {
     expect(result!.price).toBe(7500000);
   });
 
-  it("ignores market prices from wrong provider", () => {
+  it("uses cached price regardless of which provider stored it", () => {
     const asset = assetService.create({
       name: "Bitcoin",
       type: "crypto",
@@ -139,7 +139,7 @@ describe("resolvePrice", () => {
       symbolMap: { coingecko: "bitcoin" },
     });
 
-    // Insert price under a different provider — should NOT match
+    // Price cached by a different provider — cache key is (symbol, currency, date)
     db.insert(marketPrices)
       .values({
         symbol: "bitcoin",
@@ -151,8 +151,8 @@ describe("resolvePrice", () => {
       .run();
 
     const result = resolvePrice(db, asset, "2026-03-20");
-    // Should fall through to lot/deposit fallback, not pick up the wrong-provider price
-    expect(result?.source).not.toBe("market");
+    expect(result?.source).toBe("market");
+    expect(result?.price).toBe(9999900); // 99999 * 100
   });
 
   it("iterates multiple symbols in symbolMap", () => {
@@ -204,7 +204,7 @@ describe("resolvePrice", () => {
     expect(result!.price).toBe(92); // 0.92 * 100
   });
 
-  it("exchange rate ignores wrong provider", () => {
+  it("exchange rate uses cached price regardless of provider", () => {
     const asset = assetService.create({
       name: "USD Savings",
       type: "deposit",
@@ -212,7 +212,7 @@ describe("resolvePrice", () => {
       symbolMap: { frankfurter: "USD" },
     });
 
-    // Rate from ECB, but asset expects frankfurter
+    // Rate cached by ECB — still valid since cache key is (symbol, currency, date)
     db.insert(marketPrices)
       .values({
         symbol: "USD",
@@ -224,7 +224,8 @@ describe("resolvePrice", () => {
       .run();
 
     const result = resolvePrice(db, asset, "2026-03-20");
-    expect(result?.source).not.toBe("market");
+    expect(result?.source).toBe("market");
+    expect(result?.price).toBe(92); // 0.92 * 100
   });
 });
 
