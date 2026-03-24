@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import type { BackupInfo } from "@/lib/services/backup";
 import type { ProviderStatusResponse } from "@/lib/validators/financial";
+import { PROVIDER_LABELS } from "@/lib/providers/types";
 
 const ALL_TIMEZONES = Intl.supportedValuesOf("timeZone");
 
@@ -620,12 +621,12 @@ function ProvidersSection({
           <p className="text-muted-foreground text-sm">Loading providers...</p>
         ) : (
           providers
-            .filter((p) => p.apiKeyRequired)
+            .filter((p) => p.apiKeyRequired !== "none")
             .map((p) => {
               const isSaved = savedProviders.has(p.name) || p.apiKeySet;
               return (
                 <div key={p.name} className="space-y-1.5">
-                  <Label className="capitalize">{p.name.replace(/-/g, " ")}</Label>
+                  <Label className="capitalize">{PROVIDER_LABELS[p.name]}</Label>
                   <div className="flex gap-2">
                     <Input
                       type="password"

@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { GetPriceSchema, ConvertCurrencySchema, SetApiKeySchema } from "@/lib/validators/financial";
 import { z } from "zod";
-import { getFinancialDataService } from "@/lib/api/services";
+import { getFinancialDataService, getSettingsService } from "@/lib/api/services";
+import { getProviderStatuses, getUnconfiguredProviders } from "@/lib/providers/registry";
 
 function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -11,11 +12,8 @@ function notFound(msg: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
 }
 
-async function unconfiguredProviderHint(
-  svc: ReturnType<typeof getFinancialDataService>
-): Promise<string | null> {
-  const statuses = await svc.getProviderStatus();
-  const missing = statuses.filter((s) => s.apiKeyRequired && !s.apiKeySet).map((s) => s.name);
+function unconfiguredProviderHint(): string | null {
+  const missing = getUnconfiguredProviders(getSettingsService());
   if (missing.length === 0) return null;
   return `Providers [${missing.join(", ")}] are not configured — use set_api_key to add API keys if this symbol requires them.`;
 }
@@ -59,7 +57,7 @@ export function registerFinancialTools(server: McpServer): void {
       if (!result) {
         const symbols = Object.values(input.symbolMap).filter(Boolean).join(", ");
         const msg = `No price available for ${symbols}/${input.currency}`;
-        const hint = await unconfiguredProviderHint(svc);
+        const hint = unconfiguredProviderHint();
         return notFound(hint ? `${msg}. ${hint}` : msg);
       }
       return ok(result);
@@ -75,7 +73,7 @@ export function registerFinancialTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const statuses = await getFinancialDataService().getProviderStatus();
+      const statuses = await getProviderStatuses(getSettingsService());
       return ok(statuses);
     }
   );
@@ -97,7 +95,7 @@ export function registerFinancialTools(server: McpServer): void {
       const results = await svc.searchSymbol(input.query);
       if (results.length === 0) {
         const msg = `No symbols found for "${input.query}"`;
-        const hint = await unconfiguredProviderHint(svc);
+        const hint = unconfiguredProviderHint();
         return notFound(hint ? `${msg}. ${hint}` : msg);
       }
       return ok(results);

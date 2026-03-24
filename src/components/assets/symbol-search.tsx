@@ -37,10 +37,7 @@ function groupByProvider(results: SymbolSearchResult[]): Map<string, SymbolSearc
   return grouped;
 }
 
-const PROVIDER_LABELS: Record<string, string> = {
-  coingecko: "CoinGecko",
-  "alpha-vantage": "Alpha Vantage",
-};
+import { PROVIDER_LABELS } from "@/lib/providers/types";
 
 export function SymbolSearch({ value, onChange, disabled }: SymbolSearchProps): React.ReactElement {
   const [query, setQuery] = useState("");
@@ -152,7 +149,7 @@ export function SymbolSearch({ value, onChange, disabled }: SymbolSearchProps): 
             {[...grouped.entries()].map(([provider, items]) => (
               <div key={provider}>
                 <div className="text-muted-foreground bg-muted/50 px-3 py-1.5 text-xs font-medium">
-                  {PROVIDER_LABELS[provider] ?? provider}
+                  {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}
                 </div>
                 {items.map((item) => {
                   const isSelected = pending[item.provider] === item.symbol;
@@ -203,7 +200,7 @@ export function SymbolSearch({ value, onChange, disabled }: SymbolSearchProps): 
               className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
             >
               <span className="text-muted-foreground">
-                {PROVIDER_LABELS[provider] ?? provider}:
+                {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}:
               </span>
               <span className="font-medium">{symbol}</span>
               <button

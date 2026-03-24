@@ -1,0 +1,176 @@
+// @vitest-environment node
+import { describe, it, expect, beforeEach } from "vitest";
+import { makeTestDb } from "./helpers";
+import { SettingsService } from "@/lib/services/settings";
+import { ProviderNameSchema } from "@/lib/providers/types";
+import {
+  getProviderMeta,
+  getAllProviderNames,
+  getProviderType,
+  getProvider,
+  getAllProviders,
+  getUnconfiguredProviders,
+  getProviderStatuses,
+} from "@/lib/providers/registry";
+
+describe("Provider Registry", () => {
+  let settings: SettingsService;
+
+  beforeEach(() => {
+    const db = makeTestDb();
+    settings = new SettingsService(db);
+  });
+
+  describe("getProviderMeta", () => {
+    it("returns metadata for every known provider", () => {
+      for (const name of ProviderNameSchema.options) {
+        const meta = getProviderMeta(name);
+        expect(meta.name).toBe(name);
+        expect(["exchange-rates", "market-prices"]).toContain(meta.type);
+        expect(["none", "optional", "required"]).toContain(meta.apiKeyRequired);
+        expect(typeof meta.create).toBe("function");
+      }
+    });
+
+    it("throws for unknown provider name", () => {
+      expect(() => getProviderMeta("unknown" as never)).toThrow("Unknown provider");
+    });
+  });
+
+  describe("getAllProviderNames", () => {
+    it("returns all names from ProviderNameSchema in order", () => {
+      const names = getAllProviderNames();
+      expect(names).toHaveLength(ProviderNameSchema.options.length);
+      for (const name of ProviderNameSchema.options) {
+        expect(names).toContain(name);
+      }
+    });
+  });
+
+  describe("getProviderType", () => {
+    it("returns correct types for known providers", () => {
+      expect(getProviderType("frankfurter")).toBe("exchange-rates");
+      expect(getProviderType("ecb")).toBe("exchange-rates");
+      expect(getProviderType("coingecko")).toBe("market-prices");
+      expect(getProviderType("open-exchange-rates")).toBe("exchange-rates");
+      expect(getProviderType("alpha-vantage")).toBe("market-prices");
+    });
+  });
+
+  describe("getProvider", () => {
+    it("returns provider for no-key providers", () => {
+      const provider = getProvider("frankfurter", settings);
+      expect(provider).not.toBeNull();
+      expect(provider!.name).toBe("frankfurter");
+    });
+
+    it("returns provider for optional-key provider without key", () => {
+      const provider = getProvider("coingecko", settings);
+      expect(provider).not.toBeNull();
+      expect(provider!.name).toBe("coingecko");
+    });
+
+    it("returns null for required-key provider without key", () => {
+      expect(getProvider("alpha-vantage", settings)).toBeNull();
+      expect(getProvider("open-exchange-rates", settings)).toBeNull();
+    });
+
+    it("returns provider for required-key provider with key set", () => {
+      settings.set("provider.alpha-vantage.key", "test-key");
+      const provider = getProvider("alpha-vantage", settings);
+      expect(provider).not.toBeNull();
+      expect(provider!.name).toBe("alpha-vantage");
+    });
+  });
+
+  describe("getAllProviders", () => {
+    it("skips required-key providers without keys", () => {
+      const providers = getAllProviders(settings);
+      const names = providers.map((p) => p.name);
+      expect(names).toContain("frankfurter");
+      expect(names).toContain("ecb");
+      expect(names).toContain("coingecko");
+      expect(names).not.toContain("open-exchange-rates");
+      expect(names).not.toContain("alpha-vantage");
+    });
+
+    it("includes required-key providers when keys are set", () => {
+      settings.set("provider.alpha-vantage.key", "test-key");
+      settings.set("provider.open-exchange-rates.key", "test-key");
+      const providers = getAllProviders(settings);
+      const names = providers.map((p) => p.name);
+      expect(names).toContain("alpha-vantage");
+      expect(names).toContain("open-exchange-rates");
+    });
+  });
+
+  describe("getUnconfiguredProviders", () => {
+    it("returns providers that need keys but don't have them", () => {
+      const missing = getUnconfiguredProviders(settings);
+      expect(missing).toContain("open-exchange-rates");
+      expect(missing).toContain("alpha-vantage");
+      expect(missing).toContain("coingecko");
+      expect(missing).not.toContain("frankfurter");
+      expect(missing).not.toContain("ecb");
+    });
+
+    it("excludes providers once their key is set", () => {
+      settings.set("provider.alpha-vantage.key", "test-key");
+      const missing = getUnconfiguredProviders(settings);
+      expect(missing).not.toContain("alpha-vantage");
+      expect(missing).toContain("open-exchange-rates");
+    });
+
+    it("returns empty when all keys are configured", () => {
+      settings.set("provider.alpha-vantage.key", "k");
+      settings.set("provider.open-exchange-rates.key", "k");
+      settings.set("provider.coingecko.key", "k");
+      expect(getUnconfiguredProviders(settings)).toHaveLength(0);
+    });
+  });
+
+  describe("getProviderStatuses", () => {
+    it(
+      "returns status for ALL providers regardless of key state",
+      async () => {
+        const statuses = await getProviderStatuses(settings);
+        expect(statuses).toHaveLength(ProviderNameSchema.options.length);
+
+        const names = statuses.map((s) => s.name);
+        for (const name of ProviderNameSchema.options) {
+          expect(names).toContain(name);
+        }
+      },
+      15_000
+    );
+
+    it(
+      "reports correct metadata and key state",
+      async () => {
+        settings.set("provider.alpha-vantage.key", "test-key");
+        const statuses = await getProviderStatuses(settings);
+        const byName = Object.fromEntries(statuses.map((s) => [s.name, s]));
+
+        // Types
+        expect(byName["frankfurter"].type).toBe("exchange-rates");
+        expect(byName["coingecko"].type).toBe("market-prices");
+
+        // Key requirements
+        expect(byName["frankfurter"].apiKeyRequired).toBe("none");
+        expect(byName["coingecko"].apiKeyRequired).toBe("optional");
+        expect(byName["alpha-vantage"].apiKeyRequired).toBe("required");
+
+        // Key state
+        expect(byName["frankfurter"].apiKeySet).toBe(true);
+        expect(byName["open-exchange-rates"].apiKeySet).toBe(false);
+        expect(byName["alpha-vantage"].apiKeySet).toBe(true);
+
+        // Health is always populated (boolean or false on failure)
+        for (const s of statuses) {
+          expect(typeof s.healthy).toBe("boolean");
+        }
+      },
+      15_000
+    );
+  });
+});

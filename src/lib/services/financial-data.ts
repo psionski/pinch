@@ -11,7 +11,7 @@ import type {
 } from "@/lib/providers/types";
 import type { SymbolMap } from "@/lib/validators/assets";
 import type { SettingsService } from "./settings";
-import { getProvider } from "@/lib/providers/registry";
+import { getProvider, getAllProviders } from "@/lib/providers/registry";
 import { financialLogger } from "@/lib/logger";
 import { isoToday, daysBetween, normalizeUtc, offsetDate } from "@/lib/date-ranges";
 
@@ -33,14 +33,6 @@ export interface ConvertResult {
   date: string;
   provider: ProviderName;
   stale: boolean;
-}
-
-export interface ProviderStatus {
-  name: ProviderName;
-  type: "exchange-rates" | "market-prices" | "both";
-  apiKeyRequired: boolean;
-  apiKeySet: boolean;
-  healthy: boolean | null;
 }
 
 /** Factory type for instantiating providers by name. Used for DI in tests. */
@@ -304,7 +296,7 @@ export class FinancialDataService {
    * Search for market symbols across all providers (discovery — broadcasts).
    */
   async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
-    const providers = this.buildDiscoveryProviders();
+    const providers = getAllProviders(this.settings);
     const results: SymbolSearchResult[] = [];
 
     const searches = providers
@@ -333,35 +325,6 @@ export class FinancialDataService {
     return this.settings.get(`provider.${provider}.key`);
   }
 
-  async getProviderStatus(): Promise<ProviderStatus[]> {
-    const providers = this.buildDiscoveryProviders();
-    const keyProviders = new Set<string>(["open-exchange-rates", "alpha-vantage"]);
-
-    const statuses: ProviderStatus[] = providers.map((p) => ({
-      name: p.name,
-      type: (["frankfurter", "ecb", "open-exchange-rates"].includes(p.name)
-        ? "exchange-rates"
-        : "market-prices") as ProviderStatus["type"],
-      apiKeyRequired: keyProviders.has(p.name),
-      apiKeySet: !keyProviders.has(p.name) || !!this.getApiKey(p.name),
-      healthy: null,
-    }));
-
-    const checks = await Promise.allSettled(
-      providers.map((p) => (p.healthCheck ? p.healthCheck() : Promise.resolve(false)))
-    );
-
-    checks.forEach((result, i) => {
-      statuses[i].healthy = result.status === "fulfilled" ? result.value : false;
-    });
-
-    financialLogger.debug(
-      { providers: statuses.map((s) => ({ name: s.name, healthy: s.healthy })) },
-      "Provider health check completed"
-    );
-    return statuses;
-  }
-
   // ─── Cache ──────────────────────────────────────────────────────────────────
 
   private cachePrice(result: PriceResult): void {
@@ -383,22 +346,6 @@ export class FinancialDataService {
         },
       })
       .run();
-  }
-
-  // ─── Provider Builders ─────────────────────────────────────────────────────
-
-  /** Build all available providers for discovery operations (search, status). */
-  private buildDiscoveryProviders(): FinancialDataProvider[] {
-    const all: ProviderName[] = [
-      "frankfurter",
-      "ecb",
-      "coingecko",
-      "open-exchange-rates",
-      "alpha-vantage",
-    ];
-    return all
-      .map((name) => this.factory(name))
-      .filter((p): p is FinancialDataProvider => p !== null);
   }
 }
 

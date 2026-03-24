@@ -84,8 +84,8 @@ export type SetApiKeyInput = z.infer<typeof SetApiKeySchema>;
 
 export const ProviderStatusSchema = z.object({
   name: ProviderNameSchema,
-  type: z.enum(["exchange-rates", "market-prices", "both"]),
-  apiKeyRequired: z.boolean(),
+  type: z.enum(["exchange-rates", "market-prices"]),
+  apiKeyRequired: z.enum(["none", "optional", "required"]),
   apiKeySet: z.boolean(),
   healthy: z.boolean().nullable(),
 });
