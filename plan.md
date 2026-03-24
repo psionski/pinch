@@ -769,6 +769,7 @@ Triggered when the `tutorial` setting is `"true"`. Plays after setup / on the da
 - [ ] CSV export for any filtered view
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
+- [ ] Symbol search - limit by type, stream results
 - [ ] E2E tests
 - [ ] Performance: check query efficiency, add missing indices if needed
 - [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting. Also removes the `tutorial` setting.
