@@ -807,6 +807,20 @@ Triggered when the `tutorial` setting is `"true"`. Plays after setup / on the da
 - [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
 - [ ] Donation button / MCP instructions ("if user is saving lots of money...")
 
+### Sprint 27: Multi-Currency UX
+**Goal:** Make foreign-currency assets a first-class experience — surface currency info during search, auto-fill on creation, and separate FX effects in reports.
+
+- [ ] **Symbol search: surface currency** — return base currency (e.g. USD for SPX, USD for AAPL) from financial data providers in search results, display it in the symbol search UI
+- [ ] **Asset creation: auto-fill currency** — when a symbol search result is selected, pre-fill the asset's currency field from the result's base currency instead of defaulting to EUR
+- [ ] **Buy/sell dialog: show native + base currency** — display both the asset's native currency amount and the EUR equivalent side-by-side
+- [ ] **Reports: separate FX vs asset P&L** — in asset performance reports, break down total P&L into asset price change and FX gain/loss components
+- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from `price-resolver.ts` into a user setting, wire it through portfolio and reporting services
+- [ ] **Currency exposure chart** — add a dashboard widget showing portfolio allocation by currency with current FX rates
+
+**Done when:** A user can add a USD-denominated asset (e.g. SPX) and clearly see what currency it's in at every step — search, creation, transactions, and reports. FX effects are visible separately from asset performance.
+
+---
+
 ## Future Considerations (not in scope now, but design should accommodate)
 
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
