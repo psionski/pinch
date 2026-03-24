@@ -182,7 +182,7 @@ async function seed(): Promise<void> {
       await db.insert(assetPrices).values({
         assetId: assetRow.id,
         pricePerUnit: lot.pricePerUnit,
-        recordedAt: `${lot.date}T12:00:00.000Z`,
+        recordedAt: `${lot.date}T12:00:00`,
       });
 
       totalLots++;

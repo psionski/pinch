@@ -9,7 +9,7 @@ import type {
   AssetLotResponse,
 } from "@/lib/validators/assets";
 import type { TransactionResponse } from "@/lib/validators/transactions";
-import { utcToLocal } from "@/lib/date-ranges";
+import { localToUtc, utcToLocal } from "@/lib/date-ranges";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -46,7 +46,7 @@ export class AssetLotService {
       .values({
         assetId,
         pricePerUnit,
-        recordedAt: date + "T00:00:00.000Z",
+        recordedAt: localToUtc(date + "T00:00:00"),
       })
       .run();
   }

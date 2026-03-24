@@ -50,7 +50,7 @@ export function RecordPriceDialog({
       return;
     }
 
-    const recordedAt = date && date !== today ? date + "T00:00:00.000Z" : undefined;
+    const recordedAt = date && date !== today ? date + "T00:00:00" : undefined;
     onSubmit({ pricePerUnit: Math.round(priceNum * 100), recordedAt });
   }
 
