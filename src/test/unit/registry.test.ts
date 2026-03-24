@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { makeTestDb } from "./helpers";
+import { makeTestDb } from "../helpers";
 import { SettingsService } from "@/lib/services/settings";
 import { ProviderNameSchema } from "@/lib/providers/types";
 

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { makeTestDb } from "./helpers";
+import { makeTestDb } from "../helpers";
 import { ReceiptService } from "@/lib/services/receipts";
 import { transactions } from "@/lib/db/schema";
 import { isoToday } from "@/lib/date-ranges";

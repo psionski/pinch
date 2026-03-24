@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { makeTestDb } from "./helpers";
+import { makeTestDb } from "../helpers";
 import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
 import * as schema from "@/lib/db/schema";
 import type { AssetResponse } from "@/lib/validators/assets";

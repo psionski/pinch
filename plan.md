@@ -663,6 +663,12 @@ src/
 │   ├── date-ranges.ts           # All date/time utilities (timezone-aware)
 │   └── cron.ts                  # Recurring (02:00) + backup (03:00) + market prices (04:00)
 ├── test/                        # All tests — not colocated with source
+│   ├── helpers.ts               # makeTestDb() shared helper
+│   ├── unit/                    # Service + utility tests
+│   └── integration/             # API route + MCP protocol tests
+│       ├── api/
+│       └── mcp/
+e2e/                             # E2E tests (Playwright) + MCP test prompts
 data/                            # Runtime (gitignored): pinch.db, backups/, receipts/
 drizzle/                         # Generated migrations
 ```
@@ -770,7 +776,7 @@ Triggered when the `tutorial` setting is `"true"`. Plays on the dashboard:
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
 - [ ] Symbol search - limit by type, stream results
-- [ ] E2E tests
+- [ ] E2E tests (Playwright — browser UI flows, async server component rendering)
 - [ ] Performance: check query efficiency, add missing indices if needed
 - [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting. Also removes the `tutorial` setting.
 - [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.

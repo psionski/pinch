@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
-import { makeTestDb } from "./helpers";
+import { makeTestDb } from "../helpers";
 import { AssetService } from "@/lib/services/assets";
 import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";

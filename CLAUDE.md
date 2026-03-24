@@ -112,14 +112,31 @@ Documentation and unit tests are part of the deliverable (read the relevant sect
 
 ## Testing
 
-- **All tests live in `src/test/`** — not colocated with source. Never create `__tests__/` directories next to source files.
-- **Naming:** `{domain}.service.test.ts` for service tests, `{domain}.test.ts` for other tests.
+### Folder Structure
+
+All Vitest tests live in `src/test/` — not colocated with source. Never create `__tests__/` directories next to source files. E2E tests (Playwright, MCP prompts) live in the top-level `e2e/` folder.
+
+```
+src/test/
+├── helpers.ts                    # makeTestDb() — shared DB helper
+├── unit/                         # Service + utility tests (Vitest, in-memory DB)
+│   └── {domain}.service.test.ts
+├── integration/                  # API route + MCP protocol tests (Vitest)
+│   ├── api/                      # Route handler tests
+│   └── mcp/                      # MCP JSON-RPC protocol tests
+e2e/                              # E2E tests (separate from Vitest)
+├── mcp/                          # Manual MCP test prompts
+```
+
+### Conventions
+
+- **Naming:** `{domain}.service.test.ts` for service tests, `{domain}.test.ts` for other unit tests, `{domain}.api.test.ts` for API route tests.
 - **DB helper:** Use `makeTestDb()` from `src/test/helpers.ts` for in-memory SQLite setup. Never create your own DB setup in tests.
 - **Write tests for all service layer logic.** Services are the core of the app — they must be tested.
 - **Test with a real SQLite database** (in-memory via `makeTestDb()`), not mocks. The ORM and DB behavior are part of what we're validating.
 - Use Vitest as the test runner. Service tests use `// @vitest-environment node` at the top.
 - Test the contract: given these inputs, expect these outputs/side effects. Don't test implementation details.
-- API routes: test via integration tests that hit the route handlers with real requests.
+- API routes: test via integration tests in `src/test/integration/api/` that hit route handlers with real requests.
 - MCP tools: test via their service layer calls (tools are thin wrappers, so testing services covers the logic).
 - **Regression tests:** When fixing a bug, optionally write a test that reproduces the bug first (or alongside the fix). The test should fail without the fix and pass with it.
 
