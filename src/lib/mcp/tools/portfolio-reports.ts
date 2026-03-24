@@ -21,11 +21,7 @@ export function registerPortfolioReportTools(server: McpServer): void {
   server.registerTool(
     "get_net_worth_history",
     {
-      description:
-        "Net worth time series showing cash + asset values over time. " +
-        "Params: window ('3m','6m','12m','ytd','all', default '6m'), " +
-        "interval ('daily','weekly','monthly', default 'monthly'). " +
-        "Returns array of { date, cash, assets, total } points.",
+      description: "Net worth time series showing cash + asset values over time.",
       inputSchema: z.object({
         window: WindowSchema,
         interval: IntervalSchema,
@@ -39,8 +35,7 @@ export function registerPortfolioReportTools(server: McpServer): void {
     {
       description:
         "All assets ranked by performance. Returns cost basis, current value, P&L (absolute + %), " +
-        "annualized return, and days held per asset. Sorted by P&L descending. " +
-        "Optional date range params: from/to (YYYY-MM-DD).",
+        "annualized return, and days held per asset. Sorted by P&L descending.",
       inputSchema: AssetPerformanceQuerySchema,
     },
     (input) => ok(getPortfolioReportService().getAssetPerformance(input.from, input.to))
@@ -74,8 +69,7 @@ export function registerPortfolioReportTools(server: McpServer): void {
     "get_realized_pnl",
     {
       description:
-        "Realized P&L from completed asset sells, computed using FIFO cost basis. " +
-        "Optional date range to filter sell dates. Returns per-asset breakdown with " +
+        "Realized P&L from completed asset sells (FIFO). Returns per-asset breakdown with " +
         "total sold, proceeds, cost basis, and realized P&L.",
       inputSchema: RealizedPnlQuerySchema,
     },
@@ -87,8 +81,7 @@ export function registerPortfolioReportTools(server: McpServer): void {
     {
       description:
         "Combined lot timeline + price/value chart for a single asset. " +
-        "Shows all buy/sell events with running quantity, plus weekly price and value data points. " +
-        "Params: id (asset ID), window ('3m','6m','12m','ytd','all').",
+        "Shows all buy/sell events with running quantity, plus weekly price and value data points.",
       inputSchema: IdSchema.merge(z.object({ window: WindowSchema })),
     },
     (input) => {

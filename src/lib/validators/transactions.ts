@@ -34,13 +34,26 @@ export type PaginatedTransactionsResponse = z.infer<typeof PaginatedTransactions
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export const CreateTransactionSchema = z.object({
-  amount: z.number().int().positive("Amount must be a positive integer (cents)"),
-  type: TransactionTypeSchema.default("expense"),
-  description: z.string().min(1, "Description is required").max(500),
-  merchant: z.string().max(255).optional(),
-  categoryId: z.number().int().positive().optional(),
-  date: IsoDateSchema.optional(),
-  receiptId: z.number().int().positive().optional(),
+  amount: z
+    .number()
+    .int()
+    .positive("Amount must be a positive integer (cents)")
+    .describe("Amount in cents (e.g. 1210 = €12.10)"),
+  type: TransactionTypeSchema.default("expense").describe("Defaults to 'expense'"),
+  description: z
+    .string()
+    .min(1, "Description is required")
+    .max(500)
+    .describe("What was purchased or a summary of the transaction"),
+  merchant: z.string().max(255).optional().describe("Where it was purchased"),
+  categoryId: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Category ID — use list_categories to find valid values"),
+  date: IsoDateSchema.optional().describe("YYYY-MM-DD. Defaults to today"),
+  receiptId: z.number().int().positive().optional().describe("Link to an uploaded receipt"),
   recurringId: z.number().int().positive().optional(),
   notes: z.string().max(2000).optional(),
   tags: z.array(z.string().max(100)).max(20).optional(),
@@ -78,14 +91,24 @@ export type CreateTransactionsBatchInput = z.infer<typeof CreateTransactionsBatc
 // ─── List Filters ─────────────────────────────────────────────────────────────
 
 export const ListTransactionsSchema = PaginationSchema.extend({
-  dateFrom: IsoDateSchema.optional(),
-  dateTo: IsoDateSchema.optional(),
-  categoryId: z.number().int().positive().nullable().optional(),
-  amountMin: z.number().int().min(0).optional(),
-  amountMax: z.number().int().min(0).optional(),
-  merchant: z.string().max(255).optional(),
-  search: z.string().max(255).optional(),
-  tags: z.array(z.string().max(100)).optional(),
+  dateFrom: IsoDateSchema.optional().describe("Start of date range (YYYY-MM-DD)"),
+  dateTo: IsoDateSchema.optional().describe("End of date range (YYYY-MM-DD)"),
+  categoryId: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .optional()
+    .describe("Filter by category ID. Pass null for uncategorized only"),
+  amountMin: z.number().int().min(0).optional().describe("Minimum amount in cents"),
+  amountMax: z.number().int().min(0).optional().describe("Maximum amount in cents"),
+  merchant: z.string().max(255).optional().describe("Filter by merchant (substring match)"),
+  search: z
+    .string()
+    .max(255)
+    .optional()
+    .describe("Full-text search across description, merchant, and notes"),
+  tags: z.array(z.string().max(100)).optional().describe("Filter by tags"),
   type: TransactionTypeSchema.optional(),
   receiptId: z.number().int().positive().optional(),
   recurringId: z.number().int().positive().optional(),

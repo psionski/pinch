@@ -145,7 +145,7 @@ export function CategoriesClient({
       </div>
 
       {/* Tree */}
-      <div className={loading ? "pointer-events-none opacity-60" : ""}>
+      <div data-tour="category-tree" className={loading ? "pointer-events-none opacity-60" : ""}>
         <CategoryTree
           categories={categories}
           stats={stats}

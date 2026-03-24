@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { isoToday } from "@/lib/date-ranges";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,15 +30,6 @@ interface BuySellDialogProps {
   loading?: boolean;
 }
 
-function getFirstSymbolEntry(
-  symbolMap: Record<string, string> | null | undefined
-): { provider: string; symbol: string } | null {
-  if (!symbolMap) return null;
-  const entries = Object.entries(symbolMap);
-  if (entries.length === 0) return null;
-  return { provider: entries[0][0], symbol: entries[0][1] };
-}
-
 export function BuySellDialog({
   open,
   onOpenChange,
@@ -55,30 +46,31 @@ export function BuySellDialog({
   const [error, setError] = useState("");
   const [fetchingPrice, setFetchingPrice] = useState(false);
 
-  const fetchCurrentPrice = useCallback(async (): Promise<void> => {
-    const entry = getFirstSymbolEntry(asset.symbolMap);
-    if (!entry) return;
-    setFetchingPrice(true);
-    try {
-      const params = new URLSearchParams({
-        symbol: entry.symbol,
-        currency: asset.currency,
-        date: today,
-      });
-      const res = await fetch(`/api/financial/price?${params}`);
-      if (res.ok) {
-        const data = (await res.json()) as { price: number };
-        setPrice(data.price.toFixed(2));
-      }
-    } finally {
-      setFetchingPrice(false);
-    }
-  }, [asset.symbolMap, asset.currency, today]);
-
+  // Fetch price for the selected date (re-fetches when date changes)
   useEffect(() => {
-    if (!open) return;
-    void fetchCurrentPrice();
-  }, [open, fetchCurrentPrice]);
+    if (!open || !asset.symbolMap) return;
+    let cancelled = false;
+    void (async () => {
+      setFetchingPrice(true);
+      try {
+        const params = new URLSearchParams({
+          symbolMap: JSON.stringify(asset.symbolMap),
+          currency: asset.currency,
+          date,
+        });
+        const res = await fetch(`/api/financial/price?${params}`);
+        if (!cancelled && res.ok) {
+          const data = (await res.json()) as { price: number };
+          setPrice(data.price.toFixed(2));
+        }
+      } finally {
+        if (!cancelled) setFetchingPrice(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, date, asset.symbolMap, asset.currency]);
 
   function handleSubmit(e: React.FormEvent): void {
     e.preventDefault();
@@ -157,6 +149,7 @@ export function BuySellDialog({
               id="lot-date"
               type="date"
               value={date}
+              max={today}
               onChange={(e) => setDate(e.target.value)}
               disabled={loading}
             />

@@ -7,6 +7,7 @@ import {
   categories,
   marketPrices,
   recurringTransactions,
+  settings,
   transactions,
 } from "../schema";
 import { PARENT_CATEGORIES, CHILD_CATEGORIES } from "./data";
@@ -26,8 +27,8 @@ async function seed(): Promise<void> {
   const existingTransactions = await db.select({ id: transactions.id }).from(transactions).limit(1);
   if (existingCategories.length > 0 || existingTransactions.length > 0) {
     seedLogger.error(
-      "Database is not empty. Delete the database file and run migrations before seeding.\n" +
-        "  rm data/pinch.db && npm run db:migrate && npx tsx src/lib/db/seed.ts"
+      "Database is not empty. Delete the database file and run again.\n" +
+        "  rm data/pinch.db && npm run db:seed"
     );
     logger.flush();
     process.exit(1);
@@ -182,7 +183,7 @@ async function seed(): Promise<void> {
       await db.insert(assetPrices).values({
         assetId: assetRow.id,
         pricePerUnit: lot.pricePerUnit,
-        recordedAt: `${lot.date}T12:00:00.000Z`,
+        recordedAt: `${lot.date}T12:00:00`,
       });
 
       totalLots++;
@@ -195,6 +196,12 @@ async function seed(): Promise<void> {
     await db.insert(marketPrices).values(mpSeeds.slice(i, i + BATCH));
   }
   seedLogger.info(`  ${mpSeeds.length} market price points, ${totalLots} asset lots total.`);
+
+  // ── Settings (timezone + tutorial flag) ─────────────────────────────────
+  seedLogger.info("Configuring settings...");
+  await db.insert(settings).values({ key: "timezone", value: "Europe/Amsterdam" });
+  await db.insert(settings).values({ key: "tutorial", value: "true" });
+  seedLogger.info("  Timezone: Europe/Amsterdam, tutorial: enabled.");
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);

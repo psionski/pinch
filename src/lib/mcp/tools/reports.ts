@@ -33,8 +33,6 @@ export function registerReportTools(server: McpServer): void {
         "Per-category spending stats with hierarchy rollups, percentages, and category color/icon. " +
         "Best for detailed per-category breakdowns. " +
         "For flexible grouping (by merchant/month) or period comparisons, use get_spending_summary instead. " +
-        "Provide 'month' (YYYY-MM) or 'dateFrom'+'dateTo' (YYYY-MM-DD). " +
-        "Set includeZeroSpend=false to omit categories with no transactions. " +
         "Use get_budget_status for budget tracking.",
       inputSchema: CategoryStatsSchema,
     },
@@ -45,9 +43,7 @@ export function registerReportTools(server: McpServer): void {
     "get_trends",
     {
       description:
-        "Monthly totals time series for the last N months (default 6, max 24). " +
-        "Returns one data point per month with total amount and transaction count. " +
-        "Optionally filter by a single category.",
+        "Monthly totals time series. Returns one data point per month with total amount and transaction count.",
       inputSchema: TrendsSchema,
     },
     (input) => ok(getReportService().trends(input))
@@ -57,8 +53,7 @@ export function registerReportTools(server: McpServer): void {
     "get_net_balance",
     {
       description:
-        "Returns total income minus total expenses (net balance) in cents. " +
-        "Optionally filter by date range. Without dates, returns the all-time balance.",
+        "Total income minus total expenses (net balance). Without dates, returns the all-time balance.",
       inputSchema: NetBalanceSchema,
     },
     (input) => ok(getReportService().netBalance(input))
@@ -67,9 +62,7 @@ export function registerReportTools(server: McpServer): void {
   server.registerTool(
     "get_top_merchants",
     {
-      description:
-        "Highest-spend merchants, with transaction counts and average amounts. " +
-        "dateFrom/dateTo are optional — omit both for all-time results.",
+      description: "Highest-spend merchants with transaction counts and average amounts.",
       inputSchema: TopMerchantsSchema,
     },
     (input) => ok(getReportService().topMerchants(input))

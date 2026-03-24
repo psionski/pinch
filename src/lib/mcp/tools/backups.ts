@@ -41,9 +41,8 @@ export function registerBackupTools(server: McpServer): void {
     "restore_backup",
     {
       description:
-        "Restore the database from a backup file. A safety backup of the current database " +
-        "is created before restoring. The DB connection is automatically reset so changes " +
-        "take effect immediately. Use list_backups to see available backups first.",
+        "Restore the database from a backup file. A safety backup is created automatically before restoring. " +
+        "Use list_backups to see available backups first.",
       inputSchema: RestoreBackupSchema,
     },
     async (input) => {

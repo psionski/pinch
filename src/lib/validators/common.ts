@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoToday } from "@/lib/date-ranges";
 
 // ─── Shared Primitives ───────────────────────────────────────────────────────
 
@@ -6,6 +7,12 @@ import { z } from "zod";
 export const IsoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+
+/** ISO date that must not be in the future (user's configured timezone). */
+export const PastOrTodayDateSchema = IsoDateSchema.refine(
+  (d) => d <= isoToday(),
+  "Date cannot be in the future"
+);
 
 /** YYYY-MM month format */
 export const YearMonthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format");

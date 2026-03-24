@@ -32,10 +32,7 @@ import { LotHistoryTable } from "./lot-history-table";
 import { formatCurrency } from "@/lib/format";
 import type { AssetWithMetrics, AssetLotResponse, SymbolMap } from "@/lib/validators/assets";
 
-const PROVIDER_LABELS: Record<string, string> = {
-  coingecko: "CoinGecko",
-  "alpha-vantage": "Alpha Vantage",
-};
+import { PROVIDER_LABELS } from "@/lib/providers/types";
 
 interface AssetDetailClientProps {
   initialAsset: AssetWithMetrics;
@@ -171,7 +168,10 @@ export function AssetDetailClient({
     }
   }
 
-  async function handleRecordPrice(data: { pricePerUnit: number }): Promise<void> {
+  async function handleRecordPrice(data: {
+    pricePerUnit: number;
+    recordedAt?: string;
+  }): Promise<void> {
     setLoading(true);
     try {
       await fetch(`/api/assets/${asset.id}/prices`, {
@@ -226,7 +226,7 @@ export function AssetDetailClient({
             </>
           )}
           <Button size="sm" variant="outline" onClick={() => setShowPrice(true)}>
-            Price
+            Set Price
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -335,7 +335,7 @@ export function AssetDetailClient({
                 {Object.entries(asset.symbolMap).map(([provider, symbol]) => (
                   <Badge key={provider} variant="secondary">
                     <span className="text-muted-foreground mr-1">
-                      {PROVIDER_LABELS[provider] ?? provider}:
+                      {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}:
                     </span>
                     {symbol}
                   </Badge>

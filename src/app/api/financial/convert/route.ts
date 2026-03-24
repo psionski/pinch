@@ -11,6 +11,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     input.amount,
     input.from,
     input.to,
+    input.symbolMap,
     input.date
   );
   if (!result) {

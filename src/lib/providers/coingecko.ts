@@ -5,6 +5,30 @@ import { isoToday } from "@/lib/date-ranges";
 const BASE_URL = "https://api.coingecko.com/api/v3";
 const PRO_URL = "https://pro-api.coingecko.com/api/v3";
 
+/** Common fiat currencies for getPrices bulk fetch. */
+const COMMON_VS_CURRENCIES = [
+  "eur",
+  "usd",
+  "gbp",
+  "jpy",
+  "chf",
+  "cad",
+  "aud",
+  "cny",
+  "krw",
+  "inr",
+  "brl",
+  "rub",
+  "try",
+  "sek",
+  "nok",
+  "dkk",
+  "pln",
+  "czk",
+  "huf",
+  "btc",
+];
+
 /**
  * CoinGecko provider for crypto prices.
  * Free tier: ~30 req/min, no API key required.
@@ -79,6 +103,59 @@ export class CoinGeckoProvider implements FinancialDataProvider {
       date,
       provider: this.name,
     };
+  }
+
+  async getPrices(symbol: string, date?: string): Promise<PriceResult[]> {
+    if (date && date < isoToday()) {
+      return this.getHistoricalPrices(symbol, date);
+    }
+
+    // CoinGecko /simple/price supports multiple vs_currencies
+    const vsCurrencies = COMMON_VS_CURRENCIES.join(",");
+    const url = new URL(`${this.baseUrl}/simple/price`);
+    url.searchParams.set("ids", symbol);
+    url.searchParams.set("vs_currencies", vsCurrencies);
+    if (this.apiKey) url.searchParams.set("x_cg_pro_api_key", this.apiKey);
+
+    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as Record<string, Record<string, number>>;
+    const prices = data[symbol];
+    if (!prices) return [];
+
+    return Object.entries(prices).map(([vs, price]) => ({
+      symbol,
+      price,
+      currency: vs.toUpperCase(),
+      date: isoToday(),
+      provider: this.name,
+    }));
+  }
+
+  private async getHistoricalPrices(symbol: string, date: string): Promise<PriceResult[]> {
+    const [y, mo, d] = date.split("-");
+    const cgDate = `${d}-${mo}-${y}`;
+
+    const url = new URL(`${this.baseUrl}/coins/${symbol}/history`);
+    url.searchParams.set("date", cgDate);
+    url.searchParams.set("localization", "false");
+    if (this.apiKey) url.searchParams.set("x_cg_pro_api_key", this.apiKey);
+
+    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as CoinGeckoHistoryResponse;
+    const currentPrice = data.market_data?.current_price;
+    if (!currentPrice) return [];
+
+    return Object.entries(currentPrice).map(([vs, price]) => ({
+      symbol,
+      price,
+      currency: vs.toUpperCase(),
+      date,
+      provider: this.name,
+    }));
   }
 
   async getPriceRange(

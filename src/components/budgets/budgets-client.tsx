@@ -170,7 +170,7 @@ export function BudgetsClient({
       </div>
 
       {/* Budget table */}
-      <div className={loading ? "pointer-events-none opacity-60" : ""}>
+      <div data-tour="budget-table" className={loading ? "pointer-events-none opacity-60" : ""}>
         <BudgetTable
           budgets={budgetStatus}
           onEdit={setEditingBudget}

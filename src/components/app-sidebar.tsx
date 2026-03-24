@@ -38,9 +38,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const topItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-];
+const topItems: NavItem[] = [{ href: "/", label: "Dashboard", icon: LayoutDashboard }];
 
 const navGroups: NavGroup[] = [
   {
@@ -67,9 +65,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-const bottomItems: NavItem[] = [
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const bottomItems: NavItem[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }): React.ReactElement {
   return (
@@ -98,7 +94,7 @@ export function AppSidebar(): React.ReactElement {
           <span>🪙 Pinch</span>
         </Link>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent data-tour="sidebar-nav">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

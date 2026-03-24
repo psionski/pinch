@@ -1,9 +1,10 @@
 import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { assetPrices, marketPrices, assetLots } from "@/lib/db/schema";
+import { assetPrices, assetLots } from "@/lib/db/schema";
 import type { AssetResponse } from "@/lib/validators/assets";
 import { isoToday, offsetDate } from "@/lib/date-ranges";
+import { findCachedPrice } from "./financial-data";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -46,15 +47,17 @@ export function resolvePrice(db: Db, asset: AssetResponse, date?: string): Resol
 
   // Step 3: Provider data — iterate symbolMap (provider, symbol) pairs
   if (asset.symbolMap) {
-    for (const [provider, symbol] of Object.entries(asset.symbolMap)) {
+    for (const [, symbol] of Object.entries(asset.symbolMap)) {
+      if (symbol === undefined) continue;
+
       // Try with asset's own currency first (crypto/stocks priced in that currency)
-      const mp = findCachedPrice(db, provider, symbol, asset.currency, effectiveDate);
-      if (mp !== null) return { price: mp, source: "market" };
+      const mp = findCachedPrice(db, symbol, asset.currency, effectiveDate);
+      if (mp) return { price: Math.round(parseFloat(mp.price) * 100), source: "market" };
 
       // Try with base currency (exchange rates: symbol=USD, currency=EUR)
       if (asset.currency !== BASE_CURRENCY) {
-        const xr = findCachedPrice(db, provider, symbol, BASE_CURRENCY, effectiveDate);
-        if (xr !== null) return { price: xr, source: "market" };
+        const xr = findCachedPrice(db, symbol, BASE_CURRENCY, effectiveDate);
+        if (xr) return { price: Math.round(parseFloat(xr.price) * 100), source: "market" };
       }
     }
   }
@@ -88,36 +91,6 @@ function findUserPrice(db: Db, assetId: number, date: string): number | null {
     .get();
 
   return row?.pricePerUnit ?? null;
-}
-
-/** Cached market price within 7-day lookback window from `date`. */
-function findCachedPrice(
-  db: Db,
-  provider: string,
-  symbol: string,
-  currency: string,
-  date: string
-): number | null {
-  const weekBefore = offsetDate(date, -7);
-
-  const row = db
-    .select({ price: marketPrices.price })
-    .from(marketPrices)
-    .where(
-      and(
-        eq(marketPrices.symbol, symbol),
-        eq(marketPrices.provider, provider),
-        eq(marketPrices.currency, currency),
-        gte(marketPrices.date, weekBefore),
-        lte(marketPrices.date, date)
-      )
-    )
-    .orderBy(desc(marketPrices.date))
-    .limit(1)
-    .get();
-
-  if (row) return Math.round(parseFloat(row.price) * 100);
-  return null;
 }
 
 /** Lot cost basis — most recent lot at or before `date`. */

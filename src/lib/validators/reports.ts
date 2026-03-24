@@ -4,15 +4,16 @@ import { IsoDateSchema, YearMonthSchema } from "./common";
 // ─── Spending Summary ─────────────────────────────────────────────────────────
 
 export const SpendingSummarySchema = z.object({
-  dateFrom: IsoDateSchema,
-  dateTo: IsoDateSchema,
-  groupBy: z.enum(["category", "month", "merchant"]).default("category"),
+  dateFrom: IsoDateSchema.describe("Start of period (YYYY-MM-DD)"),
+  dateTo: IsoDateSchema.describe("End of period (YYYY-MM-DD)"),
+  groupBy: z
+    .enum(["category", "month", "merchant"])
+    .default("category")
+    .describe("Group results by category, month, or merchant"),
   type: z.enum(["income", "expense", "all"]).default("expense"),
-  /** Optional: compare totals against a different period */
-  compareDateFrom: IsoDateSchema.optional(),
-  compareDateTo: IsoDateSchema.optional(),
-  /** When true, includes a transfers section showing money moved to assets */
-  includeTransfers: z.boolean().default(false),
+  compareDateFrom: IsoDateSchema.optional().describe("Start of comparison period (YYYY-MM-DD)"),
+  compareDateTo: IsoDateSchema.optional().describe("End of comparison period (YYYY-MM-DD)"),
+  includeTransfers: z.boolean().default(false).describe("Include asset transfers in the result"),
 });
 
 export type SpendingSummaryInput = z.infer<typeof SpendingSummarySchema>;
@@ -21,12 +22,12 @@ export type SpendingSummaryInput = z.infer<typeof SpendingSummarySchema>;
 
 export const CategoryStatsSchema = z
   .object({
-    dateFrom: IsoDateSchema.optional(),
-    dateTo: IsoDateSchema.optional(),
-    month: YearMonthSchema.optional(),
+    dateFrom: IsoDateSchema.optional().describe("Start of date range (YYYY-MM-DD)"),
+    dateTo: IsoDateSchema.optional().describe("End of date range (YYYY-MM-DD)"),
+    month: YearMonthSchema.optional().describe("Month (YYYY-MM) — alternative to dateFrom/dateTo"),
     type: z.enum(["income", "expense", "all"]).default("expense"),
-    includeZeroSpend: z.boolean().default(true),
-    includeUncategorized: z.boolean().default(false),
+    includeZeroSpend: z.boolean().default(true).describe("Include categories with no transactions"),
+    includeUncategorized: z.boolean().default(false).describe("Include uncategorized transactions"),
   })
   .refine((d) => d.month || (d.dateFrom && d.dateTo), {
     message: "Provide either 'month' or both 'dateFrom' and 'dateTo'",
@@ -48,9 +49,14 @@ export type BudgetStatsInput = z.infer<typeof BudgetStatsSchema>;
 // ─── Trends ───────────────────────────────────────────────────────────────────
 
 export const TrendsSchema = z.object({
-  /** Number of months to look back (inclusive of current) */
-  months: z.number().int().min(1).max(24).default(6),
-  categoryId: z.number().int().positive().optional(),
+  months: z
+    .number()
+    .int()
+    .min(1)
+    .max(24)
+    .default(6)
+    .describe("Number of months to look back (default 6, max 24)"),
+  categoryId: z.number().int().positive().optional().describe("Filter to a single category"),
   type: z.enum(["income", "expense", "all"]).default("expense"),
 });
 
@@ -59,9 +65,15 @@ export type TrendsInput = z.infer<typeof TrendsSchema>;
 // ─── Top Merchants ────────────────────────────────────────────────────────────
 
 export const TopMerchantsSchema = z.object({
-  dateFrom: IsoDateSchema.optional(),
-  dateTo: IsoDateSchema.optional(),
-  limit: z.number().int().min(1).max(100).default(10),
+  dateFrom: IsoDateSchema.optional().describe("Start of date range (YYYY-MM-DD)"),
+  dateTo: IsoDateSchema.optional().describe("End of date range (YYYY-MM-DD)"),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(10)
+    .describe("Max merchants to return (default 10)"),
   type: z.enum(["income", "expense", "all"]).default("expense"),
 });
 

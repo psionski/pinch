@@ -62,8 +62,7 @@ export function registerCategoryTools(server: McpServer): void {
   server.registerTool(
     "delete_category",
     {
-      description:
-        "Delete a category. Transactions in this category will become uncategorized (categoryId set to NULL).",
+      description: "Delete a category. Transactions in this category will become uncategorized.",
       inputSchema: IdSchema,
     },
     ({ id }) => {
@@ -78,11 +77,7 @@ export function registerCategoryTools(server: McpServer): void {
     {
       description:
         "Bulk-move transactions matching a filter to a new category. " +
-        "merchantPattern and descriptionPattern use case-insensitive substring matching " +
-        '(e.g. "Caf" matches "Cafe Central" and "The Ivy Cafe"). ' +
-        "Set dryRun: true to preview the count of affected transactions without modifying data. " +
-        "At least one filter is required: sourceCategoryId, merchantPattern, descriptionPattern, dateFrom, dateTo. " +
-        "Use list_categories to find valid category IDs.",
+        "At least one filter is required. Use list_categories to find valid category IDs.",
       inputSchema: RecategorizeSchema,
     },
     (input) => {

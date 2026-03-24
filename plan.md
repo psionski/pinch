@@ -663,6 +663,12 @@ src/
 │   ├── date-ranges.ts           # All date/time utilities (timezone-aware)
 │   └── cron.ts                  # Recurring (02:00) + backup (03:00) + market prices (04:00)
 ├── test/                        # All tests — not colocated with source
+│   ├── helpers.ts               # makeTestDb() shared helper
+│   ├── unit/                    # Service + utility tests
+│   └── integration/             # API route + MCP protocol tests
+│       ├── api/
+│       └── mcp/
+e2e/                             # E2E tests (Playwright) + MCP test prompts
 data/                            # Runtime (gitignored): pinch.db, backups/, receipts/
 drizzle/                         # Generated migrations
 ```
@@ -719,15 +725,6 @@ No `get_onboarding_status` tool — instead, update the root MCP `INSTRUCTIONS` 
 
 This lets the AI run the same onboarding conversationally: "What's your current bank balance?" → "Do you have any savings or investments?" → "Do you have API keys for any market data providers?" → enters everything via MCP. The AI should mention that free providers (Frankfurter, CoinGecko) work without keys, and suggest setting up Alpha Vantage (free key, 25 req/day) if the user tracks stocks/ETFs.
 
-#### Interactive tutorial
-
-After setup (or skippable independently):
-
-- **Guided tour**: highlight key UI areas (sidebar nav, transaction list, add button, filters) using tooltip overlays
-- **First transaction prompt**: "Try adding your first real transaction" with a guided form
-- **MCP hint**: show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'. To enable this, tell your AI agent to connect to Pinch via MCP at `<address>/api/mcp`." The `<address>` is derived from the current browser URL origin (e.g. `http://localhost:4000`).
-- **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 21)
-
 #### API routes & service changes
 
 - **Existing routes reused as-is:**
@@ -742,7 +739,38 @@ After setup (or skippable independently):
 
 ---
 
-### Sprint 21: Polish & Hardening
+### Sprint 21: Interactive Tutorial & Sample Data
+**Goal:** Help new users discover the app with a guided tour and optional sample data.
+
+#### Seed script changes
+
+The seed script (`src/lib/db/seed/index.ts`) should be updated to:
+- **Set a timezone** (e.g. `Europe/Amsterdam`) in the `settings` table, so the seeded app passes the timezone gate and is immediately usable.
+- **Set `tutorial = "true"`** in the `settings` table. This flag determines whether the onboarding tutorial plays on next page load.
+
+The `tutorial` setting is set to `"false"` (or deleted) when:
+- The user finishes or dismisses the tutorial.
+- The user clicks "Clear sample data" (Sprint 22) — clearing sample data removes the `tutorial` setting along with all other seeded data.
+
+This means the tutorial auto-replays after re-seeding (useful for demos), and never plays for users who set up from scratch (since the seed script is the only thing that sets `tutorial = "true"`).
+
+#### Interactive tutorial
+
+**Library:** [React Joyride v3](https://v3.react-joyride.com) — guided tour with spotlight overlays, step sequencing, and beacon/tooltip UI. A Claude Code skill (`react-joyride`) is available with full v3 API reference and pattern examples — use it when working on tutorial code.
+
+Triggered when the `tutorial` setting is `"true"`. Walks through:
+
+- **Dashboard overview**: KPI cards, spending section, sidebar navigation
+- **Transactions**: list view, add-transaction button and form dialog, filters
+- **Categories**: tree view with nesting and spending totals
+- **Budgets**: budget table with progress bars
+- **MCP hint**: centered modal-style step explaining AI assistant integration, with the MCP endpoint URL (`<address>/api/mcp`) derived from the current browser origin
+
+**Done when:** A user who runs the seed script sees a guided tour on first visit. Users who set up from scratch never see it. The tutorial can be dismissed and doesn't come back.
+
+---
+
+### Sprint 22: Polish & Hardening
 **Goal:** Production readiness.
 
 - [ ] Dark mode (Tailwind dark variant)
@@ -750,15 +778,17 @@ After setup (or skippable independently):
 - [ ] CSV export for any filtered view
 - [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
+- [ ] Symbol search - limit by type, stream results
+- [ ] E2E tests (Playwright — browser UI flows, async server component rendering)
 - [ ] Performance: check query efficiency, add missing indices if needed
-- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting.
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting. Also removes the `tutorial` setting.
 - [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
 
 ---
 
-### Sprint 22: Packaging & Auto-Updates
+### Sprint 23: Packaging & Auto-Updates
 **Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
@@ -766,7 +796,7 @@ After setup (or skippable independently):
 
 ---
 
-### Sprint 23: Documentation & Project Files
+### Sprint 25: Documentation & Project Files
 **Goal:** Make this a proper public open-source project.
 
 - [ ] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
@@ -780,11 +810,26 @@ After setup (or skippable independently):
 
 ---
 
-### Sprint 24: Project Website
+### Sprint 26: Project Website
 **Goal:** Create a public face for the project.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
 - [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
+- [ ] Donation button / MCP instructions ("if user is saving lots of money...")
+
+### Sprint 27: Multi-Currency UX
+**Goal:** Make foreign-currency assets a first-class experience — surface currency info during search, auto-fill on creation, and separate FX effects in reports.
+
+- [ ] **Symbol search: surface currency** — return base currency (e.g. USD for SPX, USD for AAPL) from financial data providers in search results, display it in the symbol search UI
+- [ ] **Asset creation: auto-fill currency** — when a symbol search result is selected, pre-fill the asset's currency field from the result's base currency instead of defaulting to EUR
+- [ ] **Buy/sell dialog: show native + base currency** — display both the asset's native currency amount and the EUR equivalent side-by-side
+- [ ] **Reports: separate FX vs asset P&L** — in asset performance reports, break down total P&L into asset price change and FX gain/loss components
+- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from `price-resolver.ts` into a user setting, wire it through portfolio and reporting services
+- [ ] **Currency exposure chart** — add a dashboard widget showing portfolio allocation by currency with current FX rates
+
+**Done when:** A user can add a USD-denominated asset (e.g. SPX) and clearly see what currency it's in at every step — search, creation, transactions, and reports. FX effects are visible separately from asset performance.
+
+---
 
 ## Future Considerations (not in scope now, but design should accommodate)
 
