@@ -1,8 +1,14 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { makeTestDb } from "./helpers";
 import { SettingsService } from "@/lib/services/settings";
 import { ProviderNameSchema } from "@/lib/providers/types";
+
+// Stub global fetch so health checks don't hit real APIs
+vi.stubGlobal(
+  "fetch",
+  vi.fn(() => Promise.resolve(new Response("{}", { status: 200 })))
+);
 import {
   getProviderMeta,
   getAllProviderNames,
@@ -130,47 +136,39 @@ describe("Provider Registry", () => {
   });
 
   describe("getProviderStatuses", () => {
-    it(
-      "returns status for ALL providers regardless of key state",
-      async () => {
-        const statuses = await getProviderStatuses(settings);
-        expect(statuses).toHaveLength(ProviderNameSchema.options.length);
+    it("returns status for ALL providers regardless of key state", async () => {
+      const statuses = await getProviderStatuses(settings);
+      expect(statuses).toHaveLength(ProviderNameSchema.options.length);
 
-        const names = statuses.map((s) => s.name);
-        for (const name of ProviderNameSchema.options) {
-          expect(names).toContain(name);
-        }
-      },
-      15_000
-    );
+      const names = statuses.map((s) => s.name);
+      for (const name of ProviderNameSchema.options) {
+        expect(names).toContain(name);
+      }
+    });
 
-    it(
-      "reports correct metadata and key state",
-      async () => {
-        settings.set("provider.alpha-vantage.key", "test-key");
-        const statuses = await getProviderStatuses(settings);
-        const byName = Object.fromEntries(statuses.map((s) => [s.name, s]));
+    it("reports correct metadata and key state", async () => {
+      settings.set("provider.alpha-vantage.key", "test-key");
+      const statuses = await getProviderStatuses(settings);
+      const byName = Object.fromEntries(statuses.map((s) => [s.name, s]));
 
-        // Types
-        expect(byName["frankfurter"].type).toBe("exchange-rates");
-        expect(byName["coingecko"].type).toBe("market-prices");
+      // Types
+      expect(byName["frankfurter"].type).toBe("exchange-rates");
+      expect(byName["coingecko"].type).toBe("market-prices");
 
-        // Key requirements
-        expect(byName["frankfurter"].apiKeyRequired).toBe("none");
-        expect(byName["coingecko"].apiKeyRequired).toBe("optional");
-        expect(byName["alpha-vantage"].apiKeyRequired).toBe("required");
+      // Key requirements
+      expect(byName["frankfurter"].apiKeyRequired).toBe("none");
+      expect(byName["coingecko"].apiKeyRequired).toBe("optional");
+      expect(byName["alpha-vantage"].apiKeyRequired).toBe("required");
 
-        // Key state
-        expect(byName["frankfurter"].apiKeySet).toBe(true);
-        expect(byName["open-exchange-rates"].apiKeySet).toBe(false);
-        expect(byName["alpha-vantage"].apiKeySet).toBe(true);
+      // Key state
+      expect(byName["frankfurter"].apiKeySet).toBe(true);
+      expect(byName["open-exchange-rates"].apiKeySet).toBe(false);
+      expect(byName["alpha-vantage"].apiKeySet).toBe(true);
 
-        // Health is always populated (boolean or false on failure)
-        for (const s of statuses) {
-          expect(typeof s.healthy).toBe("boolean");
-        }
-      },
-      15_000
-    );
+      // Health is always populated (boolean or false on failure)
+      for (const s of statuses) {
+        expect(typeof s.healthy).toBe("boolean");
+      }
+    });
   });
 });

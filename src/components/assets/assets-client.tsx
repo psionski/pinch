@@ -211,7 +211,7 @@ export function AssetsClient({
 
   async function handleRecordPrice(
     asset: AssetWithMetrics,
-    data: { pricePerUnit: number }
+    data: { pricePerUnit: number; recordedAt?: string }
   ): Promise<void> {
     setLoading(true);
     try {
@@ -340,7 +340,7 @@ export function AssetsClient({
                       </>
                     )}
                     <Button size="sm" variant="outline" onClick={() => setPricingAsset(asset)}>
-                      Price
+                      Set Price
                     </Button>
                   </div>
                 </CardContent>

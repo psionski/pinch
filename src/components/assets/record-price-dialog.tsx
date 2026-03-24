@@ -12,13 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { isoToday } from "@/lib/date-ranges";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
 
 interface RecordPriceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   asset: AssetWithMetrics;
-  onSubmit: (data: { pricePerUnit: number }) => void;
+  onSubmit: (data: { pricePerUnit: number; recordedAt?: string }) => void;
   loading?: boolean;
 }
 
@@ -31,10 +32,12 @@ export function RecordPriceDialog({
 }: RecordPriceDialogProps): React.ReactElement {
   const currentDisplay =
     asset.latestPrice !== null
-      ? `Current: ${(asset.latestPrice / 100).toFixed(2)} ${asset.currency} per unit`
+      ? `Current price: ${(asset.latestPrice / 100).toFixed(2)} ${asset.currency} per unit`
       : "No price recorded yet";
 
+  const today = isoToday();
   const [price, setPrice] = useState("");
+  const [date, setDate] = useState(today);
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent): void {
@@ -47,19 +50,26 @@ export function RecordPriceDialog({
       return;
     }
 
-    onSubmit({ pricePerUnit: Math.round(priceNum * 100) });
+    const recordedAt = date && date !== today ? date + "T00:00:00.000Z" : undefined;
+    onSubmit({ pricePerUnit: Math.round(priceNum * 100), recordedAt });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Update Price — {asset.name}</DialogTitle>
-          <DialogDescription>{currentDisplay}</DialogDescription>
+          <DialogTitle>Set Price — {asset.name}</DialogTitle>
+          <DialogDescription asChild>
+            <div>
+              <p>Manually record a market price for this asset. Useful for assets
+                that can't be tracked automatically.</p>
+              <p>{currentDisplay}.</p>
+            </div>
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="new-price">New price per unit ({asset.currency})</Label>
+            <Label htmlFor="new-price">Price per unit ({asset.currency})</Label>
             <Input
               id="new-price"
               type="number"
@@ -72,10 +82,21 @@ export function RecordPriceDialog({
               autoFocus
             />
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="price-date">Date</Label>
+            <Input
+              id="price-date"
+              type="date"
+              value={date}
+              max={today}
+              onChange={(e) => setDate(e.target.value)}
+              disabled={loading}
+            />
+          </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={loading}>
-              Record
+              Save Price
             </Button>
           </DialogFooter>
         </form>

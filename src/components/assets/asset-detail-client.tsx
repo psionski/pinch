@@ -168,7 +168,10 @@ export function AssetDetailClient({
     }
   }
 
-  async function handleRecordPrice(data: { pricePerUnit: number }): Promise<void> {
+  async function handleRecordPrice(data: {
+    pricePerUnit: number;
+    recordedAt?: string;
+  }): Promise<void> {
     setLoading(true);
     try {
       await fetch(`/api/assets/${asset.id}/prices`, {
@@ -223,7 +226,7 @@ export function AssetDetailClient({
             </>
           )}
           <Button size="sm" variant="outline" onClick={() => setShowPrice(true)}>
-            Price
+            Set Price
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
