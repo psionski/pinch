@@ -107,7 +107,7 @@ export function TransactionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-tutorial="transaction-dialog">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
           <DialogDescription>
