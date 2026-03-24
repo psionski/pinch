@@ -679,109 +679,21 @@ Each sprint is a self-contained chunk of work that results in something testable
 
 Sprints are organized into two phases: **MVP** and **Full App**.
 
-**Completed sprints (1-19):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio), portfolio reports backend (asset–market price linking via symbolMap, unified price resolver, portfolio report services — net worth history, asset performance, allocation, currency exposure, realized P&L, asset history), portfolio reports UI (reports sidebar with Cash Flow / Portfolio sub-pages, portfolio reports page, enhanced assets page with summary cards and charts, asset detail enhancements, dashboard net worth sparkline / top movers / allocation donut).
-
----
-
-### Sprint 20: Onboarding & Initial Setup
-**Goal:** Make it easy for new users to enter their current financial state without fabricating transaction history. Includes an interactive first-run experience.
-
-**Partially done:** Timezone support is implemented. Settings page (`/settings`) with timezone selector, onboarding gate (middleware redirects to `/settings` until timezone is set), MCP tools (`get_timezone`, `set_timezone`), and all date functions are timezone-aware. See `src/lib/date-ranges.ts`, `src/lib/services/settings.ts`, `src/middleware.ts`.
-
-#### The problem
-
-A new user has an existing financial life: bank balance, savings, maybe some investments. Without onboarding, they'd need to create fake income transactions (inflating reports) or manually construct lots. The app should meet users where they are.
-
-#### Opening balance approach
-
-Uses `transfer` type transactions (already excluded from income/expense reports) and unlinked asset lots. No schema changes needed.
-
-- **Cash opening balance:** A `transfer` transaction with a description like "Opening balance" and no linked asset. Included in balance calculation, excluded from spending/income reports. Effectively: "I had this much cash before I started tracking."
-- **Asset opening balances:** An asset lot with `transaction_id = null`. Represents "I already own this." User provides: asset name/type, quantity held, approximate total cost basis (or "I don't know" → use current value as cost basis, P&L starts from zero).
-
-#### First-run setup wizard (Web UI)
-
-Triggered on first visit when timezone is not set. Multi-step flow:
-
-1. **Welcome** — brief intro, "Let's set you up"
-  - Maybe in settings page, and only for first time users (timezone not set)? I think we already have something similar there.
-2. **Timezone** — already implemented in settings. But currently takes new users to "/", instead of the next step.
-3. **Cash balance** (optional) — "How much cash do you have right now?" Single input → creates opening balance transfer transaction (should be clarified "checking account")
-4. **Savings** (optional) — "Do you have any savings accounts?" → for each: name, current balance → creates deposit asset + opening lot
-5. **Investments** (optional) — "Do you own any stocks, ETFs, or crypto?" → for each asset: name, type (stock/crypto), quantity, approximate cost basis → creates asset + opening lot
-6. **Data providers** (optional) — "Set up market data for automatic price tracking." Show available providers (CoinGecko, Alpha Vantage, Open Exchange Rates) with brief descriptions and free-tier info. For each, an API key input field. Skip-friendly — free providers (Frankfurter, ECB, CoinGecko without key) work out of the box, so this step is only needed for premium providers or to unlock higher rate limits.
-8. **Done** — "Save" button appears.
-
-The wizard should be **skippable** ("I'll set this up later") except for the timezone, and the steps should be accessible from settings, not just first-run — in case someone wants to add a new asset opening balance later. Maybe the "wizard" should just be revealing the settings menu options one by one (and "set up later" just reveals all of them and takes you to dashboard, and they will also all be revealed by default if someone has a configured timezone)
-
-#### MCP onboarding tools
-
-| Tool | Description |
-|------|-------------|
-| `set_opening_cash_balance` | Set initial cash balance. Thin convenience wrapper — creates a `transfer` transaction via `TransactionService.create()` dated today (or specified date) with a description like "Opening balance". Idempotent: if an opening balance transfer already exists, updates it. Exists purely for AI ergonomics (saves the agent from knowing the transfer-transaction pattern). |
-| `add_opening_asset` | Add an existing asset holding. Params: name, type, currency, quantity, cost_basis_total (cents, optional — defaults to current value if price provided, or quantity × price_per_unit). Creates asset + unlinked lot (via the new `AssetLotService.createOpeningLot()` method). |
-
-No `get_onboarding_status` tool — instead, update the root MCP `INSTRUCTIONS` string (`src/lib/mcp/server.ts`) to extend the existing `get_timezone` flow with onboarding guidance. After the timezone check, instruct the AI to ask about opening balances if the user is new: cash balance, savings, investments, data provider API keys. The AI uses `list_transactions`, `list_assets`, and `list_providers` to determine what's already set up — no dedicated status tool needed.
-
-This lets the AI run the same onboarding conversationally: "What's your current bank balance?" → "Do you have any savings or investments?" → "Do you have API keys for any market data providers?" → enters everything via MCP. The AI should mention that free providers (Frankfurter, CoinGecko) work without keys, and suggest setting up Alpha Vantage (free key, 25 req/day) if the user tracks stocks/ETFs.
-
-#### API routes & service changes
-
-- **Existing routes reused as-is:**
-  - `POST /api/transactions` — cash opening balance (type `"transfer"`). No changes needed.
-  - `GET/PUT /api/settings/timezone` — timezone step. Already implemented.
-  - `GET /api/financial/providers` + `POST /api/financial/providers/{provider}/key` — data providers step. Already implemented.
-- **New service method:** `AssetLotService.createOpeningLot()` — creates an asset lot with `transaction_id = null`. The DB schema already supports nullable `transaction_id`; only the service layer forces a linked transaction today (via `buy()`/`sell()`).
-- **New API endpoint:** `POST /api/assets/{id}/lots` — thin route that validates input and calls `createOpeningLot()`. Used by the wizard UI and the `add_opening_asset` MCP tool.
-- No new generic settings endpoints needed — onboarding state is derived from existing data (transactions, assets, providers).
-
-**Done when:** A brand new user opens the app, walks through the wizard in under 2 minutes, and lands on a dashboard showing their actual net worth. An AI assistant can do the same via MCP: "I have €5,000 in my bank, €3,000 in savings, and 0.5 BTC" → three tool calls → everything set up. No fake income transactions polluting reports.
-
----
-
-### Sprint 21: Interactive Tutorial & Sample Data
-**Goal:** Help new users discover the app with a guided tour and optional sample data.
-
-#### Seed script changes
-
-The seed script (`src/lib/db/seed/index.ts`) should be updated to:
-- **Set a timezone** (e.g. `Europe/Amsterdam`) in the `settings` table, so the seeded app passes the timezone gate and is immediately usable.
-- **Set `tutorial = "true"`** in the `settings` table. This flag determines whether the onboarding tutorial plays on next page load.
-
-The `tutorial` setting is set to `"false"` (or deleted) when:
-- The user finishes or dismisses the tutorial.
-- The user clicks "Clear sample data" (Sprint 22) — clearing sample data removes the `tutorial` setting along with all other seeded data.
-
-This means the tutorial auto-replays after re-seeding (useful for demos), and never plays for users who set up from scratch (since the seed script is the only thing that sets `tutorial = "true"`).
-
-#### Interactive tutorial
-
-**Library:** [React Joyride v3](https://v3.react-joyride.com) — guided tour with spotlight overlays, step sequencing, and beacon/tooltip UI. A Claude Code skill (`react-joyride`) is available with full v3 API reference and pattern examples — use it when working on tutorial code.
-
-Triggered when the `tutorial` setting is `"true"`. Walks through:
-
-- **Dashboard overview**: KPI cards, spending section, sidebar navigation
-- **Transactions**: list view, add-transaction button and form dialog, filters
-- **Categories**: tree view with nesting and spending totals
-- **Budgets**: budget table with progress bars
-- **MCP hint**: centered modal-style step explaining AI assistant integration, with the MCP endpoint URL (`<address>/api/mcp`) derived from the current browser origin
-
-**Done when:** A user who runs the seed script sees a guided tour on first visit. Users who set up from scratch never see it. The tutorial can be dismissed and doesn't come back.
+**Completed sprints (1-21):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio), portfolio reports backend (asset–market price linking via symbolMap, unified price resolver, portfolio report services — net worth history, asset performance, allocation, currency exposure, realized P&L, asset history), portfolio reports UI (reports sidebar with Cash Flow / Portfolio sub-pages, portfolio reports page, enhanced assets page with summary cards and charts, asset detail enhancements, dashboard net worth sparkline / top movers / allocation donut, onboarding tools and interactive tutorial).
 
 ---
 
 ### Sprint 22: Polish & Hardening
 **Goal:** Production readiness.
 
-- [ ] Dark mode (Tailwind dark variant)
+- [ ] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
 - [ ] Mobile-responsive audit and fixes
 - [ ] CSV export for any filtered view
-- [ ] Tailscale access verification middleware
 - [ ] Error boundaries and loading states across all pages
 - [ ] Symbol search - limit by type, stream results
 - [ ] E2E tests (Playwright — browser UI flows, async server component rendering)
 - [ ] Performance: check query efficiency, add missing indices if needed
-- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting. Also removes the `tutorial` setting.
+- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) + MCP tool to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting (probably best by dropping the entire DB - maybe check backup.ts for potentially related code).
 - [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
