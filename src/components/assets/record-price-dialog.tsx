@@ -61,8 +61,10 @@ export function RecordPriceDialog({
           <DialogTitle>Set Price — {asset.name}</DialogTitle>
           <DialogDescription asChild>
             <div>
-              <p>Manually record a market price for this asset. Useful for assets
-                that can't be tracked automatically.</p>
+              <p>
+                Manually record a market price for this asset. Useful for assets that can&apos;t be
+                tracked automatically.
+              </p>
               <p>{currentDisplay}.</p>
             </div>
           </DialogDescription>

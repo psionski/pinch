@@ -750,12 +750,12 @@ This means the tutorial auto-replays after re-seeding (useful for demos), and ne
 
 #### Interactive tutorial
 
-Triggered when the `tutorial` setting is `"true"`. Plays after setup / on the dashboard:
+Triggered when the `tutorial` setting is `"true"`. Plays on the dashboard:
 
 - **Guided tour**: highlight key UI areas (sidebar nav, transaction list, add button, filters) using tooltip overlays
-- **First transaction prompt**: "Try adding your first real transaction" with a guided form
+- **First transaction prompt**: "Try adding your first transaction" with a guided form (make it clear to the user that this is a demo and the transaction will be deleted at the end) - will need to help them navigate to "transactions" page, and to the button.
+- **Budgets and Categories**: Show them how to manage categories and set budgets for them.
 - **MCP hint**: show a card: "You can also add transactions by telling your AI assistant — just send a receipt photo or say 'spent €25 at Lidl on groceries'. To enable this, tell your AI agent to connect to Pinch via MCP at `<address>/api/mcp`." The `<address>` is derived from the current browser URL origin (e.g. `http://localhost:4000`).
-- **Sample data option**: "Want to explore with sample data first?" → loads demo transactions/assets (ties into the existing "Clear sample data" bar from Sprint 22)
 
 **Done when:** A user who runs the seed script sees a guided tour on first visit. Users who set up from scratch never see it. The tutorial can be dismissed and doesn't come back.
 
