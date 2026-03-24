@@ -136,7 +136,7 @@ export function CategoriesClient({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-tutorial="categories-header">
         <h1 className="text-2xl font-bold tracking-tight">Categories</h1>
         <Button onClick={() => setShowCreateForm(true)} size="sm">
           <Plus className="size-4" />
@@ -145,7 +145,10 @@ export function CategoriesClient({
       </div>
 
       {/* Tree */}
-      <div className={loading ? "pointer-events-none opacity-60" : ""}>
+      <div
+        className={loading ? "pointer-events-none opacity-60" : ""}
+        data-tutorial="category-tree"
+      >
         <CategoryTree
           categories={categories}
           stats={stats}

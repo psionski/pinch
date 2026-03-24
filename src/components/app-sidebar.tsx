@@ -31,6 +31,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType;
+  dataTutorial?: string;
 }
 
 interface NavGroup {
@@ -44,15 +45,20 @@ const navGroups: NavGroup[] = [
   {
     label: "Track",
     items: [
-      { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      {
+        href: "/transactions",
+        label: "Transactions",
+        icon: ArrowLeftRight,
+        dataTutorial: "nav-transactions",
+      },
       { href: "/recurring", label: "Recurring", icon: Repeat },
     ],
   },
   {
     label: "Plan",
     items: [
-      { href: "/budgets", label: "Budgets", icon: Wallet },
-      { href: "/categories", label: "Categories", icon: Tags },
+      { href: "/budgets", label: "Budgets", icon: Wallet, dataTutorial: "nav-budgets" },
+      { href: "/categories", label: "Categories", icon: Tags, dataTutorial: "nav-categories" },
     ],
   },
   {
@@ -69,7 +75,7 @@ const bottomItems: NavItem[] = [{ href: "/settings", label: "Settings", icon: Se
 
 function NavMenuItem({ item, pathname }: { item: NavItem; pathname: string }): React.ReactElement {
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem data-tutorial={item.dataTutorial}>
       <SidebarMenuButton
         asChild
         isActive={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
@@ -88,7 +94,7 @@ export function AppSidebar(): React.ReactElement {
   const pathname = usePathname();
 
   return (
-    <Sidebar>
+    <Sidebar data-tutorial="sidebar">
       <SidebarHeader className="px-4 py-3">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <span>🪙 Pinch</span>

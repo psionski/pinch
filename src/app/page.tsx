@@ -86,13 +86,17 @@ export default function DashboardPage(): React.ReactElement {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+      <h1 className="text-2xl font-bold tracking-tight" data-tutorial="dashboard-title">
+        Dashboard
+      </h1>
 
       {/* At a Glance — universal KPIs */}
-      <KpiCards summary={summary} budgetStatus={budgetStatus} />
+      <div data-tutorial="kpi-cards">
+        <KpiCards summary={summary} budgetStatus={budgetStatus} />
+      </div>
 
       {/* Spending — where is my money going? */}
-      <section className="space-y-3">
+      <section className="space-y-3" data-tutorial="spending-section">
         <h2 className="text-muted-foreground text-sm font-medium">Spending</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <SpendingTrendChart data={trends} />

@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
 import { getSettingsService } from "@/lib/api/services";
 import { TimezoneInit } from "@/components/timezone-init";
+import { TutorialProvider } from "@/components/tutorial/tutorial-provider";
+import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,23 +30,28 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const timezone = getSettingsService().getTimezone() ?? "UTC";
+  const settingsService = getSettingsService();
+  const timezone = settingsService.getTimezone() ?? "UTC";
+  const tutorialActive = settingsService.get("tutorial") === "true";
 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TimezoneInit timezone={timezone} />
-        <TooltipProvider>
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <header className="flex h-14 items-center gap-2 border-b px-4">
-                <SidebarTrigger />
-              </header>
-              <div className="flex-1 p-4 md:p-6">{children}</div>
-            </SidebarInset>
-          </SidebarProvider>
-        </TooltipProvider>
+        <TutorialProvider initialTutorial={tutorialActive}>
+          <TooltipProvider>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
+                <header className="flex h-14 items-center gap-2 border-b px-4">
+                  <SidebarTrigger />
+                </header>
+                <div className="flex-1 p-4 md:p-6">{children}</div>
+              </SidebarInset>
+            </SidebarProvider>
+          </TooltipProvider>
+          <TutorialOverlay />
+        </TutorialProvider>
       </body>
     </html>
   );

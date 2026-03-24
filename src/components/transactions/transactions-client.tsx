@@ -206,14 +206,18 @@ export function TransactionsClient({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-tutorial="transactions-header">
         <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowUploadReceipt(true)}>
             <ScanLine className="size-4" />
             Add Receipt
           </Button>
-          <Button onClick={() => setShowAddForm(true)} size="sm">
+          <Button
+            onClick={() => setShowAddForm(true)}
+            size="sm"
+            data-tutorial="add-transaction-btn"
+          >
             <Plus className="size-4" />
             Add Transaction
           </Button>
@@ -221,12 +225,14 @@ export function TransactionsClient({
       </div>
 
       {/* Filters */}
-      <TransactionFilterBar
-        filters={filters}
-        categories={categories}
-        onFiltersChange={handleFiltersChange}
-        recurringName={recurringName}
-      />
+      <div data-tutorial="transaction-filters">
+        <TransactionFilterBar
+          filters={filters}
+          categories={categories}
+          onFiltersChange={handleFiltersChange}
+          recurringName={recurringName}
+        />
+      </div>
 
       {/* Bulk actions */}
       {selectedIds.size > 0 && (
