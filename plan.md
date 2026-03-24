@@ -738,7 +738,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 - [ ] **Asset creation: auto-fill currency** — when a symbol search result is selected, pre-fill the asset's currency field from the result's base currency instead of defaulting to EUR
 - [ ] **Buy/sell dialog: show native + base currency** — display both the asset's native currency amount and the EUR equivalent side-by-side
 - [ ] **Reports: separate FX vs asset P&L** — in asset performance reports, break down total P&L into asset price change and FX gain/loss components
-- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from `price-resolver.ts` into a user setting, wire it through portfolio and reporting services
+- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from throughout the application into a user setting. After we're done, we shouldn't have "EUR" or "toEuros" and similar anywhere in the code, maybe except for sample data (seed script) and tests
 - [ ] **Currency exposure chart** — add a dashboard widget showing portfolio allocation by currency with current FX rates
 
 **Done when:** A user can add a USD-denominated asset (e.g. SPX) and clearly see what currency it's in at every step — search, creation, transactions, and reports. FX effects are visible separately from asset performance.
