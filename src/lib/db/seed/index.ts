@@ -7,7 +7,6 @@ import {
   categories,
   marketPrices,
   recurringTransactions,
-  settings,
   transactions,
 } from "../schema";
 import { PARENT_CATEGORIES, CHILD_CATEGORIES } from "./data";
@@ -196,13 +195,6 @@ async function seed(): Promise<void> {
     await db.insert(marketPrices).values(mpSeeds.slice(i, i + BATCH));
   }
   seedLogger.info(`  ${mpSeeds.length} market price points, ${totalLots} asset lots total.`);
-
-  // ── Settings (tutorial mode + timezone) ────────────────────────────────
-  seedLogger.info("Configuring tutorial mode...");
-  await db.insert(settings).values({ key: "timezone", value: "Europe/Amsterdam" });
-  await db.insert(settings).values({ key: "tutorial", value: "true" });
-  await db.insert(settings).values({ key: "sample_data", value: "true" });
-  seedLogger.info("  Timezone set to Europe/Amsterdam, tutorial enabled.");
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);

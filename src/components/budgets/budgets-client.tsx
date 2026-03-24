@@ -131,10 +131,7 @@ export function BudgetsClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div
-        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-        data-tutorial="budgets-header"
-      >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
 
         <div className="flex items-center gap-2">
@@ -173,7 +170,7 @@ export function BudgetsClient({
       </div>
 
       {/* Budget table */}
-      <div className={loading ? "pointer-events-none opacity-60" : ""} data-tutorial="budget-table">
+      <div className={loading ? "pointer-events-none opacity-60" : ""}>
         <BudgetTable
           budgets={budgetStatus}
           onEdit={setEditingBudget}
