@@ -34,8 +34,15 @@ const ALL_TIMEZONES = Intl.supportedValuesOf("timeZone");
 
 // ─── Onboarding steps (after timezone) ──────────────────────────────────────
 
-type OnboardingStep = "cash" | "savings" | "investments" | "providers" | "done";
-const ONBOARDING_ORDER: OnboardingStep[] = ["cash", "savings", "investments", "providers", "done"];
+type OnboardingStep = "cash" | "savings" | "investments" | "providers" | "backups" | "done";
+const ONBOARDING_ORDER: OnboardingStep[] = [
+  "cash",
+  "savings",
+  "investments",
+  "providers",
+  "backups",
+  "done",
+];
 
 function nextStep(current: OnboardingStep): OnboardingStep {
   const idx = ONBOARDING_ORDER.indexOf(current);
@@ -71,6 +78,20 @@ export function SettingsClient({
   const [timezoneSaved, setTimezoneSaved] = useState(!isFirstSetup);
 
   const allRevealed = onboardingStep === "done";
+  const lastRevealedRef = useRef<HTMLDivElement>(null);
+
+  const scrollToRevealed = useCallback(() => {
+    if (lastRevealedRef.current) {
+      lastRevealedRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  // Scroll newly revealed section into view during onboarding
+  useEffect(() => {
+    if (isFirstSetup && !allRevealed) {
+      scrollToRevealed();
+    }
+  }, [onboardingStep, timezoneSaved, isFirstSetup, allRevealed, scrollToRevealed]);
 
   function revealAll(): void {
     setOnboardingStep("done");
@@ -137,41 +158,58 @@ export function SettingsClient({
         <>
           {/* ── Cash Balance ──────────────────────────────────────── */}
           {stepReached(onboardingStep, "cash") && (
-            <CashBalanceSection
-              isOnboarding={!allRevealed}
-              onContinue={() => setOnboardingStep(nextStep("cash"))}
-            />
+            <div ref={onboardingStep === "cash" ? lastRevealedRef : undefined}>
+              <CashBalanceSection
+                isOnboarding={!allRevealed}
+                onContinue={() => setOnboardingStep(nextStep("cash"))}
+              />
+            </div>
           )}
 
           {/* ── Savings ───────────────────────────────────────────── */}
           {stepReached(onboardingStep, "savings") && (
-            <SavingsSection
-              isOnboarding={!allRevealed}
-              onContinue={() => setOnboardingStep(nextStep("savings"))}
-            />
+            <div ref={onboardingStep === "savings" ? lastRevealedRef : undefined}>
+              <SavingsSection
+                isOnboarding={!allRevealed}
+                onContinue={() => setOnboardingStep(nextStep("savings"))}
+              />
+            </div>
           )}
 
           {/* ── Investments ───────────────────────────────────────── */}
           {stepReached(onboardingStep, "investments") && (
-            <InvestmentsSection
-              isOnboarding={!allRevealed}
-              onContinue={() => setOnboardingStep(nextStep("investments"))}
-            />
+            <div ref={onboardingStep === "investments" ? lastRevealedRef : undefined}>
+              <InvestmentsSection
+                isOnboarding={!allRevealed}
+                onContinue={() => setOnboardingStep(nextStep("investments"))}
+              />
+            </div>
           )}
 
           {/* ── Data Providers ────────────────────────────────────── */}
           {stepReached(onboardingStep, "providers") && (
-            <ProvidersSection
-              isOnboarding={!allRevealed}
-              onContinue={() => {
-                setOnboardingStep("done");
-                window.location.href = "/";
-              }}
-            />
+            <div ref={onboardingStep === "providers" ? lastRevealedRef : undefined}>
+              <ProvidersSection
+                isOnboarding={!allRevealed}
+                onContentLoaded={onboardingStep === "providers" ? scrollToRevealed : undefined}
+                onContinue={() => setOnboardingStep(nextStep("providers"))}
+              />
+            </div>
           )}
 
           {/* ── Backups ───────────────────────────────────────────── */}
-          {allRevealed && <BackupManager initialBackups={initialBackups} />}
+          {stepReached(onboardingStep, "backups") && (
+            <div ref={onboardingStep === "backups" ? lastRevealedRef : undefined}>
+              <BackupManager
+                initialBackups={initialBackups}
+                isOnboarding={!allRevealed}
+                onContinue={() => {
+                  setOnboardingStep("done");
+                  window.location.href = "/";
+                }}
+              />
+            </div>
+          )}
         </>
       )}
     </div>
@@ -583,9 +621,11 @@ function InvestmentsSection({
 function ProvidersSection({
   isOnboarding,
   onContinue,
+  onContentLoaded,
 }: {
   isOnboarding: boolean;
   onContinue: () => void;
+  onContentLoaded?: () => void;
 }): React.ReactElement {
   const [providers, setProviders] = useState<ProviderStatusResponse[] | null>(null);
   const [keys, setKeys] = useState<Record<string, string>>({});
@@ -594,7 +634,11 @@ function ProvidersSection({
   useEffect(() => {
     void fetch("/api/financial/providers")
       .then((r) => r.json())
-      .then((data: ProviderStatusResponse[]) => setProviders(data));
+      .then((data: ProviderStatusResponse[]) => {
+        setProviders(data);
+        onContentLoaded?.();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function saveKey(provider: string): Promise<void> {
@@ -669,8 +713,8 @@ function ProvidersSection({
         </p>
         {isOnboarding && (
           <Button size="sm" onClick={onContinue}>
-            Finish Setup
-            <Check className="ml-1.5 size-4" />
+            Continue
+            <ArrowRight className="ml-1.5 size-4" />
           </Button>
         )}
       </div>
@@ -682,9 +726,15 @@ function ProvidersSection({
 
 interface BackupManagerProps {
   initialBackups: BackupInfo[];
+  isOnboarding?: boolean;
+  onContinue?: () => void;
 }
 
-function BackupManager({ initialBackups }: BackupManagerProps): React.ReactElement {
+function BackupManager({
+  initialBackups,
+  isOnboarding,
+  onContinue,
+}: BackupManagerProps): React.ReactElement {
   const [backups, setBackups] = useState<BackupInfo[]>(initialBackups);
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -774,6 +824,15 @@ function BackupManager({ initialBackups }: BackupManagerProps): React.ReactEleme
               </Button>
             </div>
           ))}
+        </div>
+      )}
+
+      {isOnboarding && onContinue && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={onContinue}>
+            Finish Setup
+            <Check className="ml-1.5 size-4" />
+          </Button>
         </div>
       )}
 
