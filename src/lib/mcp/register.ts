@@ -12,6 +12,7 @@ import { registerPortfolioReportTools } from "./tools/portfolio-reports";
 import { registerSettingsTools } from "./tools/settings";
 import { registerBackupTools } from "./tools/backups";
 import { registerOnboardingTools } from "./tools/onboarding";
+import { INSTRUCTIONS } from "./instructions";
 import { mcpLogger } from "@/lib/logger";
 
 /**
@@ -44,6 +45,19 @@ function instrumentRegisterTool(server: McpServer): void {
 
 export function registerTools(server: McpServer): void {
   instrumentRegisterTool(server);
+
+  server.registerTool(
+    "get_started",
+    {
+      description:
+        "IMPORTANT: Call this tool first to learn what Pinch is, how to use it, " +
+        "and the conventions all other tools follow (currency format, date handling, onboarding flow).",
+      inputSchema: {},
+    },
+    () => ({
+      content: [{ type: "text" as const, text: INSTRUCTIONS }],
+    })
+  );
 
   registerTransactionTools(server);
   registerCategoryTools(server);
