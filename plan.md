@@ -691,6 +691,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 - [ ] CSV export for any filtered view
 - [ ] Error boundaries and loading states across all pages
 - [ ] Symbol search - limit by type, stream results
+- [ ] Add more financial data providers - ExchangeRate-API, Twelve Data, Finnhub, CoinMarketCap
 - [ ] E2E tests (Playwright — browser UI flows, async server component rendering)
 - [ ] Performance: check query efficiency, add missing indices if needed
 - [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) + MCP tool to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting (probably best by dropping the entire DB - maybe check backup.ts for potentially related code).
@@ -732,6 +733,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 ### Sprint 27: Multi-Currency UX
 **Goal:** Make foreign-currency assets a first-class experience — surface currency info during search, auto-fill on creation, and separate FX effects in reports.
 
+- [ ] **Currency selector dropdown** - search + dropdown (similar to the Symbol Search widget), Intl API for currency symbols, currency-codes NPM package for codes, most popular (USD, EUR, GBP, JPY, CAD, AUD) on top, then divider, then the rest of the codes, alphabetically
 - [ ] **Symbol search: surface currency** — return base currency (e.g. USD for SPX, USD for AAPL) from financial data providers in search results, display it in the symbol search UI
 - [ ] **Asset creation: auto-fill currency** — when a symbol search result is selected, pre-fill the asset's currency field from the result's base currency instead of defaulting to EUR
 - [ ] **Buy/sell dialog: show native + base currency** — display both the asset's native currency amount and the EUR equivalent side-by-side
