@@ -209,11 +209,16 @@ export function TransactionsClient({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowUploadReceipt(true)}>
+          <Button
+            data-tour="add-receipt"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowUploadReceipt(true)}
+          >
             <ScanLine className="size-4" />
             Add Receipt
           </Button>
-          <Button onClick={() => setShowAddForm(true)} size="sm">
+          <Button data-tour="add-transaction" onClick={() => setShowAddForm(true)} size="sm">
             <Plus className="size-4" />
             Add Transaction
           </Button>
@@ -221,12 +226,14 @@ export function TransactionsClient({
       </div>
 
       {/* Filters */}
-      <TransactionFilterBar
-        filters={filters}
-        categories={categories}
-        onFiltersChange={handleFiltersChange}
-        recurringName={recurringName}
-      />
+      <div data-tour="transaction-filters">
+        <TransactionFilterBar
+          filters={filters}
+          categories={categories}
+          onFiltersChange={handleFiltersChange}
+          recurringName={recurringName}
+        />
+      </div>
 
       {/* Bulk actions */}
       {selectedIds.size > 0 && (
@@ -252,7 +259,10 @@ export function TransactionsClient({
       )}
 
       {/* Table */}
-      <div className={loading ? "pointer-events-none opacity-60" : ""}>
+      <div
+        data-tour="transaction-table"
+        className={loading ? "pointer-events-none opacity-60" : ""}
+      >
         <TransactionTable
           transactions={data.data}
           categories={categoryMap}

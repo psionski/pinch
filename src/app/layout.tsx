@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
 import { getSettingsService } from "@/lib/api/services";
 import { TimezoneInit } from "@/components/timezone-init";
+import { InteractiveTour } from "@/components/tour/interactive-tour";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,12 +29,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const timezone = getSettingsService().getTimezone() ?? "UTC";
+  const settingsService = getSettingsService();
+  const timezone = settingsService.getTimezone() ?? "UTC";
+  const tutorial = settingsService.get("tutorial") === "true";
 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TimezoneInit timezone={timezone} />
+        <InteractiveTour initialTutorial={tutorial} />
         <TooltipProvider>
           <SidebarProvider>
             <AppSidebar />

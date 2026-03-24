@@ -56,7 +56,7 @@ function SummaryCards({ portfolio }: { portfolio: PortfolioResponse }): React.Re
   const pnlPct = totalInvested > 0 && pnl !== null ? (pnl / totalInvested) * 100 : null;
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div data-tour="asset-summary" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <Card>
         <CardHeader className="pb-1">
           <CardTitle className="text-muted-foreground text-xs font-medium uppercase">
@@ -253,7 +253,10 @@ export function AssetsClient({
 
           <PerformanceTable data={performance} />
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            data-tour="asset-cards"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
             {assets.map((asset) => (
               <Card key={asset.id}>
                 <CardHeader className="pb-2">

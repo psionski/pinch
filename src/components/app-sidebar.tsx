@@ -94,7 +94,7 @@ export function AppSidebar(): React.ReactElement {
           <span>🪙 Pinch</span>
         </Link>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent data-tour="sidebar-nav">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

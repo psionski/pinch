@@ -48,7 +48,7 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
           : "text-emerald-600";
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div data-tour="kpi-cards" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Total Spend</CardTitle>
