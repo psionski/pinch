@@ -2,10 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type Database from "better-sqlite3";
 import { getDb } from "@/lib/db";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
+import { ok } from "@/lib/mcp/response";
 
 /** Rough check that a SQL statement is read-only. */
 function isReadOnly(sqlStr: string): boolean {

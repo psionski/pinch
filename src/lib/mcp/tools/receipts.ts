@@ -3,10 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getReceiptService } from "@/lib/api/services";
 import { ListReceiptsSchema } from "@/lib/validators/receipts";
 import { IdSchema, PaginationSchema } from "@/lib/validators/common";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
+import { ok } from "@/lib/mcp/response";
 
 export function registerReceiptTools(server: McpServer): void {
   server.registerTool(

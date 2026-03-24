@@ -201,7 +201,8 @@ async function seed(): Promise<void> {
   seedLogger.info("Configuring settings...");
   await db.insert(settings).values({ key: "timezone", value: "Europe/Amsterdam" });
   await db.insert(settings).values({ key: "tutorial", value: "true" });
-  seedLogger.info("  Timezone: Europe/Amsterdam, tutorial: enabled.");
+  await db.insert(settings).values({ key: "sample_data", value: "true" });
+  seedLogger.info("  Timezone: Europe/Amsterdam, tutorial: enabled, sample_data: flagged.");
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);

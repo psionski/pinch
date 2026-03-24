@@ -6,10 +6,7 @@ import {
   DeleteBudgetSchema,
 } from "@/lib/validators/budgets";
 import { getBudgetService } from "@/lib/api/services";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
+import { ok } from "@/lib/mcp/response";
 
 export function registerBudgetTools(server: McpServer): void {
   server.registerTool(

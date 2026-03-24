@@ -8,14 +8,7 @@ import {
   AssetPerformanceQuerySchema,
   RealizedPnlQuerySchema,
 } from "@/lib/validators/portfolio-reports";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
-
-function notFound(msg: string): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
-}
+import { ok, err } from "@/lib/mcp/response";
 
 export function registerPortfolioReportTools(server: McpServer): void {
   server.registerTool(
@@ -86,7 +79,7 @@ export function registerPortfolioReportTools(server: McpServer): void {
     },
     (input) => {
       const result = getPortfolioReportService().getAssetHistory(input.id, input.window);
-      if (!result) return notFound(`Asset ${input.id} not found`);
+      if (!result) return err(`Asset ${input.id} not found`);
       return ok(result);
     }
   );

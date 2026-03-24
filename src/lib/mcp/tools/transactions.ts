@@ -9,10 +9,7 @@ import {
 } from "@/lib/validators/transactions";
 import { IdSchema } from "@/lib/validators/common";
 import { getTransactionService } from "@/lib/api/services";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
+import { ok } from "@/lib/mcp/response";
 
 export function registerTransactionTools(server: McpServer): void {
   server.registerTool(

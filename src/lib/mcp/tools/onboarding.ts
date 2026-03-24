@@ -15,16 +15,9 @@ import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
 import { isoToday } from "@/lib/date-ranges";
 import { transactions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { ok, err } from "@/lib/mcp/response";
 
 const OPENING_BALANCE_DESC = "Opening balance";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
-
-function err(msg: string): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
-}
 
 export function registerOnboardingTools(server: McpServer): void {
   server.registerTool(

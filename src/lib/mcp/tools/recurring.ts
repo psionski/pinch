@@ -3,10 +3,7 @@ import { z } from "zod";
 import { CreateRecurringSchema, UpdateRecurringSchema } from "@/lib/validators/recurring";
 import { IdSchema } from "@/lib/validators/common";
 import { getRecurringService } from "@/lib/api/services";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
+import { ok } from "@/lib/mcp/response";
 
 export function registerRecurringTools(server: McpServer): void {
   server.registerTool(
