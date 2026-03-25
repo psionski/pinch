@@ -73,10 +73,12 @@ test.describe.serial("Categories", () => {
 
     // Select target category in merge dialog
     await page.locator("#merge-target").click();
-    // shadcn Select options render in a portal — use unscoped selector
     await page.locator("[role='option']").filter({ hasText: "Food" }).click();
 
     await page.getByRole("dialog").getByRole("button", { name: "Merge" }).click();
-    await expect(page.getByText("Supermarket")).not.toBeVisible({ timeout: 5000 });
+    // Verify Supermarket row is gone from the category tree
+    await expect(
+      page.locator("[data-testid^='category-row-']").filter({ hasText: "Supermarket" })
+    ).not.toBeVisible({ timeout: 5000 });
   });
 });

@@ -4,7 +4,7 @@ import { createCategoryViaUI } from "./helpers";
 test.describe.serial("Transactions", () => {
   test("create a category as precondition", async ({ page }) => {
     await page.goto("/");
-    await createCategoryViaUI(page, { name: "Food" });
+    await createCategoryViaUI(page, { name: "Groceries" });
   });
 
   test("add expense transaction", async ({ page }) => {
@@ -33,12 +33,11 @@ test.describe.serial("Transactions", () => {
   });
 
   test("edit a transaction", async ({ page }) => {
-    await page.goto("/transactions");
-    // Click the pencil edit button on the "Lunch at cafe" row
+    await page.goto("/transactions", { waitUntil: "networkidle" });
     const row = page.locator("tr").filter({ hasText: "Lunch at cafe" });
+    await expect(row).toBeVisible();
     await row.getByLabel("Edit transaction").click();
 
-    // Wait for the edit dialog to fully open
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
     await page.locator("#tx-amount").fill("15.00");
     await page.getByRole("button", { name: "Save Changes" }).click();
@@ -46,11 +45,16 @@ test.describe.serial("Transactions", () => {
   });
 
   test("delete a transaction", async ({ page }) => {
-    await page.goto("/transactions");
+    await page.goto("/transactions", { waitUntil: "networkidle" });
     const row = page.locator("tr").filter({ hasText: "Monthly salary" });
-    await row.locator('input[type="checkbox"]').check();
+    await row.getByRole("checkbox").click();
 
+    // Wait for bulk action bar to appear, then click Delete
+    await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
     await page.getByRole("button", { name: "Delete" }).click();
+
+    // Confirm in the dialog
+    await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
 
     await expect(page.getByText("Monthly salary")).not.toBeVisible({ timeout: 5000 });

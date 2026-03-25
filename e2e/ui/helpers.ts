@@ -65,9 +65,9 @@ export async function createTransactionViaUI(
   await navigateTo(page, "/transactions");
   await page.getByRole("button", { name: "Add Transaction" }).click();
 
-  // Select type
-  const typeButton = page.getByRole("button", { name: opts.type, exact: true });
-  await typeButton.click();
+  // Select type (capitalize first letter to match button text)
+  const typeName = opts.type.charAt(0).toUpperCase() + opts.type.slice(1);
+  await page.getByRole("button", { name: typeName, exact: true }).click();
 
   await page.locator("#tx-amount").fill(opts.amount);
   await page.locator("#tx-description").fill(opts.description);
@@ -78,7 +78,7 @@ export async function createTransactionViaUI(
 
   if (opts.category) {
     await page.locator("#tx-category").click();
-    await page.getByRole("option", { name: opts.category }).click();
+    await page.locator("[role='option']").filter({ hasText: opts.category }).click();
   }
 
   await page.getByRole("button", { name: "Add Transaction" }).click();

@@ -15,7 +15,7 @@ export default defineConfig({
     command:
       "cross-env DATABASE_URL=./data/test-e2e.db tsx e2e/ui/prepare-db.ts && cross-env DATABASE_URL=./data/test-e2e.db npx next dev -p 4001",
     url: "http://localhost:4001",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     stdout: "pipe",
     timeout: 120_000,
   },

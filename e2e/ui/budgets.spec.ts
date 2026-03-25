@@ -1,13 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { createTransactionViaUI, navigateTo } from "./helpers";
+import { createCategoryViaUI, createTransactionViaUI, navigateTo } from "./helpers";
 
 test.describe.serial("Budgets", () => {
+  test("create category as precondition", async ({ page }) => {
+    await page.goto("/");
+    await createCategoryViaUI(page, { name: "Food" });
+  });
+
   test("create budget for a category", async ({ page }) => {
     await page.goto("/budgets");
     await page.getByRole("button", { name: "Add Budget" }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
 
-    // Select category via shadcn Select (dropdown renders in portal)
     await page.locator("#budget-category").click();
     await page.locator("[role='option']").filter({ hasText: "Food" }).click();
 
@@ -26,6 +30,7 @@ test.describe.serial("Budgets", () => {
       amount: "50",
       type: "expense",
       description: "Budget test expense",
+      category: "Food",
     });
 
     await navigateTo(page, "/budgets");
@@ -39,6 +44,7 @@ test.describe.serial("Budgets", () => {
       amount: "180",
       type: "expense",
       description: "Big grocery haul",
+      category: "Food",
     });
 
     await navigateTo(page, "/budgets");

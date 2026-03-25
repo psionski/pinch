@@ -223,7 +223,13 @@ export function CategoryTree({
     stats.filter((s) => s.categoryId !== null).map((s) => [s.categoryId!, s])
   );
 
-  // Start with all parent categories expanded
+  // Expand all parent categories. Keyed on categories so it reinitializes
+  // when the list changes (e.g. after creating a child category).
+  const parentKey = categories
+    .filter((c) => categories.some((ch) => ch.parentId === c.id))
+    .map((c) => c.id)
+    .join(",");
+
   const [expanded, setExpanded] = useState<Set<number>>(() => {
     const ids = new Set<number>();
     for (const cat of categories) {
@@ -233,6 +239,19 @@ export function CategoryTree({
     }
     return ids;
   });
+  const [prevParentKey, setPrevParentKey] = useState(parentKey);
+
+  if (parentKey !== prevParentKey) {
+    setPrevParentKey(parentKey);
+    const ids = new Set<number>();
+    for (const cat of categories) {
+      if (categories.some((c) => c.parentId === cat.id)) {
+        ids.add(cat.id);
+      }
+    }
+    // Merge with existing expanded state (don't collapse manually collapsed parents)
+    setExpanded((prev) => new Set([...prev, ...ids]));
+  }
 
   function handleToggle(id: number): void {
     setExpanded((prev) => {
