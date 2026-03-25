@@ -64,7 +64,6 @@ test("mobile sidebar opens as overlay", async ({ page }) => {
 });
 
 test("mobile menu closes on nav item click", async ({ page }) => {
-  // Known bug: clicking a menu item on mobile doesn't close the menu
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
 
@@ -80,6 +79,6 @@ test("mobile menu closes on nav item click", async ({ page }) => {
   await link.click();
   await page.waitForURL("**/transactions");
 
-  // Sidebar should close after navigation — this currently fails
+  // Sidebar should close after navigation
   await expect(sidebarNav).not.toBeVisible();
 });
