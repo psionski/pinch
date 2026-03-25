@@ -139,17 +139,20 @@ function buildSteps(router: ReturnType<typeof useRouter>): Step[] {
       target: "body",
       placement: "center",
       title: "AI Assistant Integration",
-      content: mcpHintContent(origin),
+      content: <McpHintContent origin={origin} />,
       before: () => navigateAndWait(router, "/"),
     },
   ];
 }
 
-function mcpHintContent(origin: string): React.ReactElement {
+function McpHintContent({ origin }: { origin: string }): React.ReactElement {
+  const [copied, setCopied] = useState(false);
   const mcpUrl = `${origin}/api/mcp`;
 
   function handleCopy(): void {
     void navigator.clipboard.writeText(`Connect to the Pinch MCP at ${mcpUrl}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -168,35 +171,53 @@ function mcpHintContent(origin: string): React.ReactElement {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          background: "rgba(255, 255, 255, 0.06)",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          background: copied ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.06)",
+          border: `1px solid ${copied ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.1)"}`,
           borderRadius: 6,
           padding: "10px 12px",
           cursor: "pointer",
           fontFamily: "var(--font-geist-mono), monospace",
           fontSize: 12,
           lineHeight: 1.4,
-          wordBreak: "break-all",
+          transition: "background 0.2s, border-color 0.2s",
         }}
         title="Click to copy"
       >
         <span>Connect to the Pinch MCP at {mcpUrl}</span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ flexShrink: 0, opacity: 0.5 }}
-        >
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
+        {copied ? (
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#4ade80"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0 }}
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0, opacity: 0.5 }}
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
       </div>
-      <p style={{ marginTop: 8, fontSize: 11, color: "#737373" }}>Click to copy</p>
+      <p style={{ marginTop: 8, fontSize: 11, color: "#737373" }}>
+        {copied ? "Copied!" : "Click to copy"}
+      </p>
     </div>
   );
 }
@@ -248,7 +269,7 @@ export function InteractiveTour({
       textColor: "#fafafa",
       backgroundColor: "#2e2e2e",
       arrowColor: "#2e2e2e",
-      overlayColor: "rgba(0, 0, 0, 0.6)",
+      overlayColor: "rgba(0, 0, 0, 0.75)",
     },
     styles: {
       tooltip: {
