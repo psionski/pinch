@@ -13,12 +13,12 @@ import { hasSampleData } from "@/lib/services/sample-data";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext", "cyrillic"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext", "cyrillic"],
 });
 
 export const metadata: Metadata = {
@@ -37,8 +37,8 @@ export default function RootLayout({
   const sampleData = hasSampleData();
 
   return (
-    <html lang="en" className="dark">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
+      <body className="antialiased">
         <TimezoneInit timezone={timezone} />
         <InteractiveTour initialTutorial={tutorial} />
         <TooltipProvider>
