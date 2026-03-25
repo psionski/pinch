@@ -266,7 +266,11 @@ export function TransactionTable({
           const category = tx.categoryId ? categories.get(tx.categoryId) : null;
 
           return (
-            <TableRow key={tx.id} data-state={selectedIds.has(tx.id) ? "selected" : undefined}>
+            <TableRow
+              key={tx.id}
+              data-testid={`transaction-row-${tx.id}`}
+              data-state={selectedIds.has(tx.id) ? "selected" : undefined}
+            >
               <TableCell>
                 <Checkbox
                   checked={selectedIds.has(tx.id)}

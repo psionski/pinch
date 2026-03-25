@@ -107,7 +107,7 @@ export function AssetFormDialog({
           <div className="space-y-1">
             <Label>Type</Label>
             <Select value={type} onValueChange={setType} disabled={loading}>
-              <SelectTrigger>
+              <SelectTrigger id="asset-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

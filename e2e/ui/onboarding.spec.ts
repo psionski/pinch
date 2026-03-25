@@ -8,59 +8,50 @@ test.describe.serial("Onboarding wizard", () => {
 
   test("settings page shows first-setup UI", async ({ page }) => {
     await page.goto("/settings");
-    // Timezone picker should be visible
-    await expect(page.getByText("Timezone")).toBeVisible();
-    // Continue button (first-time label)
-    await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Timezone" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
-  test("setting timezone reveals cash balance section", async ({ page }) => {
+  test("set timezone, skip remaining steps, finish setup", async ({ page }) => {
     await page.goto("/settings");
 
-    // Open the timezone picker and search for Amsterdam
-    await page.getByRole("button", { name: /timezone/i }).click();
+    // Open the timezone picker popover (button shows auto-detected tz)
+    await page.getByRole("button", { name: /Europe|America|Asia|Select timezone/ }).click();
     await page.getByPlaceholder("Search timezones...").fill("Amsterdam");
     await page.getByText("Europe/Amsterdam").click();
 
-    // Click Continue
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    // Cash balance section should appear
+    // Click Save — saves timezone, reveals cash balance section
+    await page.getByRole("button", { name: "Save" }).first().click();
     await expect(page.getByText("Checking Account Balance")).toBeVisible({ timeout: 5000 });
-  });
 
-  test("skip remaining steps and finish", async ({ page }) => {
-    await page.goto("/settings");
-
-    // Timezone is already set from previous test, so sections should be revealed.
-    // Skip through remaining onboarding sections.
-    // Click Skip buttons until we get to Finish Setup
-    const skipButtons = page.getByRole("button", { name: "Skip" });
-    while (
-      await skipButtons
-        .first()
-        .isVisible({ timeout: 2000 })
-        .catch(() => false)
-    ) {
-      await skipButtons.first().click();
-      // Small wait for next section to reveal
+    // Skip through each onboarding section one by one.
+    // Order: cash → savings → investments → providers → backups → done.
+    // Most sections have "Skip", providers has "Continue" instead.
+    // Click whichever advancement button is available until "Finish Setup" appears.
+    const finishButton = page.getByRole("button", { name: "Finish Setup" });
+    while (!(await finishButton.isVisible({ timeout: 1000 }).catch(() => false))) {
+      const skip = page.getByRole("button", { name: "Skip" }).last();
+      if (await skip.isVisible({ timeout: 500 }).catch(() => false)) {
+        await skip.click();
+      } else {
+        // Providers section only has "Continue"
+        const cont = page.getByRole("button", { name: "Continue" });
+        if (await cont.isVisible({ timeout: 500 }).catch(() => false)) {
+          await cont.click();
+        }
+      }
       await page.waitForTimeout(300);
     }
 
-    // Look for Finish Setup button
-    const finishButton = page.getByRole("button", { name: "Finish Setup" });
-    if (await finishButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await finishButton.click();
-    }
-
-    // Should redirect to dashboard
+    // Last section (backups): click "Finish Setup" to complete and redirect to /
+    await finishButton.click();
     await page.waitForURL("/", { timeout: 10000 });
   });
 
   test("dashboard loads empty after onboarding", async ({ page }) => {
     await page.goto("/");
     // Should NOT have sample data bar
-    await expect(page.getByText("sample data")).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear sample data" })).not.toBeVisible();
     // Should NOT have tutorial overlay
     await expect(page.getByText("Welcome to Pinch!")).not.toBeVisible();
     // Page should load without errors

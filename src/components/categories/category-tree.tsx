@@ -101,7 +101,7 @@ function CategoryRow({
 
   return (
     <>
-      <tr className="hover:bg-muted/50 border-b">
+      <tr className="hover:bg-muted/50 border-b" data-testid={`category-row-${cat.id}`}>
         {/* Name with indent + expand/collapse */}
         <td className="py-2 pr-2" style={{ paddingLeft: `${depth * 24 + 8}px` }}>
           <div className="flex items-center gap-1.5">
@@ -160,7 +160,12 @@ function CategoryRow({
         <td className="px-2 py-2 text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="size-8 p-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0"
+                data-testid={`category-actions-${cat.id}`}
+              >
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>

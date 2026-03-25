@@ -47,7 +47,9 @@ export async function createCategoryViaUI(
     await page.getByRole("option", { name: opts.parent }).click();
   }
   await page.getByRole("button", { name: "Create" }).click();
-  await expect(page.getByText(opts.name)).toBeVisible();
+  // Wait for dialog to close, then verify category appears in table
+  await expect(page.locator("#cat-name")).not.toBeVisible({ timeout: 5000 });
+  await expect(page.locator("tbody").getByText(opts.name)).toBeVisible();
 }
 
 export async function createTransactionViaUI(

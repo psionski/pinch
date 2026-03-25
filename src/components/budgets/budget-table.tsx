@@ -55,7 +55,7 @@ export function BudgetTable({ budgets, onEdit, onDelete }: BudgetTableProps): Re
       </TableHeader>
       <TableBody>
         {budgets.map((item) => (
-          <TableRow key={item.categoryId}>
+          <TableRow key={item.categoryId} data-testid={`budget-row-${item.categoryId}`}>
             <TableCell className="font-medium">{item.categoryName}</TableCell>
             <TableCell>
               <div className="flex items-center gap-2">

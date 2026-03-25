@@ -5,14 +5,13 @@ import {
   Check,
   ChevronDown,
   Download,
-  RotateCcw,
   Plus,
+  RotateCcw,
   HardDrive,
   Wallet,
   PiggyBank,
   TrendingUp,
   Key,
-  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,10 +92,6 @@ export function SettingsClient({
     }
   }, [onboardingStep, timezoneSaved, isFirstSetup, allRevealed, scrollToRevealed]);
 
-  function revealAll(): void {
-    setOnboardingStep("done");
-  }
-
   async function handleSaveTimezone(): Promise<void> {
     setSavingTz(true);
     try {
@@ -120,17 +115,9 @@ export function SettingsClient({
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        {isFirstSetup && !timezoneSaved && (
+        {isFirstSetup && (
           <p className="text-muted-foreground mt-1">
             Welcome to Pinch! Please select your timezone to get started.
-          </p>
-        )}
-        {isFirstSetup && timezoneSaved && !allRevealed && (
-          <p className="text-muted-foreground mt-1">
-            Great! Now let&apos;s set up your starting balances.{" "}
-            <button type="button" className="text-primary underline" onClick={revealAll}>
-              Set up later
-            </button>
           </p>
         )}
       </div>
@@ -147,7 +134,7 @@ export function SettingsClient({
           </div>
           <div className="flex items-center gap-3">
             <Button onClick={() => void handleSaveTimezone()} disabled={savingTz}>
-              {savingTz ? "Saving..." : isFirstSetup && !timezoneSaved ? "Continue" : "Save"}
+              {savingTz ? "Saving..." : "Save"}
             </Button>
           </div>
         </div>
@@ -160,7 +147,7 @@ export function SettingsClient({
           {stepReached(onboardingStep, "cash") && (
             <div ref={onboardingStep === "cash" ? lastRevealedRef : undefined}>
               <CashBalanceSection
-                isOnboarding={!allRevealed}
+                isOnboarding={onboardingStep === "cash"}
                 onContinue={() => setOnboardingStep(nextStep("cash"))}
               />
             </div>
@@ -170,7 +157,7 @@ export function SettingsClient({
           {stepReached(onboardingStep, "savings") && (
             <div ref={onboardingStep === "savings" ? lastRevealedRef : undefined}>
               <SavingsSection
-                isOnboarding={!allRevealed}
+                isOnboarding={onboardingStep === "savings"}
                 onContinue={() => setOnboardingStep(nextStep("savings"))}
               />
             </div>
@@ -180,7 +167,7 @@ export function SettingsClient({
           {stepReached(onboardingStep, "investments") && (
             <div ref={onboardingStep === "investments" ? lastRevealedRef : undefined}>
               <InvestmentsSection
-                isOnboarding={!allRevealed}
+                isOnboarding={onboardingStep === "investments"}
                 onContinue={() => setOnboardingStep(nextStep("investments"))}
               />
             </div>
@@ -190,7 +177,7 @@ export function SettingsClient({
           {stepReached(onboardingStep, "providers") && (
             <div ref={onboardingStep === "providers" ? lastRevealedRef : undefined}>
               <ProvidersSection
-                isOnboarding={!allRevealed}
+                isOnboarding={onboardingStep === "providers"}
                 onContentLoaded={onboardingStep === "providers" ? scrollToRevealed : undefined}
                 onContinue={() => setOnboardingStep(nextStep("providers"))}
               />
@@ -202,7 +189,7 @@ export function SettingsClient({
             <div ref={onboardingStep === "backups" ? lastRevealedRef : undefined}>
               <BackupManager
                 initialBackups={initialBackups}
-                isOnboarding={!allRevealed}
+                isOnboarding={onboardingStep === "backups"}
                 onContinue={() => {
                   setOnboardingStep("done");
                   window.location.href = "/";
@@ -306,8 +293,7 @@ function CashBalanceSection({
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => void handleSave()} disabled={saving || saved}>
-            {saving ? "Saving..." : saved ? "Saved" : isOnboarding ? "Continue" : "Save"}
-            {isOnboarding && !saving && !saved && <ArrowRight className="ml-1.5 size-4" />}
+            {saving ? "Saving..." : saved ? "Saved" : "Save"}
           </Button>
           {isOnboarding && !saved && (
             <Button variant="ghost" size="sm" onClick={onContinue}>
@@ -425,13 +411,13 @@ function SavingsSection({
             size="sm"
             onClick={() => setEntries([...entries, { name: "", balance: "" }])}
           >
-            + Add savings account
+            <Plus className="mr-1.5 size-3.5" />
+            Add savings account
           </Button>
         )}
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => void handleSave()} disabled={saving || saved}>
-            {saving ? "Saving..." : saved ? "Saved" : isOnboarding ? "Continue" : "Save"}
-            {isOnboarding && !saving && !saved && <ArrowRight className="ml-1.5 size-4" />}
+            {saving ? "Saving..." : saved ? "Saved" : "Save"}
           </Button>
           {isOnboarding && !saved && (
             <Button variant="ghost" size="sm" onClick={onContinue}>
@@ -597,13 +583,13 @@ function InvestmentsSection({
               ])
             }
           >
-            + Add investment
+            <Plus className="mr-1.5 size-3.5" />
+            Add investment
           </Button>
         )}
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => void handleSave()} disabled={saving || saved}>
-            {saving ? "Saving..." : saved ? "Saved" : isOnboarding ? "Continue" : "Save"}
-            {isOnboarding && !saving && !saved && <ArrowRight className="ml-1.5 size-4" />}
+            {saving ? "Saving..." : saved ? "Saved" : "Save"}
           </Button>
           {isOnboarding && !saved && (
             <Button variant="ghost" size="sm" onClick={onContinue}>
@@ -712,10 +698,11 @@ function ProvidersSection({
           (25 requests/day).
         </p>
         {isOnboarding && (
-          <Button size="sm" onClick={onContinue}>
-            Continue
-            <ArrowRight className="ml-1.5 size-4" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button size="sm" onClick={onContinue}>
+              Continue
+            </Button>
+          </div>
         )}
       </div>
     </Section>
@@ -793,9 +780,9 @@ function BackupManager({
       description="Backups are created automatically every day. You can also create one manually or restore from a previous backup."
       icon={<HardDrive className="text-muted-foreground size-5" />}
     >
-      <div className="flex justify-end">
+      <div className="flex">
         <Button variant="outline" size="sm" onClick={() => void handleCreate()} disabled={creating}>
-          <Plus className="mr-1.5 size-4" />
+          <Plus className="mr-1.5 size-3.5" />
           {creating ? "Creating..." : "Create Backup"}
         </Button>
       </div>
@@ -828,7 +815,7 @@ function BackupManager({
       )}
 
       {isOnboarding && onContinue && (
-        <div className="flex justify-end">
+        <div className="flex">
           <Button size="sm" onClick={onContinue}>
             Finish Setup
             <Check className="ml-1.5 size-4" />

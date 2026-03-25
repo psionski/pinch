@@ -6,13 +6,12 @@ test.describe.serial("Seed data & interactive tour", () => {
     // KPI cards should have content (seeded data)
     await expect(page.locator('[data-tour="kpi-cards"]')).toBeVisible();
     // Sample data bar should be visible
-    await expect(page.getByText("sample data")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear sample data" })).toBeVisible();
   });
 
   test("sample data bar shows with clear button", async ({ page }) => {
     await page.goto("/");
-    const bar = page.getByText("sample data").locator("..");
-    await expect(bar).toBeVisible();
+    await expect(page.getByText("You're viewing")).toBeVisible();
     await expect(page.getByRole("button", { name: "Clear sample data" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Clear sample data" })).toBeEnabled();
   });
@@ -28,17 +27,17 @@ test.describe.serial("Seed data & interactive tour", () => {
     // Wait for the tour to start
     await expect(page.getByText("Welcome to Pinch!")).toBeVisible({ timeout: 5000 });
 
-    // Click Next through a few steps
-    await page.getByRole("button", { name: "Next" }).click();
+    // Click Next through a few steps (use testid to avoid conflict with Next.js Dev Tools button)
+    await page.getByTestId("button-primary").click();
     // Should show "At a Glance" step (KPI cards)
     await expect(page.getByText("At a Glance")).toBeVisible({ timeout: 5000 });
 
-    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByTestId("button-primary").click();
     // Should show "Spending Charts" step
     await expect(page.getByText("Spending Charts")).toBeVisible({ timeout: 5000 });
 
-    // Skip the rest of the tour
-    await page.getByRole("button", { name: "Skip tour" }).click();
+    // Close the tour via the close button (skip is only on step 1)
+    await page.getByTestId("button-close").click();
 
     // Tour should disappear — the overlay/tooltip should be gone
     await expect(page.getByText("Welcome to Pinch!")).not.toBeVisible({ timeout: 5000 });
@@ -66,6 +65,6 @@ test.describe.serial("Seed data & interactive tour", () => {
     await page.waitForURL("**/settings", { timeout: 15000 });
 
     // Verify we're on the first-setup page (no timezone configured)
-    await expect(page.getByText("Timezone")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Timezone" })).toBeVisible();
   });
 });

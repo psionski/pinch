@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from "fs";
 import { resetDb } from "@/lib/db";
 import { getSettingsService } from "@/lib/api/services";
+import { clearTimezoneCache } from "@/lib/date-ranges";
 import { dbLogger } from "@/lib/logger";
 
 const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
@@ -22,8 +23,9 @@ export function clearSampleData(): void {
     );
   }
 
-  // Close the live connection
+  // Close the live connection and clear cached state
   resetDb();
+  clearTimezoneCache();
 
   // Delete the database file and any WAL/SHM companions
   for (const suffix of ["", "-wal", "-shm"]) {
