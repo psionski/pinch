@@ -158,7 +158,7 @@ function mcpHintContent(origin: string): React.ReactElement {
         Pinch has a built-in MCP server that lets AI assistants manage your finances — create
         transactions, scan receipts, query reports, manage budgets, and more.
       </p>
-      <p style={{ marginBottom: 8, fontSize: 12, color: "#737373" }}>
+      <p style={{ marginBottom: 8, fontSize: 12, color: "#a3a3a3" }}>
         Send this to your AI assistant:
       </p>
       <div
@@ -168,8 +168,8 @@ function mcpHintContent(origin: string): React.ReactElement {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          background: "#f5f5f5",
-          border: "1px solid #e5e5e5",
+          background: "rgba(255, 255, 255, 0.06)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
           borderRadius: 6,
           padding: "10px 12px",
           cursor: "pointer",
@@ -196,7 +196,7 @@ function mcpHintContent(origin: string): React.ReactElement {
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
         </svg>
       </div>
-      <p style={{ marginTop: 8, fontSize: 11, color: "#a3a3a3" }}>Click to copy</p>
+      <p style={{ marginTop: 8, fontSize: 11, color: "#737373" }}>Click to copy</p>
     </div>
   );
 }
@@ -244,19 +244,19 @@ export function InteractiveTour({
     steps,
     scrollToFirstStep: true,
     options: {
-      primaryColor: "#171717",
-      textColor: "#171717",
-      backgroundColor: "#ffffff",
-      arrowColor: "#ffffff",
-      overlayColor: "rgba(0, 0, 0, 0.5)",
+      primaryColor: "#e8e8e8",
+      textColor: "#fafafa",
+      backgroundColor: "#2e2e2e",
+      arrowColor: "#2e2e2e",
+      overlayColor: "rgba(0, 0, 0, 0.6)",
     },
     styles: {
       tooltip: {
         borderRadius: 12,
         maxWidth: 420,
         fontSize: 14,
-        boxShadow: "0 10px 40px rgba(0, 0, 0, 0.15), 0 2px 10px rgba(0, 0, 0, 0.1)",
-        border: "1px solid rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 10px 40px rgba(0, 0, 0, 0.4), 0 2px 10px rgba(0, 0, 0, 0.3)",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
         padding: 20,
       },
       tooltipTitle: {
@@ -271,13 +271,14 @@ export function InteractiveTour({
         borderRadius: 6,
         fontSize: 13,
         padding: "8px 16px",
+        color: "#1a1a1a",
       },
       buttonBack: {
-        color: "#737373",
+        color: "#a3a3a3",
         fontSize: 13,
       },
       buttonSkip: {
-        color: "#737373",
+        color: "#a3a3a3",
         fontSize: 13,
       },
     },
