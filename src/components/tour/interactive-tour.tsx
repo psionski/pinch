@@ -254,6 +254,7 @@ export function InteractiveTour({
   const handleTourEnd = useCallback(() => {
     setRun(false);
     void setTutorialComplete();
+    window.dispatchEvent(new CustomEvent("tour-complete"));
     router.push("/");
   }, [router]);
 

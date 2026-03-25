@@ -45,7 +45,7 @@ export default function RootLayout({
           <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
-              <SampleDataBar show={sampleData} />
+              <SampleDataBar show={sampleData} initiallyHidden={tutorial} />
               <header className="flex h-14 items-center gap-2 border-b px-4">
                 <SidebarTrigger />
               </header>

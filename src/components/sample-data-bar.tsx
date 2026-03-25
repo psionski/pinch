@@ -1,14 +1,28 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
-export function SampleDataBar({ show }: { show: boolean }): React.ReactNode {
+export function SampleDataBar({
+  show,
+  initiallyHidden = false,
+}: {
+  show: boolean;
+  initiallyHidden?: boolean;
+}): React.ReactNode {
   const [isPending, startTransition] = useTransition();
+  const [hidden, setHidden] = useState(initiallyHidden);
   const router = useRouter();
 
-  if (!show) return null;
+  useEffect(() => {
+    if (!initiallyHidden) return;
+    const reveal = (): void => setHidden(false);
+    window.addEventListener("tour-complete", reveal);
+    return () => window.removeEventListener("tour-complete", reveal);
+  }, [initiallyHidden]);
+
+  if (!show || hidden) return null;
 
   function handleClear(): void {
     const confirmed = window.confirm(
@@ -25,7 +39,7 @@ export function SampleDataBar({ show }: { show: boolean }): React.ReactNode {
   }
 
   return (
-    <div className="bg-muted border-b px-4 py-2 text-center sticky top-0 z-10 w-full">
+    <div className="bg-muted sticky top-0 z-10 w-full border-b px-4 py-2 text-center">
       <span className="text-muted-foreground text-sm">
         You&apos;re viewing <strong className="text-foreground">sample data</strong>. Clear it to
         start tracking your own finances.
