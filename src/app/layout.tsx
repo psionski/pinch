@@ -41,11 +41,11 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TimezoneInit timezone={timezone} />
         <InteractiveTour initialTutorial={tutorial} />
-        <SampleDataBar show={sampleData} />
         <TooltipProvider>
           <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
+              <SampleDataBar show={sampleData} />
               <header className="flex h-14 items-center gap-2 border-b px-4">
                 <SidebarTrigger />
               </header>

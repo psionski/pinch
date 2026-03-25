@@ -25,7 +25,7 @@ export function SampleDataBar({ show }: { show: boolean }): React.ReactNode {
   }
 
   return (
-    <div className="bg-muted/80 border-b px-4 py-2 text-center">
+    <div className="bg-muted border-b px-4 py-2 text-center sticky top-0 z-10 w-full">
       <span className="text-muted-foreground text-sm">
         You&apos;re viewing <strong className="text-foreground">sample data</strong>. Clear it to
         start tracking your own finances.

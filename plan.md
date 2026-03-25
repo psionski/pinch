@@ -688,7 +688,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 
 - [ ] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
 - [ ] Mobile-responsive audit and fixes
-   - e.g. on mobile, navingating from the sidebar menu doesn't close the sidebar
+   - transactions table is too wide
    - better positioning for the menu button on mobile
 - [ ] CSV export for any filtered view
 - [ ] Error boundaries and loading states across all pages
