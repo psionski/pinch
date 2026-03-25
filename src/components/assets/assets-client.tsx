@@ -270,7 +270,7 @@ export function AssetsClient({
                         {TYPE_LABELS[asset.type] ?? asset.type}
                       </Badge>
                     </div>
-                    <Link href={`/assets/${asset.id}`}>
+                    <Link href={`/assets/${asset.id}`} data-testid={`asset-link-${asset.id}`}>
                       <Button variant="ghost" size="icon" className="size-7">
                         <ArrowRight className="size-4" />
                       </Button>

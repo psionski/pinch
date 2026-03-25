@@ -194,7 +194,7 @@ export function TransactionFormDialog({
           <div className="space-y-1.5">
             <Label>Category</Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="tx-category" className="w-full">
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>

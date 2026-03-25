@@ -1,12 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { RestoreBackupSchema } from "@/lib/validators/backups";
 import { runBackup, listBackups, restoreBackup } from "@/lib/services/backup";
+import { ok } from "@/lib/mcp/response";
 
 const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
 
 export function registerBackupTools(server: McpServer): void {
   server.registerTool(

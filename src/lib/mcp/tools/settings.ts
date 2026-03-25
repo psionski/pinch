@@ -2,10 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SetTimezoneSchema } from "@/lib/validators/settings";
 import { getSettingsService } from "@/lib/api/services";
 import { setUserTimezone } from "@/lib/date-ranges";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
+import { ok } from "@/lib/mcp/response";
 
 export function registerSettingsTools(server: McpServer): void {
   server.registerTool(

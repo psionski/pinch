@@ -73,7 +73,7 @@ export function RecurringTable({
           const category = item.categoryId ? categories.get(item.categoryId) : null;
 
           return (
-            <TableRow key={item.id}>
+            <TableRow key={item.id} data-testid={`recurring-row-${item.id}`}>
               <TableCell>
                 <div className="font-medium">{item.description}</div>
                 {item.merchant && (
@@ -108,7 +108,11 @@ export function RecurringTable({
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-xs">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      data-testid={`recurring-actions-${item.id}`}
+                    >
                       <MoreHorizontal className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>

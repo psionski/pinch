@@ -126,6 +126,12 @@ src/test/
 │   └── mcp/                      # MCP JSON-RPC protocol tests
 e2e/                              # E2E tests (separate from Vitest)
 ├── mcp/                          # Manual MCP test prompts
+├── ui/                           # Playwright browser E2E tests
+│   ├── prepare-db.ts             # Kill stale server, clean DB, seed
+│   ├── helpers.ts                # Reusable UI action helpers
+│   ├── seed-and-tour.spec.ts     # Phase 1: seeded DB — tutorial + sample data clear
+│   ├── onboarding.spec.ts        # Phase 2: fresh DB — settings wizard
+│   └── *.spec.ts                 # Phase 3: configured DB — CRUD tests
 ```
 
 ### Conventions
@@ -148,6 +154,38 @@ You can run `npm run dev` to start the dev server, then use the **Pinch MCP tool
 - Use Pinch MCP tools to interact with the app (create data, query reports, verify behavior)
 - Add temporary logging (`financialLogger.debug`, etc.) to trace issues — read the server output to see logs. It refreshes automatically when in `dev` mode.
 - Clean up debug logging before committing - but only if you think the debug log message is unlikely to be needed again.
+
+### Playwright E2E Tests
+
+Browser-based E2E tests live in `e2e/ui/`. Run with `npm run test:e2e`.
+
+**Three-phase pipeline** (Playwright projects with dependency ordering):
+1. `seed-and-tour` — seeded DB: tests tutorial walkthrough, then clears sample data
+2. `onboarding` — fresh DB: tests settings wizard (timezone, skip through sections, finish)
+3. `main` — configured DB: CRUD tests for transactions, categories, budgets, recurring, assets, reports, navigation
+
+**Infrastructure:**
+- `e2e/ui/prepare-db.ts` runs before the server: kills port 4001, removes stale `.next/dev/lock`, deletes old test DB, seeds fresh data.
+- Server starts on port 4001 with `DATABASE_URL=./data/test-e2e.db` (isolated from production data).
+- DB persists after tests for debugging. Cleaned at the start of the next run.
+
+**Selectors — prefer in this order:**
+1. `id` attributes on form fields (`#tx-amount`, `#budget-category`, etc.)
+2. `data-testid` attributes for rows and action buttons (`data-testid="budget-row-{id}"`, `data-testid="category-actions-{id}"`)
+3. `aria-label` for icon buttons (`aria-label="Edit transaction"`)
+4. `data-tour` attributes for page sections
+5. `getByRole` / `getByText` as fallback
+
+**shadcn/Radix UI quirks:**
+- **Checkbox:** Radix renders `<button role="checkbox">`. Use `.click()`, not `.check()` — Playwright's `.check()` expects native `checked` attribute changes but Radix uses `data-state`.
+- **Select inside Dialog:** Options render in a portal outside the dialog. Use unscoped `page.locator("[role='option']").filter({ hasText: "..." })` to find them, not dialog-scoped locators.
+- **Select dropdown empty:** Usually means missing test data (e.g. no categories created), not a Radix interaction issue. Check prerequisites first.
+- **`data-testid` attributes:** Add them to components to make tests stable. They're inert, ship in production, and cost nothing. No `isDev` checks needed.
+
+**Test data dependencies:**
+- Tests within a `describe.serial` block share DB state. Earlier tests create data for later ones.
+- Specs in the `main` project run alphabetically. If spec B needs data from spec A, either create it as a precondition in spec B, or ensure A sorts before B.
+- Use unique names across specs to avoid conflicts (e.g. budgets creates "Food", transactions creates "Groceries").
 
 ## Style & Conventions
 

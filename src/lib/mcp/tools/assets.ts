@@ -17,14 +17,7 @@ import {
 } from "@/lib/api/services";
 import { getDb } from "@/lib/db";
 import { triggerSymbolBackfill } from "@/lib/services/symbol-backfill";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
-
-function notFound(msg: string): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
-}
+import { ok, err } from "@/lib/mcp/response";
 
 export function registerAssetTools(server: McpServer): void {
   server.registerTool(
@@ -66,7 +59,7 @@ export function registerAssetTools(server: McpServer): void {
     },
     (input) => {
       const asset = getAssetService().getById(input.id);
-      if (!asset) return notFound(`Asset ${input.id} not found`);
+      if (!asset) return err(`Asset ${input.id} not found`);
       return ok(asset);
     }
   );
@@ -82,7 +75,7 @@ export function registerAssetTools(server: McpServer): void {
     (input) => {
       const { id, ...rest } = input;
       const asset = getAssetService().update(id, rest);
-      if (!asset) return notFound(`Asset ${id} not found`);
+      if (!asset) return err(`Asset ${id} not found`);
       if (rest.symbolMap) {
         triggerSymbolBackfill(getDb(), getFinancialDataService(), asset);
       }
@@ -100,7 +93,7 @@ export function registerAssetTools(server: McpServer): void {
     },
     (input) => {
       const deleted = getAssetService().delete(input.id);
-      if (!deleted) return notFound(`Asset ${input.id} not found`);
+      if (!deleted) return err(`Asset ${input.id} not found`);
       return ok({ success: true });
     }
   );
@@ -119,9 +112,9 @@ export function registerAssetTools(server: McpServer): void {
       const { id, ...rest } = input;
       try {
         return ok(getAssetLotService().buy(id, rest));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Buy failed";
-        return notFound(msg);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Buy failed";
+        return err(msg);
       }
     }
   );
@@ -139,9 +132,9 @@ export function registerAssetTools(server: McpServer): void {
       const { id, ...rest } = input;
       try {
         return ok(getAssetLotService().sell(id, rest));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Sell failed";
-        return notFound(msg);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Sell failed";
+        return err(msg);
       }
     }
   );
@@ -159,9 +152,9 @@ export function registerAssetTools(server: McpServer): void {
       const { id, ...rest } = input;
       try {
         return ok(getAssetPriceService().record(id, rest));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Record failed";
-        return notFound(msg);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Record failed";
+        return err(msg);
       }
     }
   );
@@ -190,9 +183,9 @@ export function registerAssetTools(server: McpServer): void {
     (input) => {
       try {
         return ok(getAssetLotService().listLots(input.id));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "List lots failed";
-        return notFound(msg);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "List lots failed";
+        return err(msg);
       }
     }
   );

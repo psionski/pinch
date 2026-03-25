@@ -155,11 +155,23 @@ export function BudgetsClient({
 
       {/* Month navigator */}
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon-sm" onClick={() => navigateMonth(-1)}>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => navigateMonth(-1)}
+          data-testid="budget-prev-month"
+        >
           <ChevronLeft className="size-4" />
         </Button>
-        <span className="text-lg font-semibold">{formatMonth(month)}</span>
-        <Button variant="outline" size="icon-sm" onClick={() => navigateMonth(1)}>
+        <span className="text-lg font-semibold" data-testid="budget-month-label">
+          {formatMonth(month)}
+        </span>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => navigateMonth(1)}
+          data-testid="budget-next-month"
+        >
           <ChevronRight className="size-4" />
         </Button>
         {inheritedFrom !== null && (

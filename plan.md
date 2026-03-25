@@ -688,13 +688,15 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 
 - [ ] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
 - [ ] Mobile-responsive audit and fixes
+   - e.g. on mobile, navingating from the sidebar menu doesn't close the sidebar
+   - better positioning for the menu button on mobile
 - [ ] CSV export for any filtered view
 - [ ] Error boundaries and loading states across all pages
 - [ ] Symbol search - limit by type, stream results
 - [ ] Add more financial data providers - ExchangeRate-API, Twelve Data, Finnhub, CoinMarketCap
-- [ ] E2E tests (Playwright — browser UI flows, async server component rendering)
+- [x] E2E tests (Playwright — browser UI flows, async server component rendering)
 - [ ] Performance: check query efficiency, add missing indices if needed
-- [ ] Floating "Clear sample data" bar (shows only when populated with seed/sample data) + MCP tool to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting (probably best by dropping the entire DB - maybe check backup.ts for potentially related code).
+- [x] Floating "Clear sample data" bar (shows only when populated with seed/sample data) + MCP tool to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting (probably best by dropping the entire DB - maybe check backup.ts for potentially related code).
 - [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
 
 **Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
@@ -738,7 +740,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 - [ ] **Asset creation: auto-fill currency** — when a symbol search result is selected, pre-fill the asset's currency field from the result's base currency instead of defaulting to EUR
 - [ ] **Buy/sell dialog: show native + base currency** — display both the asset's native currency amount and the EUR equivalent side-by-side
 - [ ] **Reports: separate FX vs asset P&L** — in asset performance reports, break down total P&L into asset price change and FX gain/loss components
-- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from `price-resolver.ts` into a user setting, wire it through portfolio and reporting services
+- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from throughout the application into a user setting. After we're done, we shouldn't have "EUR" or "toEuros" and similar anywhere in the code, maybe except for sample data (seed script) and tests
 - [ ] **Currency exposure chart** — add a dashboard widget showing portfolio allocation by currency with current FX rates
 
 **Done when:** A user can add a USD-denominated asset (e.g. SPX) and clearly see what currency it's in at every step — search, creation, transactions, and reports. FX effects are visible separately from asset performance.

@@ -8,6 +8,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { getSettingsService } from "@/lib/api/services";
 import { TimezoneInit } from "@/components/timezone-init";
 import { InteractiveTour } from "@/components/tour/interactive-tour";
+import { SampleDataBar } from "@/components/sample-data-bar";
+import { hasSampleData } from "@/lib/services/sample-data";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,12 +34,14 @@ export default function RootLayout({
   const settingsService = getSettingsService();
   const timezone = settingsService.getTimezone() ?? "UTC";
   const tutorial = settingsService.get("tutorial") === "true";
+  const sampleData = hasSampleData();
 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TimezoneInit timezone={timezone} />
         <InteractiveTour initialTutorial={tutorial} />
+        <SampleDataBar show={sampleData} />
         <TooltipProvider>
           <SidebarProvider>
             <AppSidebar />

@@ -3,14 +3,7 @@ import { GetPriceSchema, ConvertCurrencySchema, SetApiKeySchema } from "@/lib/va
 import { z } from "zod";
 import { getFinancialDataService, getSettingsService } from "@/lib/api/services";
 import { getProviderStatuses, getUnconfiguredProviders } from "@/lib/providers/registry";
-
-function ok(data: unknown): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
-}
-
-function notFound(msg: string): { content: [{ type: "text"; text: string }] } {
-  return { content: [{ type: "text", text: JSON.stringify({ error: msg }) }] };
-}
+import { ok, err } from "@/lib/mcp/response";
 
 function unconfiguredProviderHint(): string | null {
   const missing = getUnconfiguredProviders(getSettingsService());
@@ -36,7 +29,7 @@ export function registerFinancialTools(server: McpServer): void {
         input.symbolMap,
         input.date
       );
-      if (!result) return notFound(`No exchange rate available for ${input.from}→${input.to}`);
+      if (!result) return err(`No exchange rate available for ${input.from}→${input.to}`);
       return ok(result);
     }
   );
@@ -58,7 +51,7 @@ export function registerFinancialTools(server: McpServer): void {
         const symbols = Object.values(input.symbolMap).filter(Boolean).join(", ");
         const msg = `No price available for ${symbols}/${input.currency}`;
         const hint = unconfiguredProviderHint();
-        return notFound(hint ? `${msg}. ${hint}` : msg);
+        return err(hint ? `${msg}. ${hint}` : msg);
       }
       return ok(result);
     }
@@ -96,7 +89,7 @@ export function registerFinancialTools(server: McpServer): void {
       if (results.length === 0) {
         const msg = `No symbols found for "${input.query}"`;
         const hint = unconfiguredProviderHint();
-        return notFound(hint ? `${msg}. ${hint}` : msg);
+        return err(hint ? `${msg}. ${hint}` : msg);
       }
       return ok(results);
     }
