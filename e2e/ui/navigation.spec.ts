@@ -63,7 +63,7 @@ test("mobile sidebar opens as overlay", async ({ page }) => {
   await expect(sidebarNav).toBeVisible();
 });
 
-test.fail("mobile menu closes on nav item click", async ({ page }) => {
+test("mobile menu closes on nav item click", async ({ page }) => {
   // Known bug: clicking a menu item on mobile doesn't close the menu
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
