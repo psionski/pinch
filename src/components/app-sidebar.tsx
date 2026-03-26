@@ -47,20 +47,20 @@ const navGroups: NavGroup[] = [
     label: "Track",
     items: [
       { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/assets", label: "Assets", icon: TrendingUp },
       { href: "/recurring", label: "Recurring", icon: Repeat },
     ],
   },
   {
     label: "Plan",
     items: [
-      { href: "/budgets", label: "Budgets", icon: Wallet },
       { href: "/categories", label: "Categories", icon: Tags },
+      { href: "/budgets", label: "Budgets", icon: Wallet },
     ],
   },
   {
-    label: "Wealth",
+    label: "Reports",
     items: [
-      { href: "/assets", label: "Assets", icon: TrendingUp },
       { href: "/reports/cash-flow", label: "Cash Flow", icon: DollarSign },
       { href: "/reports/portfolio", label: "Portfolio", icon: PieChart },
     ],
