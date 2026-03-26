@@ -137,7 +137,7 @@ export function CategoriesClient({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Categories</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
         <Button onClick={() => setShowCreateForm(true)} size="sm">
           <Plus className="size-4" />
           Add Category

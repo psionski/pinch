@@ -686,7 +686,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 ### Sprint 22: Polish & Hardening
 **Goal:** Production readiness.
 
-- [ ] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
+- [x] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
 - [ ] Mobile-responsive audit and fixes
    - transactions table is too wide
    - better positioning for the menu button on mobile

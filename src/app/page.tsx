@@ -86,14 +86,16 @@ export default function DashboardPage(): React.ReactElement {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
 
       {/* At a Glance — universal KPIs */}
       <KpiCards summary={summary} budgetStatus={budgetStatus} />
 
       {/* Spending — where is my money going? */}
       <section data-tour="spending-section" className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Spending</h2>
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+          Spending
+        </h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <SpendingTrendChart data={trends} />
           <CategoryDonutChart data={breakdown} monthLabel={monthLabel} />
@@ -102,7 +104,9 @@ export default function DashboardPage(): React.ReactElement {
 
       {/* Planning — am I on track? */}
       <section className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Planning</h2>
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+          Planning
+        </h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <BudgetAlerts budgetStatus={budgetStatus} />
           <UpcomingRecurring items={upcomingRecurring} />
@@ -111,7 +115,9 @@ export default function DashboardPage(): React.ReactElement {
 
       {/* Wealth — portfolio health */}
       <section className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Wealth</h2>
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+          Wealth
+        </h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-2">
             <NetWorthCard portfolio={portfolio} />
@@ -124,7 +130,9 @@ export default function DashboardPage(): React.ReactElement {
 
       {/* Activity — recent transactions */}
       <section className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Activity</h2>
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+          Activity
+        </h2>
         <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
       </section>
     </div>

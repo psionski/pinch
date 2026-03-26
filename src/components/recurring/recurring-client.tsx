@@ -107,7 +107,7 @@ export function RecurringClient({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Recurring Transactions</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Recurring Transactions</h1>
         <Button size="sm" onClick={() => setShowForm(true)}>
           <Plus className="size-4" />
           Add Recurring

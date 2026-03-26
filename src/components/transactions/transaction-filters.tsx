@@ -69,7 +69,10 @@ export function TransactionFilterBar({
           <Input
             placeholder="Search transactions..."
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              onFiltersChange({ ...filters, search: e.target.value });
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSearchSubmit();
             }}

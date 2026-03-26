@@ -157,12 +157,12 @@ export function TransactionTable({
     if (isEditing) {
       if (field === "categoryId") {
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1">
             <Select
               value={inlineEdit.value}
               onValueChange={(v) => setInlineEdit({ ...inlineEdit, value: v })}
             >
-              <SelectTrigger className="h-7 w-[130px] text-xs">
+              <SelectTrigger className="h-7 min-w-0 flex-1 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -186,9 +186,9 @@ export function TransactionTable({
       }
 
       return (
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           <Input
-            className="h-7 w-[120px] text-xs"
+            className="h-7 min-w-0 flex-1 text-xs"
             type={field === "amount" ? "number" : "text"}
             step={field === "amount" ? "0.01" : undefined}
             value={inlineEdit.value}
@@ -278,7 +278,14 @@ export function TransactionTable({
                   aria-label={`Select transaction ${tx.id}`}
                 />
               </TableCell>
-              <TableCell className="text-sm tabular-nums">{formatDate(tx.date)}</TableCell>
+              <TableCell className="text-sm tabular-nums">
+                <span
+                  className="hover:bg-muted -mx-1 cursor-pointer rounded px-1"
+                  onClick={() => onEdit(tx)}
+                >
+                  {formatDate(tx.date)}
+                </span>
+              </TableCell>
               <TableCell className="max-w-[250px]">
                 <div className="flex items-center gap-1.5">
                   {renderCell(tx, "description", tx.description)}
@@ -306,7 +313,6 @@ export function TransactionTable({
               <TableCell>{renderCell(tx, "categoryId", category ? category.name : "—")}</TableCell>
               <TableCell className="text-right text-sm tabular-nums">
                 <span className={tx.type === "income" ? "text-emerald-600" : "text-foreground"}>
-                  {tx.type === "income" ? "+" : "-"}
                   {renderCell(tx, "amount", formatCurrency(tx.amount))}
                 </span>
               </TableCell>

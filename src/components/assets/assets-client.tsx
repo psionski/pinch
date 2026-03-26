@@ -230,7 +230,7 @@ export function AssetsClient({
   return (
     <div className={`space-y-6 ${loading ? "pointer-events-none opacity-60" : ""}`}>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Assets</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Assets</h1>
         <Button onClick={() => setShowCreate(true)}>
           <Plus className="mr-2 size-4" />
           Add Asset
