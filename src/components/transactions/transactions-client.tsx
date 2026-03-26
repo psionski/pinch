@@ -97,6 +97,7 @@ export function TransactionsClient({
   const [editingTx, setEditingTx] = useState<TransactionResponse | null>(null);
   const [showRecategorize, setShowRecategorize] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingTx, setDeletingTx] = useState<TransactionResponse | null>(null);
   const [viewingReceiptId, setViewingReceiptId] = useState<number | null>(null);
   const [showUploadReceipt, setShowUploadReceipt] = useState(false);
 
@@ -196,6 +197,18 @@ export function TransactionsClient({
     }
   }
 
+  async function handleSingleDelete(): Promise<void> {
+    if (!deletingTx) return;
+    setLoading(true);
+    try {
+      if (await bulkDelete([deletingTx.id])) {
+        setDeletingTx(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleRecategorize(categoryId: number): Promise<void> {
     if (selectedIds.size === 0) return;
     if (await recategorize(Array.from(selectedIds), categoryId)) {
@@ -270,6 +283,7 @@ export function TransactionsClient({
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
           onEdit={setEditingTx}
+          onDelete={setDeletingTx}
           onReceiptClick={setViewingReceiptId}
         />
       </div>
@@ -326,6 +340,22 @@ export function TransactionsClient({
           </>
         }
         onConfirm={() => void handleBulkDelete()}
+        loading={loading}
+      />
+
+      {/* Single delete confirmation dialog */}
+      <ConfirmDeleteDialog
+        open={!!deletingTx}
+        onOpenChange={(open) => {
+          if (!open) setDeletingTx(null);
+        }}
+        title="Delete Transaction"
+        description={
+          <>
+            Are you sure you want to delete <strong>{deletingTx?.description}</strong>?
+          </>
+        }
+        onConfirm={() => void handleSingleDelete()}
         loading={loading}
       />
 

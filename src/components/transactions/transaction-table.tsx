@@ -8,6 +8,7 @@ import {
   Repeat,
   MoreHorizontal,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   Table,
@@ -42,6 +43,7 @@ interface TransactionTableProps {
   sortOrder: SortOrder;
   onSortChange: (field: SortField) => void;
   onEdit: (tx: TransactionResponse) => void;
+  onDelete: (tx: TransactionResponse) => void;
   onReceiptClick?: (receiptId: number) => void;
 }
 
@@ -73,6 +75,7 @@ export function TransactionTable({
   sortOrder,
   onSortChange,
   onEdit,
+  onDelete,
   onReceiptClick,
 }: TransactionTableProps): React.ReactElement {
   const allSelected = transactions.length > 0 && selectedIds.size === transactions.length;
@@ -191,6 +194,13 @@ export function TransactionTable({
                     <DropdownMenuItem onClick={() => onEdit(tx)}>
                       <Pencil className="size-4" />
                       Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => onDelete(tx)}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
