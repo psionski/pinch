@@ -82,7 +82,7 @@ export function TransactionTable({
   const someSelected = selectedIds.size > 0 && !allSelected;
 
   function toggleAll(): void {
-    if (allSelected) {
+    if (someSelected || allSelected) {
       onSelectionChange(new Set());
     } else {
       onSelectionChange(new Set(transactions.map((t) => t.id)));
