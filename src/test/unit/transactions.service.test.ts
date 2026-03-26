@@ -267,6 +267,88 @@ describe("list — FTS search", () => {
     const result = service.list(listInput({ search: "nomatch12345" }));
     expect(result.total).toBe(0);
   });
+
+  it("finds transactions by prefix (partial word)", () => {
+    const result = service.list(listInput({ search: "cof" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].description).toBe("Coffee and cake");
+  });
+
+  it("finds transactions by quoted exact phrase", () => {
+    const result = service.list(listInput({ search: '"weekly shop"' }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
+  });
+
+  it("excludes transactions with negation", () => {
+    const result = service.list(listInput({ search: "subscription -Netflix" }));
+    expect(result.total).toBe(0); // matches subscription but excludes Netflix
+  });
+
+  it("handles multiple words with prefix matching", () => {
+    const result = service.list(listInput({ search: "week shop" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
+  });
+
+  it("returns empty for search with only special characters", () => {
+    const result = service.list(listInput({ search: "!@#$%" }));
+    expect(result.total).toBe(0);
+  });
+});
+
+// ─── buildFtsQuery unit tests ────────────────────────────────────────────────
+
+describe("buildFtsQuery", () => {
+  // Importing directly for unit testing the parser
+  let buildFtsQuery: typeof import("@/lib/services/transactions").buildFtsQuery;
+
+  beforeEach(async () => {
+    buildFtsQuery = (await import("@/lib/services/transactions")).buildFtsQuery;
+  });
+
+  it("adds prefix wildcard to bare words", () => {
+    expect(buildFtsQuery("coffee")).toBe("coffee*");
+  });
+
+  it("joins multiple words with AND + prefix wildcards", () => {
+    expect(buildFtsQuery("coffee shop")).toBe("coffee* AND shop*");
+  });
+
+  it("preserves quoted phrases", () => {
+    expect(buildFtsQuery('"coffee shop"')).toBe('"coffee shop"');
+  });
+
+  it("handles negation with -", () => {
+    expect(buildFtsQuery("coffee -starbucks")).toBe("coffee* NOT starbucks*");
+  });
+
+  it("handles multiple negations with OR grouping", () => {
+    expect(buildFtsQuery("coffee -starbucks -mcdonalds")).toBe(
+      "coffee* NOT (starbucks* OR mcdonalds*)"
+    );
+  });
+
+  it("preserves explicit wildcards", () => {
+    expect(buildFtsQuery("cof*")).toBe("cof*");
+  });
+
+  it("returns empty string for only negations (no positive terms)", () => {
+    expect(buildFtsQuery("-starbucks")).toBe("");
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(buildFtsQuery("")).toBe("");
+  });
+
+  it("strips special characters", () => {
+    expect(buildFtsQuery("café")).toBe("café*");
+    expect(buildFtsQuery("test!@#")).toBe("test*");
+  });
+
+  it("mixes quoted phrases with prefix terms", () => {
+    expect(buildFtsQuery('"exact phrase" other')).toBe('"exact phrase" AND other*');
+  });
 });
 
 // ─── list — tag filtering ─────────────────────────────────────────────────────

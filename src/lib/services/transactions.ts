@@ -28,6 +28,53 @@ import type {
 import type { PaginatedResponse } from "@/lib/validators/common";
 import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
+// ─── FTS5 Query Builder ──────────────────────────────────────────────────────
+
+/**
+ * Build a safe FTS5 query from user input with support for:
+ * - Prefix matching by default: "cof" → "cof*" matches "coffee"
+ * - Quoted phrases for exact match: "coffee shop" → exact phrase
+ * - Negation: -starbucks excludes matching rows
+ * - Explicit wildcards preserved: "cof*" stays as-is
+ *
+ * Returns empty string if input produces no valid terms.
+ */
+export function buildFtsQuery(input: string): string {
+  const positive: string[] = [];
+  const negative: string[] = [];
+  const regex = /"([^"]*)"|(\S+)/g;
+  let match;
+
+  while ((match = regex.exec(input)) !== null) {
+    if (match[1] !== undefined) {
+      // Quoted phrase — exact match, escape internal double quotes
+      const phrase = match[1].trim();
+      if (phrase) positive.push(`"${phrase.replace(/"/g, '""')}"`);
+    } else {
+      let word = match[2]!;
+      const negated = word.startsWith("-") && word.length > 1;
+      if (negated) word = word.slice(1);
+
+      // Keep letters, digits, *, _ — strip everything else
+      const clean = word.replace(/[^\p{L}\p{N}*_]/gu, "");
+      if (!clean) continue;
+
+      const term = clean.endsWith("*") ? clean : `${clean}*`;
+      (negated ? negative : positive).push(term);
+    }
+  }
+
+  if (positive.length === 0) return "";
+
+  let query = positive.join(" AND ");
+  if (negative.length === 1) {
+    query += ` NOT ${negative[0]}`;
+  } else if (negative.length > 1) {
+    query += ` NOT (${negative.join(" OR ")})`;
+  }
+  return query;
+}
+
 type Db = BetterSQLite3Database<typeof schema>;
 
 function parseTags(raw: string | null): string[] | null {
@@ -120,11 +167,15 @@ export class TransactionService {
       filters.push(eq(transactions.recurringId, input.recurringId));
 
     if (input.search !== undefined) {
-      // Wrap in double quotes to force FTS5 phrase matching and neutralize special syntax
-      const sanitized = `"${input.search.replace(/"/g, '""')}"`;
-      filters.push(
-        sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${sanitized})`
-      );
+      const ftsQuery = buildFtsQuery(input.search);
+      if (ftsQuery) {
+        filters.push(
+          sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${ftsQuery})`
+        );
+      } else {
+        // Input was empty or produced no valid terms — match nothing
+        filters.push(sql`0`);
+      }
     }
 
     if (input.tags !== undefined && input.tags.length > 0) {
