@@ -189,7 +189,7 @@ export function TransactionTable({
         <div className="flex min-w-0 items-center gap-1">
           <Input
             className="h-7 min-w-0 flex-1 text-xs"
-            type={field === "amount" ? "number" : "text"}
+            type={field === "amount" ? "number" : field === "date" ? "date" : "text"}
             step={field === "amount" ? "0.01" : undefined}
             value={inlineEdit.value}
             onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
@@ -227,7 +227,9 @@ export function TransactionTable({
                 ? tx.categoryId
                   ? String(tx.categoryId)
                   : "none"
-                : String(displayValue)
+                : field === "date"
+                  ? tx.date
+                  : String(displayValue)
           )
         }
       >
@@ -279,12 +281,7 @@ export function TransactionTable({
                 />
               </TableCell>
               <TableCell className="text-sm tabular-nums">
-                <span
-                  className="hover:bg-muted -mx-1 cursor-pointer rounded px-1"
-                  onClick={() => onEdit(tx)}
-                >
-                  {formatDate(tx.date)}
-                </span>
+                {renderCell(tx, "date", formatDate(tx.date))}
               </TableCell>
               <TableCell className="max-w-[250px]">
                 <div className="flex items-center gap-1.5">
