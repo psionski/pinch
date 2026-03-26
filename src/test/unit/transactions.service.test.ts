@@ -285,10 +285,15 @@ describe("list — FTS search", () => {
     expect(result.total).toBe(0); // matches subscription but excludes Netflix
   });
 
-  it("handles multiple words with prefix matching", () => {
-    const result = service.list(listInput({ search: "week shop" }));
+  it("prefix-matches only the last word (word being typed)", () => {
+    // "weekly shop" — "weekly" exact, "shop" prefix → matches "Supermarket weekly shop"
+    const result = service.list(listInput({ search: "weekly shop" }));
     expect(result.total).toBe(1);
     expect(result.data[0].merchant).toBe("ALDI");
+
+    // "week shop" — "week" exact (not a full token in any description), "shop" prefix
+    const result2 = service.list(listInput({ search: "week shop" }));
+    expect(result2.total).toBe(0); // "week" doesn't match "weekly" (not a prefix, it's exact)
   });
 
   it("returns empty for search with only special characters", () => {
@@ -307,12 +312,16 @@ describe("buildFtsQuery", () => {
     buildFtsQuery = (await import("@/lib/services/transactions")).buildFtsQuery;
   });
 
-  it("adds prefix wildcard to bare words", () => {
+  it("adds prefix wildcard to a single word", () => {
     expect(buildFtsQuery("coffee")).toBe("coffee*");
   });
 
-  it("joins multiple words with AND + prefix wildcards", () => {
-    expect(buildFtsQuery("coffee shop")).toBe("coffee* AND shop*");
+  it("only prefix-matches the last word", () => {
+    expect(buildFtsQuery("coffee shop")).toBe("coffee AND shop*");
+  });
+
+  it("three words — only last gets prefix", () => {
+    expect(buildFtsQuery("big coffee shop")).toBe("big AND coffee AND shop*");
   });
 
   it("preserves quoted phrases", () => {
@@ -323,6 +332,10 @@ describe("buildFtsQuery", () => {
     expect(buildFtsQuery("coffee -starbucks")).toBe("coffee* NOT starbucks*");
   });
 
+  it("negation is not last positive — last positive still gets prefix", () => {
+    expect(buildFtsQuery("coffee shop -starbucks")).toBe("coffee AND shop* NOT starbucks*");
+  });
+
   it("handles multiple negations with OR grouping", () => {
     expect(buildFtsQuery("coffee -starbucks -mcdonalds")).toBe(
       "coffee* NOT (starbucks* OR mcdonalds*)"
@@ -331,6 +344,10 @@ describe("buildFtsQuery", () => {
 
   it("preserves explicit wildcards", () => {
     expect(buildFtsQuery("cof*")).toBe("cof*");
+  });
+
+  it("explicit wildcard on non-last word is preserved", () => {
+    expect(buildFtsQuery("cof* shop")).toBe("cof* AND shop*");
   });
 
   it("returns empty string for only negations (no positive terms)", () => {
@@ -348,6 +365,11 @@ describe("buildFtsQuery", () => {
 
   it("mixes quoted phrases with prefix terms", () => {
     expect(buildFtsQuery('"exact phrase" other')).toBe('"exact phrase" AND other*');
+  });
+
+  it("quoted phrase as last token — last bare word still gets prefix", () => {
+    // We can't know cursor position, so the last bare positive word always gets prefix
+    expect(buildFtsQuery('coffee "exact phrase"')).toBe('coffee* AND "exact phrase"');
   });
 });
 

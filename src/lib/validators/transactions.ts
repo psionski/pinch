@@ -108,11 +108,8 @@ export const ListTransactionsSchema = PaginationSchema.extend({
     .max(255)
     .optional()
     .describe(
-      "Full-text search across description, merchant, and notes. " +
-        'Supports prefix matching by default (e.g. "cof" finds "coffee"). ' +
-        'Use quotes for exact phrases ("coffee shop"), ' +
-        "-word to exclude (coffee -starbucks), " +
-        "and * for explicit wildcards (cof*)"
+      "Full-text search across description, merchant, and notes. Supports prefix matching (cof* → coffee), " +
+        'exact phrases ("coffee shop"), and exclusion (-starbucks)'
     ),
   tags: z.array(z.string().max(100)).optional().describe("Filter by tags"),
   type: TransactionTypeSchema.optional(),

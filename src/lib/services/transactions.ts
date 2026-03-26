@@ -32,7 +32,8 @@ import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
 /**
  * Build a safe FTS5 query from user input with support for:
- * - Prefix matching by default: "cof" → "cof*" matches "coffee"
+ * - Prefix matching on the last token (the word being typed): "cof" → "cof*"
+ * - Completed words (followed by more input) match exactly: "coffee shop" → coffee AND shop*
  * - Quoted phrases for exact match: "coffee shop" → exact phrase
  * - Negation: -starbucks excludes matching rows
  * - Explicit wildcards preserved: "cof*" stays as-is
@@ -42,25 +43,50 @@ import { isoToday, utcToLocal } from "@/lib/date-ranges";
 export function buildFtsQuery(input: string): string {
   const positive: string[] = [];
   const negative: string[] = [];
+
+  // Collect all tokens (quoted phrases and bare words) with their positions
+  const tokens: Array<
+    { quoted: true; value: string } | { quoted: false; value: string; negated: boolean }
+  > = [];
   const regex = /"([^"]*)"|(\S+)/g;
   let match;
 
   while ((match = regex.exec(input)) !== null) {
     if (match[1] !== undefined) {
-      // Quoted phrase — exact match, escape internal double quotes
       const phrase = match[1].trim();
-      if (phrase) positive.push(`"${phrase.replace(/"/g, '""')}"`);
+      if (phrase) tokens.push({ quoted: true, value: phrase });
     } else {
-      let word = match[2]!;
+      const word = match[2]!;
       const negated = word.startsWith("-") && word.length > 1;
-      if (negated) word = word.slice(1);
-
+      const raw = negated ? word.slice(1) : word;
       // Keep letters, digits, *, _ — strip everything else
-      const clean = word.replace(/[^\p{L}\p{N}*_]/gu, "");
-      if (!clean) continue;
+      const clean = raw.replace(/[^\p{L}\p{N}*_]/gu, "");
+      if (clean) tokens.push({ quoted: false, value: clean, negated });
+    }
+  }
 
-      const term = clean.endsWith("*") ? clean : `${clean}*`;
-      (negated ? negative : positive).push(term);
+  // Find last non-negated, non-quoted token index — that's the word being typed
+  let lastPositiveIdx = -1;
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const tok = tokens[i];
+    if (!tok.quoted && !tok.negated) {
+      lastPositiveIdx = i;
+      break;
+    }
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (tok.quoted) {
+      positive.push(`"${tok.value.replace(/"/g, '""')}"`);
+    } else if (tok.negated) {
+      // Negated terms always get prefix wildcard (user is excluding broadly)
+      const term = tok.value.endsWith("*") ? tok.value : `${tok.value}*`;
+      negative.push(term);
+    } else {
+      // Only the last positive bare word gets prefix wildcard
+      const needsPrefix = i === lastPositiveIdx && !tok.value.endsWith("*");
+      positive.push(needsPrefix ? `${tok.value}*` : tok.value);
     }
   }
 
