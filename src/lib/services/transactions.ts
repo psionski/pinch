@@ -28,79 +28,6 @@ import type {
 import type { PaginatedResponse } from "@/lib/validators/common";
 import { isoToday, utcToLocal } from "@/lib/date-ranges";
 
-// ─── FTS5 Query Builder ──────────────────────────────────────────────────────
-
-/**
- * Build a safe FTS5 query from user input with support for:
- * - Prefix matching on the last token (the word being typed): "cof" → "cof*"
- * - Completed words (followed by more input) match exactly: "coffee shop" → coffee AND shop*
- * - Quoted phrases for exact match: "coffee shop" → exact phrase
- * - Negation: -starbucks excludes matching rows
- * - Explicit wildcards preserved: "cof*" stays as-is
- *
- * Returns empty string if input produces no valid terms.
- */
-export function buildFtsQuery(input: string): string {
-  const positive: string[] = [];
-  const negative: string[] = [];
-
-  // Collect all tokens (quoted phrases and bare words) with their positions
-  const tokens: Array<
-    { quoted: true; value: string } | { quoted: false; value: string; negated: boolean }
-  > = [];
-  const regex = /"([^"]*)"|(\S+)/g;
-  let match;
-
-  while ((match = regex.exec(input)) !== null) {
-    if (match[1] !== undefined) {
-      const phrase = match[1].trim();
-      if (phrase) tokens.push({ quoted: true, value: phrase });
-    } else {
-      const word = match[2]!;
-      const negated = word.startsWith("-") && word.length > 1;
-      const raw = negated ? word.slice(1) : word;
-      // Keep letters, digits, *, _ — strip everything else
-      const clean = raw.replace(/[^\p{L}\p{N}*_]/gu, "");
-      if (clean) tokens.push({ quoted: false, value: clean, negated });
-    }
-  }
-
-  // Find last non-negated, non-quoted token index — that's the word being typed
-  let lastPositiveIdx = -1;
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const tok = tokens[i];
-    if (!tok.quoted && !tok.negated) {
-      lastPositiveIdx = i;
-      break;
-    }
-  }
-
-  for (let i = 0; i < tokens.length; i++) {
-    const tok = tokens[i];
-    if (tok.quoted) {
-      positive.push(`"${tok.value.replace(/"/g, '""')}"`);
-    } else if (tok.negated) {
-      // Negated terms always get prefix wildcard (user is excluding broadly)
-      const term = tok.value.endsWith("*") ? tok.value : `${tok.value}*`;
-      negative.push(term);
-    } else {
-      // Only the last positive bare word gets prefix wildcard
-      const needsPrefix = i === lastPositiveIdx && !tok.value.endsWith("*");
-      positive.push(needsPrefix ? `${tok.value}*` : tok.value);
-    }
-  }
-
-  if (positive.length === 0) return "";
-
-  let query = positive.join(" AND ");
-  if (negative.length === 1) {
-    query += ` NOT ${negative[0]}`;
-  } else if (negative.length > 1) {
-    query += ` NOT (${negative.join(" OR ")})`;
-  }
-  return query;
-}
-
 type Db = BetterSQLite3Database<typeof schema>;
 
 function parseTags(raw: string | null): string[] | null {
@@ -193,13 +120,13 @@ export class TransactionService {
       filters.push(eq(transactions.recurringId, input.recurringId));
 
     if (input.search !== undefined) {
-      const ftsQuery = buildFtsQuery(input.search);
-      if (ftsQuery) {
+      const clean = input.search.replace(/[^\p{L}\p{N}\s_]/gu, "").trim();
+      if (clean) {
+        const ftsQuery = `"${clean}"*`;
         filters.push(
           sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${ftsQuery})`
         );
       } else {
-        // Input was empty or produced no valid terms — match nothing
         filters.push(sql`0`);
       }
     }

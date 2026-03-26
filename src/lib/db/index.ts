@@ -22,22 +22,59 @@ export function ensureFtsTriggers(client: InstanceType<typeof Database>): void {
     DROP TRIGGER IF EXISTS transactions_ai;
     DROP TRIGGER IF EXISTS transactions_ad;
     DROP TRIGGER IF EXISTS transactions_au;
+    DROP TRIGGER IF EXISTS categories_au_fts;
+    DROP TRIGGER IF EXISTS categories_ad_fts;
 
+    -- Transaction INSERT: index text fields + joined category name
     CREATE TRIGGER transactions_ai AFTER INSERT ON transactions BEGIN
-      INSERT INTO transactions_fts(rowid, description, merchant, notes)
-      VALUES (new.id, new.description, new.merchant, new.notes);
+      INSERT INTO transactions_fts(rowid, description, merchant, notes, category_name)
+      VALUES (
+        new.id, new.description, new.merchant, new.notes,
+        COALESCE((SELECT name FROM categories WHERE id = new.category_id), '')
+      );
     END;
 
+    -- Transaction DELETE: remove from FTS (must supply old content for contentless table)
     CREATE TRIGGER transactions_ad AFTER DELETE ON transactions BEGIN
-      INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes)
-      VALUES ('delete', old.id, old.description, old.merchant, old.notes);
+      INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes, category_name)
+      VALUES (
+        'delete', old.id, old.description, old.merchant, old.notes,
+        COALESCE((SELECT name FROM categories WHERE id = old.category_id), '')
+      );
     END;
 
+    -- Transaction UPDATE: delete old entry, insert new
     CREATE TRIGGER transactions_au AFTER UPDATE ON transactions BEGIN
-      INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes)
-      VALUES ('delete', old.id, old.description, old.merchant, old.notes);
-      INSERT INTO transactions_fts(rowid, description, merchant, notes)
-      VALUES (new.id, new.description, new.merchant, new.notes);
+      INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes, category_name)
+      VALUES (
+        'delete', old.id, old.description, old.merchant, old.notes,
+        COALESCE((SELECT name FROM categories WHERE id = old.category_id), '')
+      );
+      INSERT INTO transactions_fts(rowid, description, merchant, notes, category_name)
+      VALUES (
+        new.id, new.description, new.merchant, new.notes,
+        COALESCE((SELECT name FROM categories WHERE id = new.category_id), '')
+      );
+    END;
+
+    -- Category rename: re-index all transactions in that category
+    CREATE TRIGGER categories_au_fts AFTER UPDATE OF name ON categories BEGIN
+      INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes, category_name)
+        SELECT 'delete', t.id, t.description, t.merchant, t.notes, old.name
+        FROM transactions t WHERE t.category_id = old.id;
+      INSERT INTO transactions_fts(rowid, description, merchant, notes, category_name)
+        SELECT t.id, t.description, t.merchant, t.notes, new.name
+        FROM transactions t WHERE t.category_id = new.id;
+    END;
+
+    -- Category delete: re-index affected transactions with empty category name
+    CREATE TRIGGER categories_ad_fts AFTER DELETE ON categories BEGIN
+      INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes, category_name)
+        SELECT 'delete', t.id, t.description, t.merchant, t.notes, old.name
+        FROM transactions t WHERE t.category_id = old.id;
+      INSERT INTO transactions_fts(rowid, description, merchant, notes, category_name)
+        SELECT t.id, t.description, t.merchant, t.notes, ''
+        FROM transactions t WHERE t.category_id = old.id;
     END;
   `);
 }

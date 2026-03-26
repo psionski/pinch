@@ -107,10 +107,7 @@ export const ListTransactionsSchema = PaginationSchema.extend({
     .string()
     .max(255)
     .optional()
-    .describe(
-      "Full-text search across description, merchant, and notes. Supports prefix matching (cof* → coffee), " +
-        'exact phrases ("coffee shop"), and exclusion (-starbucks)'
-    ),
+    .describe("Search across description, merchant, notes, and category name"),
   tags: z.array(z.string().max(100)).optional().describe("Filter by tags"),
   type: TransactionTypeSchema.optional(),
   receiptId: z.number().int().positive().optional(),

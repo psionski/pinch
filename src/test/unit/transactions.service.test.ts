@@ -274,102 +274,62 @@ describe("list — FTS search", () => {
     expect(result.data[0].description).toBe("Coffee and cake");
   });
 
-  it("finds transactions by quoted exact phrase", () => {
-    const result = service.list(listInput({ search: '"weekly shop"' }));
-    expect(result.total).toBe(1);
-    expect(result.data[0].merchant).toBe("ALDI");
-  });
-
-  it("excludes transactions with negation", () => {
-    const result = service.list(listInput({ search: "subscription -Netflix" }));
-    expect(result.total).toBe(0); // matches subscription but excludes Netflix
-  });
-
-  it("prefix-matches only the last word (word being typed)", () => {
-    // "weekly shop" — "weekly" exact, "shop" prefix → matches "Supermarket weekly shop"
+  it("phrase matches consecutive words", () => {
+    // "weekly shop" appears consecutively in "Supermarket weekly shop"
     const result = service.list(listInput({ search: "weekly shop" }));
     expect(result.total).toBe(1);
     expect(result.data[0].merchant).toBe("ALDI");
+  });
 
-    // "week shop" — "week" exact (not a full token in any description), "shop" prefix
-    const result2 = service.list(listInput({ search: "week shop" }));
-    expect(result2.total).toBe(0); // "week" doesn't match "weekly" (not a prefix, it's exact)
+  it("does not match words in wrong order", () => {
+    // "shop weekly" is not a consecutive phrase in any description
+    const result = service.list(listInput({ search: "shop weekly" }));
+    expect(result.total).toBe(0);
+  });
+
+  it("prefix-matches last word in phrase", () => {
+    // "weekly sho" — phrase match with prefix on last: "weekly sho"*
+    const result = service.list(listInput({ search: "weekly sho" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
   });
 
   it("returns empty for search with only special characters", () => {
-    const result = service.list(listInput({ search: "!@#$%" }));
+    const result = service.list(listInput({ search: "!@#" }));
     expect(result.total).toBe(0);
   });
 });
 
-// ─── buildFtsQuery unit tests ────────────────────────────────────────────────
+// ─── list — FTS search by category name ──────────────────────────────────────
 
-describe("buildFtsQuery", () => {
-  // Importing directly for unit testing the parser
-  let buildFtsQuery: typeof import("@/lib/services/transactions").buildFtsQuery;
+describe("list — FTS search by category name", () => {
+  let catId: number;
 
-  beforeEach(async () => {
-    buildFtsQuery = (await import("@/lib/services/transactions")).buildFtsQuery;
+  beforeEach(() => {
+    [{ id: catId }] = db
+      .insert(categories)
+      .values({ name: "Groceries", icon: "cart" })
+      .returning({ id: categories.id })
+      .all();
+    service.create(tx({ description: "Weekly shop", merchant: "ALDI", categoryId: catId }));
+    service.create(tx({ description: "Coffee", merchant: "Starbucks" })); // no category
   });
 
-  it("adds prefix wildcard to a single word", () => {
-    expect(buildFtsQuery("coffee")).toBe("coffee*");
+  it("matches transactions by category name prefix", () => {
+    const result = service.list(listInput({ search: "groc" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].description).toBe("Weekly shop");
   });
 
-  it("only prefix-matches the last word", () => {
-    expect(buildFtsQuery("coffee shop")).toBe("coffee AND shop*");
+  it("matches transactions by full category name", () => {
+    const result = service.list(listInput({ search: "Groceries" }));
+    expect(result.total).toBe(1);
   });
 
-  it("three words — only last gets prefix", () => {
-    expect(buildFtsQuery("big coffee shop")).toBe("big AND coffee AND shop*");
-  });
-
-  it("preserves quoted phrases", () => {
-    expect(buildFtsQuery('"coffee shop"')).toBe('"coffee shop"');
-  });
-
-  it("handles negation with -", () => {
-    expect(buildFtsQuery("coffee -starbucks")).toBe("coffee* NOT starbucks*");
-  });
-
-  it("negation is not last positive — last positive still gets prefix", () => {
-    expect(buildFtsQuery("coffee shop -starbucks")).toBe("coffee AND shop* NOT starbucks*");
-  });
-
-  it("handles multiple negations with OR grouping", () => {
-    expect(buildFtsQuery("coffee -starbucks -mcdonalds")).toBe(
-      "coffee* NOT (starbucks* OR mcdonalds*)"
-    );
-  });
-
-  it("preserves explicit wildcards", () => {
-    expect(buildFtsQuery("cof*")).toBe("cof*");
-  });
-
-  it("explicit wildcard on non-last word is preserved", () => {
-    expect(buildFtsQuery("cof* shop")).toBe("cof* AND shop*");
-  });
-
-  it("returns empty string for only negations (no positive terms)", () => {
-    expect(buildFtsQuery("-starbucks")).toBe("");
-  });
-
-  it("returns empty string for empty input", () => {
-    expect(buildFtsQuery("")).toBe("");
-  });
-
-  it("strips special characters", () => {
-    expect(buildFtsQuery("café")).toBe("café*");
-    expect(buildFtsQuery("test!@#")).toBe("test*");
-  });
-
-  it("mixes quoted phrases with prefix terms", () => {
-    expect(buildFtsQuery('"exact phrase" other')).toBe('"exact phrase" AND other*');
-  });
-
-  it("quoted phrase as last token — last bare word still gets prefix", () => {
-    // We can't know cursor position, so the last bare positive word always gets prefix
-    expect(buildFtsQuery('coffee "exact phrase"')).toBe('coffee* AND "exact phrase"');
+  it("does not match uncategorized transactions for category search", () => {
+    const result = service.list(listInput({ search: "Groceries" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
   });
 });
 
