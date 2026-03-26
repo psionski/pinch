@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, Trash2, FolderInput, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import {
   TransactionFilterBar,
   EMPTY_FILTERS,
@@ -128,7 +129,7 @@ export function TransactionsClient({
     void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
   }, [fetchTransactions, filters, sortBy, sortOrder, limit, offset]);
 
-  const { formLoading, addTransaction, editTransaction, inlineUpdate, bulkDelete, recategorize } =
+  const { formLoading, addTransaction, editTransaction, bulkDelete, recategorize } =
     useTransactionMutations(refresh);
 
   // Re-fetch when filters/sort/pagination change
@@ -204,26 +205,23 @@ export function TransactionsClient({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            data-tour="add-receipt"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowUploadReceipt(true)}
-          >
-            <ScanLine className="size-4" />
-            Add Receipt
-          </Button>
-          <Button data-tour="add-transaction" onClick={() => setShowAddForm(true)} size="sm">
-            <Plus className="size-4" />
-            Add Transaction
-          </Button>
-        </div>
-      </div>
+      <PageHeader title="Transactions">
+        <Button
+          data-tour="add-receipt"
+          variant="outline"
+          size="sm"
+          onClick={() => setShowUploadReceipt(true)}
+        >
+          <ScanLine className="size-4" />
+          Add Receipt
+        </Button>
+        <Button data-tour="add-transaction" onClick={() => setShowAddForm(true)} size="sm">
+          <Plus className="size-4" />
+          Add Transaction
+        </Button>
+      </PageHeader>
 
       {/* Filters */}
       <div data-tour="transaction-filters">
@@ -266,14 +264,12 @@ export function TransactionsClient({
         <TransactionTable
           transactions={data.data}
           categories={categoryMap}
-          categoryList={categories}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
           onEdit={setEditingTx}
-          onInlineUpdate={async (id, updates) => void (await inlineUpdate(id, updates))}
           onReceiptClick={setViewingReceiptId}
         />
       </div>

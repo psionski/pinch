@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -11,6 +11,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 import { BudgetProgressBar } from "./budget-progress-bar";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { BudgetStatusItem } from "@/lib/validators/reports";
@@ -33,11 +40,7 @@ function statusBadge(item: BudgetStatusItem): React.ReactElement {
 
 export function BudgetTable({ budgets, onEdit, onDelete }: BudgetTableProps): React.ReactElement {
   if (budgets.length === 0) {
-    return (
-      <p className="text-muted-foreground py-10 text-center text-sm">
-        No budgets set for this month.
-      </p>
-    );
+    return <EmptyState message="No budgets set for this month." />;
   }
 
   return (
@@ -50,7 +53,7 @@ export function BudgetTable({ budgets, onEdit, onDelete }: BudgetTableProps): Re
           <TableHead className="text-right">Budget</TableHead>
           <TableHead className="text-right">Remaining</TableHead>
           <TableHead>Status</TableHead>
-          <TableHead className="w-[80px]" />
+          <TableHead className="w-[50px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -72,14 +75,31 @@ export function BudgetTable({ budgets, onEdit, onDelete }: BudgetTableProps): Re
             </TableCell>
             <TableCell>{statusBadge(item)}</TableCell>
             <TableCell>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="icon-xs" onClick={() => onEdit(item)}>
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon-xs" onClick={() => onDelete(item)}>
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Budget actions"
+                    data-testid={`budget-actions-${item.categoryId}`}
+                  >
+                    <MoreHorizontal className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onEdit(item)}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => onDelete(item)}
+                  >
+                    <Trash2 className="size-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </TableCell>
           </TableRow>
         ))}

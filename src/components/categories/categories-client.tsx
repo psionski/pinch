@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import { CategoryTree } from "./category-tree";
 import { CategoryFormDialog, type CategoryFormData } from "./category-form-dialog";
 import { MergeCategoryDialog } from "./merge-category-dialog";
@@ -134,15 +135,14 @@ export function CategoriesClient({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
+      <PageHeader title="Categories">
         <Button onClick={() => setShowCreateForm(true)} size="sm">
           <Plus className="size-4" />
           Add Category
         </Button>
-      </div>
+      </PageHeader>
 
       {/* Tree */}
       <div data-tour="category-tree" className={loading ? "pointer-events-none opacity-60" : ""}>

@@ -5,11 +5,20 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronDown, MoreHorizontal, Pencil, Merge, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 import type { BudgetStatsItem } from "@/lib/validators/reports";
 
@@ -101,9 +110,9 @@ function CategoryRow({
 
   return (
     <>
-      <tr className="hover:bg-muted/50 border-b" data-testid={`category-row-${cat.id}`}>
+      <TableRow data-testid={`category-row-${cat.id}`}>
         {/* Name with indent + expand/collapse */}
-        <td className="py-2 pr-2" style={{ paddingLeft: `${depth * 24 + 8}px` }}>
+        <TableCell className="py-2 pr-2" style={{ paddingLeft: `${depth * 24 + 8}px` }}>
           <div className="flex items-center gap-1.5">
             {hasChildren ? (
               <button
@@ -133,40 +142,40 @@ function CategoryRow({
               {cat.name}
             </button>
           </div>
-        </td>
+        </TableCell>
 
         {/* Transaction count — all-time rollup for parents, own count for leaves */}
-        <td className="text-muted-foreground px-2 py-2 text-right text-sm tabular-nums">
+        <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
           {catStats?.rollupCount ?? cat.transactionCount}
-        </td>
+        </TableCell>
 
         {/* Current month spend — show rollup for parents */}
-        <td className="text-muted-foreground px-2 py-2 text-right text-sm tabular-nums">
+        <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
           {catStats && (hasChildren ? catStats.rollupTotal : catStats.total) > 0
             ? `€${formatAmount(hasChildren ? catStats.rollupTotal : catStats.total)}`
             : "—"}
-        </td>
+        </TableCell>
 
         {/* Budget status — use rollup spend vs budget (includes child category spend) */}
-        <td className="px-2 py-2">
+        <TableCell>
           {catStats?.budgetAmount ? (
             <BudgetBar spent={catStats.rollupTotal} budget={catStats.budgetAmount} />
           ) : (
             <span className="text-muted-foreground text-sm">—</span>
           )}
-        </td>
+        </TableCell>
 
         {/* Actions */}
-        <td className="px-2 py-2 text-right">
+        <TableCell className="text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size="sm"
-                className="size-8 p-0"
+                size="icon-xs"
                 data-testid={`category-actions-${cat.id}`}
+                aria-label="Category actions"
               >
-                <MoreHorizontal className="size-4" />
+                <MoreHorizontal className="size-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -187,8 +196,8 @@ function CategoryRow({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
 
       {/* Render children if expanded */}
       {isExpanded &&
@@ -268,42 +277,40 @@ export function CategoryTree({
 
   if (categories.length === 0) {
     return (
-      <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-lg font-medium">No categories yet</p>
-        <p className="text-sm">Create your first category to start organizing transactions.</p>
-      </div>
+      <EmptyState
+        message="No categories yet."
+        description="Create your first category to start organizing transactions."
+      />
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-muted/50 border-b text-left">
-            <th className="px-2 py-2.5 font-medium">Category</th>
-            <th className="px-2 py-2.5 text-right font-medium">Transactions</th>
-            <th className="px-2 py-2.5 text-right font-medium">This Month</th>
-            <th className="px-2 py-2.5 font-medium">Budget</th>
-            <th className="w-12 px-2 py-2.5" />
-          </tr>
-        </thead>
-        <tbody>
-          {tree.map((node) => (
-            <CategoryRow
-              key={node.category.id}
-              node={node}
-              depth={0}
-              stats={statsMap}
-              expanded={expanded}
-              onToggle={handleToggle}
-              onEdit={onEdit}
-              onMerge={onMerge}
-              onDelete={onDelete}
-              onNavigate={handleNavigate}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Category</TableHead>
+          <TableHead className="text-right">Transactions</TableHead>
+          <TableHead className="text-right">This Month</TableHead>
+          <TableHead>Budget</TableHead>
+          <TableHead className="w-[50px]" />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {tree.map((node) => (
+          <CategoryRow
+            key={node.category.id}
+            node={node}
+            depth={0}
+            stats={statsMap}
+            expanded={expanded}
+            onToggle={handleToggle}
+            onEdit={onEdit}
+            onMerge={onMerge}
+            onDelete={onDelete}
+            onNavigate={handleNavigate}
+          />
+        ))}
+      </TableBody>
+    </Table>
   );
 }

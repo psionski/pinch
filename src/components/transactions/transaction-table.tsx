@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowUpDown, ArrowUp, ArrowDown, Receipt, Repeat, Pencil, Check, X } from "lucide-react";
+import {
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Receipt,
+  Repeat,
+  MoreHorizontal,
+  Pencil,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -12,15 +19,13 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CategorySelectItems } from "@/components/categories/category-select-items";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
@@ -31,21 +36,13 @@ type SortOrder = "asc" | "desc";
 interface TransactionTableProps {
   transactions: TransactionResponse[];
   categories: Map<number, CategoryWithCountResponse>;
-  categoryList: CategoryWithCountResponse[];
   selectedIds: Set<number>;
   onSelectionChange: (ids: Set<number>) => void;
   sortBy: SortField;
   sortOrder: SortOrder;
   onSortChange: (field: SortField) => void;
   onEdit: (tx: TransactionResponse) => void;
-  onInlineUpdate: (id: number, updates: Record<string, unknown>) => Promise<void>;
   onReceiptClick?: (receiptId: number) => void;
-}
-
-interface InlineEditState {
-  id: number;
-  field: string;
-  value: string;
 }
 
 function SortIcon({
@@ -70,19 +67,14 @@ function SortIcon({
 export function TransactionTable({
   transactions,
   categories,
-  categoryList,
   selectedIds,
   onSelectionChange,
   sortBy,
   sortOrder,
   onSortChange,
   onEdit,
-  onInlineUpdate,
   onReceiptClick,
 }: TransactionTableProps): React.ReactElement {
-  const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
-  const [saving, setSaving] = useState(false);
-
   const allSelected = transactions.length > 0 && selectedIds.size === transactions.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
 
@@ -104,36 +96,6 @@ export function TransactionTable({
     onSelectionChange(next);
   }
 
-  function startInlineEdit(id: number, field: string, value: string): void {
-    setInlineEdit({ id, field, value });
-  }
-
-  async function commitInlineEdit(): Promise<void> {
-    if (!inlineEdit) return;
-    setSaving(true);
-    try {
-      const { id, field, value } = inlineEdit;
-      let updates: Record<string, unknown>;
-
-      if (field === "amount") {
-        const cents = Math.round(parseFloat(value) * 100);
-        if (Number.isNaN(cents) || cents <= 0) return;
-        updates = { amount: cents };
-      } else if (field === "categoryId") {
-        updates = {
-          categoryId: value === "none" ? null : Number(value),
-        };
-      } else {
-        updates = { [field]: value };
-      }
-
-      await onInlineUpdate(id, updates);
-    } finally {
-      setSaving(false);
-      setInlineEdit(null);
-    }
-  }
-
   function renderSortableHeader(label: string, field: SortField): React.ReactElement {
     return (
       <button
@@ -147,100 +109,9 @@ export function TransactionTable({
     );
   }
 
-  function renderCell(
-    tx: TransactionResponse,
-    field: string,
-    displayValue: string
-  ): React.ReactElement {
-    const isEditing = inlineEdit?.id === tx.id && inlineEdit?.field === field;
-
-    if (isEditing) {
-      if (field === "categoryId") {
-        return (
-          <div className="flex min-w-0 items-center gap-1">
-            <Select
-              value={inlineEdit.value}
-              onValueChange={(v) => setInlineEdit({ ...inlineEdit, value: v })}
-            >
-              <SelectTrigger className="h-7 min-w-0 flex-1 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No category</SelectItem>
-                <CategorySelectItems categories={categoryList} />
-              </SelectContent>
-            </Select>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={() => void commitInlineEdit()}
-              disabled={saving}
-            >
-              <Check className="size-3" />
-            </Button>
-            <Button size="icon-xs" variant="ghost" onClick={() => setInlineEdit(null)}>
-              <X className="size-3" />
-            </Button>
-          </div>
-        );
-      }
-
-      return (
-        <div className="flex min-w-0 items-center gap-1">
-          <Input
-            className="h-7 min-w-0 flex-1 text-xs"
-            type={field === "amount" ? "number" : field === "date" ? "date" : "text"}
-            step={field === "amount" ? "0.01" : undefined}
-            value={inlineEdit.value}
-            onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void commitInlineEdit();
-              if (e.key === "Escape") setInlineEdit(null);
-            }}
-            autoFocus
-          />
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={() => void commitInlineEdit()}
-            disabled={saving}
-          >
-            <Check className="size-3" />
-          </Button>
-          <Button size="icon-xs" variant="ghost" onClick={() => setInlineEdit(null)}>
-            <X className="size-3" />
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <span
-        className="hover:bg-muted -mx-1 cursor-pointer rounded px-1"
-        onClick={() =>
-          startInlineEdit(
-            tx.id,
-            field,
-            field === "amount"
-              ? (tx.amount / 100).toFixed(2)
-              : field === "categoryId"
-                ? tx.categoryId
-                  ? String(tx.categoryId)
-                  : "none"
-                : field === "date"
-                  ? tx.date
-                  : String(displayValue)
-          )
-        }
-      >
-        {displayValue}
-      </span>
-    );
-  }
-
   if (transactions.length === 0) {
     return (
-      <div className="text-muted-foreground py-16 text-center text-sm">No transactions found.</div>
+      <EmptyState message="No transactions found." description="Try adjusting your filters." />
     );
   }
 
@@ -260,7 +131,7 @@ export function TransactionTable({
           <TableHead>{renderSortableHeader("Merchant", "merchant")}</TableHead>
           <TableHead>Category</TableHead>
           <TableHead className="text-right">{renderSortableHeader("Amount", "amount")}</TableHead>
-          <TableHead className="w-[80px]"></TableHead>
+          <TableHead className="w-[50px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -280,12 +151,10 @@ export function TransactionTable({
                   aria-label={`Select transaction ${tx.id}`}
                 />
               </TableCell>
-              <TableCell className="text-sm tabular-nums">
-                {renderCell(tx, "date", formatDate(tx.date))}
-              </TableCell>
+              <TableCell className="text-sm tabular-nums">{formatDate(tx.date)}</TableCell>
               <TableCell className="max-w-[250px]">
                 <div className="flex items-center gap-1.5">
-                  {renderCell(tx, "description", tx.description)}
+                  <span className="truncate">{tx.description}</span>
                   {tx.receiptId && (
                     <button
                       type="button"
@@ -304,24 +173,27 @@ export function TransactionTable({
                   )}
                 </div>
               </TableCell>
-              <TableCell className="text-sm">
-                {renderCell(tx, "merchant", tx.merchant ?? "—")}
-              </TableCell>
-              <TableCell>{renderCell(tx, "categoryId", category ? category.name : "—")}</TableCell>
+              <TableCell className="text-sm">{tx.merchant ?? "—"}</TableCell>
+              <TableCell>{category ? category.name : "—"}</TableCell>
               <TableCell className="text-right text-sm tabular-nums">
                 <span className={tx.type === "income" ? "text-emerald-600" : "text-foreground"}>
-                  {renderCell(tx, "amount", formatCurrency(tx.amount))}
+                  {formatCurrency(tx.amount)}
                 </span>
               </TableCell>
               <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => onEdit(tx)}
-                  aria-label="Edit transaction"
-                >
-                  <Pencil className="size-3.5" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-xs" aria-label="Transaction actions">
+                      <MoreHorizontal className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEdit(tx)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </TableCell>
             </TableRow>
           );

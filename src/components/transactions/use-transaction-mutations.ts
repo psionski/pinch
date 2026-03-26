@@ -56,7 +56,6 @@ export interface UseTransactionMutationsResult {
   formLoading: boolean;
   addTransaction: (data: TransactionFormData) => Promise<boolean>;
   editTransaction: (id: number, data: TransactionFormData) => Promise<boolean>;
-  inlineUpdate: (id: number, updates: Record<string, unknown>) => Promise<boolean>;
   bulkDelete: (ids: number[]) => Promise<boolean>;
   recategorize: (ids: number[], categoryId: number) => Promise<boolean>;
 }
@@ -98,18 +97,6 @@ export function useTransactionMutations(onRefresh: () => void): UseTransactionMu
     [onRefresh]
   );
 
-  const inlineUpdate = useCallback(
-    async (id: number, updates: Record<string, unknown>): Promise<boolean> => {
-      const res = await patchJson(`/api/transactions/${id}`, updates);
-      if (res.ok) {
-        onRefresh();
-        return true;
-      }
-      return false;
-    },
-    [onRefresh]
-  );
-
   const bulkDelete = useCallback(
     async (ids: number[]): Promise<boolean> => {
       const res = await deleteJson("/api/transactions", { ids });
@@ -140,5 +127,5 @@ export function useTransactionMutations(onRefresh: () => void): UseTransactionMu
     [onRefresh]
   );
 
-  return { formLoading, addTransaction, editTransaction, inlineUpdate, bulkDelete, recategorize };
+  return { formLoading, addTransaction, editTransaction, bulkDelete, recategorize };
 }
