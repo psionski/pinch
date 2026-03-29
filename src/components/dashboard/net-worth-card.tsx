@@ -18,7 +18,7 @@ export function NetWorthCard({ portfolio }: NetWorthCardProps): React.ReactEleme
         <CardTitle className="text-muted-foreground text-sm font-medium">Cash</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-2xl font-bold">{formatCurrency(cashBalance)}</p>
+        <p className="text-2xl font-semibold tabular-nums">{formatCurrency(cashBalance)}</p>
         <div className="space-y-1 text-sm">
           <div className="text-muted-foreground flex justify-between">
             <span>

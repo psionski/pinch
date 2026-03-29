@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, Trash2, FolderInput, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import {
   TransactionFilterBar,
   EMPTY_FILTERS,
@@ -96,6 +97,7 @@ export function TransactionsClient({
   const [editingTx, setEditingTx] = useState<TransactionResponse | null>(null);
   const [showRecategorize, setShowRecategorize] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingTx, setDeletingTx] = useState<TransactionResponse | null>(null);
   const [viewingReceiptId, setViewingReceiptId] = useState<number | null>(null);
   const [showUploadReceipt, setShowUploadReceipt] = useState(false);
 
@@ -128,7 +130,7 @@ export function TransactionsClient({
     void fetchTransactions(filters, sortBy, sortOrder, limit, offset);
   }, [fetchTransactions, filters, sortBy, sortOrder, limit, offset]);
 
-  const { formLoading, addTransaction, editTransaction, inlineUpdate, bulkDelete, recategorize } =
+  const { formLoading, addTransaction, editTransaction, bulkDelete, recategorize } =
     useTransactionMutations(refresh);
 
   // Re-fetch when filters/sort/pagination change
@@ -195,6 +197,18 @@ export function TransactionsClient({
     }
   }
 
+  async function handleSingleDelete(): Promise<void> {
+    if (!deletingTx) return;
+    setLoading(true);
+    try {
+      if (await bulkDelete([deletingTx.id])) {
+        setDeletingTx(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleRecategorize(categoryId: number): Promise<void> {
     if (selectedIds.size === 0) return;
     if (await recategorize(Array.from(selectedIds), categoryId)) {
@@ -204,26 +218,23 @@ export function TransactionsClient({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            data-tour="add-receipt"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowUploadReceipt(true)}
-          >
-            <ScanLine className="size-4" />
-            Add Receipt
-          </Button>
-          <Button data-tour="add-transaction" onClick={() => setShowAddForm(true)} size="sm">
-            <Plus className="size-4" />
-            Add Transaction
-          </Button>
-        </div>
-      </div>
+      <PageHeader title="Transactions">
+        <Button
+          data-tour="add-receipt"
+          variant="outline"
+          size="sm"
+          onClick={() => setShowUploadReceipt(true)}
+        >
+          <ScanLine className="size-4" />
+          Add Receipt
+        </Button>
+        <Button data-tour="add-transaction" onClick={() => setShowAddForm(true)} size="sm">
+          <Plus className="size-4" />
+          Add Transaction
+        </Button>
+      </PageHeader>
 
       {/* Filters */}
       <div data-tour="transaction-filters">
@@ -266,14 +277,13 @@ export function TransactionsClient({
         <TransactionTable
           transactions={data.data}
           categories={categoryMap}
-          categoryList={categories}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
           onEdit={setEditingTx}
-          onInlineUpdate={async (id, updates) => void (await inlineUpdate(id, updates))}
+          onDelete={setDeletingTx}
           onReceiptClick={setViewingReceiptId}
         />
       </div>
@@ -330,6 +340,22 @@ export function TransactionsClient({
           </>
         }
         onConfirm={() => void handleBulkDelete()}
+        loading={loading}
+      />
+
+      {/* Single delete confirmation dialog */}
+      <ConfirmDeleteDialog
+        open={!!deletingTx}
+        onOpenChange={(open) => {
+          if (!open) setDeletingTx(null);
+        }}
+        title="Delete Transaction"
+        description={
+          <>
+            Are you sure you want to delete <strong>{deletingTx?.description}</strong>?
+          </>
+        }
+        onConfirm={() => void handleSingleDelete()}
         loading={loading}
       />
 

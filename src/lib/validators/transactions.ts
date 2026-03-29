@@ -107,7 +107,7 @@ export const ListTransactionsSchema = PaginationSchema.extend({
     .string()
     .max(255)
     .optional()
-    .describe("Full-text search across description, merchant, and notes"),
+    .describe("Search across description, merchant, notes, and category name"),
   tags: z.array(z.string().max(100)).optional().describe("Filter by tags"),
   type: TransactionTypeSchema.optional(),
   receiptId: z.number().int().positive().optional(),

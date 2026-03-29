@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDate, formatFrequency } from "@/lib/format";
 import type { RecurringResponse } from "@/lib/validators/recurring";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
@@ -48,11 +49,7 @@ export function RecurringTable({
   onToggleActive,
 }: RecurringTableProps): React.ReactElement {
   if (items.length === 0) {
-    return (
-      <p className="text-muted-foreground py-10 text-center text-sm">
-        No recurring transactions yet.
-      </p>
-    );
+    return <EmptyState message="No recurring transactions yet." />;
   }
 
   return (

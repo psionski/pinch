@@ -68,7 +68,7 @@ export function PnlSummary({ realizedPnl, unrealizedPnl }: PnlSummaryProps): Rea
               <PnlIcon value={unrealizedValue} />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${pnlColor(unrealizedValue)}`}>
+              <div className={`text-2xl font-semibold tabular-nums ${pnlColor(unrealizedValue)}`}>
                 {unrealizedPnl !== null ? formatCurrency(unrealizedPnl) : "N/A"}
               </div>
               <p className="text-muted-foreground mt-1 text-xs">Current open positions</p>
@@ -81,7 +81,9 @@ export function PnlSummary({ realizedPnl, unrealizedPnl }: PnlSummaryProps): Rea
               <PnlIcon value={realizedPnl.totalRealizedPnl} />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${pnlColor(realizedPnl.totalRealizedPnl)}`}>
+              <div
+                className={`text-2xl font-semibold tabular-nums ${pnlColor(realizedPnl.totalRealizedPnl)}`}
+              >
                 {formatCurrency(realizedPnl.totalRealizedPnl)}
               </div>
               <p className="text-muted-foreground mt-1 text-xs">

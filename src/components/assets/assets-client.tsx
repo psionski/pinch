@@ -10,23 +10,12 @@ import { AssetFormDialog } from "./asset-form-dialog";
 import { BuySellDialog } from "./buy-sell-dialog";
 import { DepositWithdrawDialog } from "./deposit-withdraw-dialog";
 import { RecordPriceDialog } from "./record-price-dialog";
-import { AllocationChart } from "@/components/portfolio/allocation-chart";
-import { CurrencyExposure } from "@/components/portfolio/currency-exposure";
-import { PerformanceTable } from "@/components/portfolio/performance-table";
 import { formatCurrency } from "@/lib/format";
 import type { AssetWithMetrics, PortfolioResponse } from "@/lib/validators/assets";
-import type {
-  AssetPerformanceItem,
-  AllocationResult,
-  CurrencyExposureItem,
-} from "@/lib/validators/portfolio-reports";
 
 interface AssetsClientProps {
   initialAssets: AssetWithMetrics[];
   portfolio: PortfolioResponse;
-  performance: AssetPerformanceItem[];
-  allocation: AllocationResult;
-  currencyExposure: CurrencyExposureItem[];
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -120,13 +109,7 @@ function SummaryCards({ portfolio }: { portfolio: PortfolioResponse }): React.Re
   );
 }
 
-export function AssetsClient({
-  initialAssets,
-  portfolio,
-  performance,
-  allocation,
-  currencyExposure,
-}: AssetsClientProps): React.ReactElement {
+export function AssetsClient({ initialAssets, portfolio }: AssetsClientProps): React.ReactElement {
   const [assets, setAssets] = useState(initialAssets);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -230,7 +213,7 @@ export function AssetsClient({
   return (
     <div className={`space-y-6 ${loading ? "pointer-events-none opacity-60" : ""}`}>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Assets</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Assets</h1>
         <Button onClick={() => setShowCreate(true)}>
           <Plus className="mr-2 size-4" />
           Add Asset
@@ -245,13 +228,6 @@ export function AssetsClient({
       ) : (
         <>
           <SummaryCards portfolio={portfolio} />
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AllocationChart data={allocation} />
-            <CurrencyExposure data={currencyExposure} />
-          </div>
-
-          <PerformanceTable data={performance} />
 
           <div
             data-tour="asset-cards"

@@ -267,6 +267,70 @@ describe("list — FTS search", () => {
     const result = service.list(listInput({ search: "nomatch12345" }));
     expect(result.total).toBe(0);
   });
+
+  it("finds transactions by prefix (partial word)", () => {
+    const result = service.list(listInput({ search: "cof" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].description).toBe("Coffee and cake");
+  });
+
+  it("phrase matches consecutive words", () => {
+    // "weekly shop" appears consecutively in "Supermarket weekly shop"
+    const result = service.list(listInput({ search: "weekly shop" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
+  });
+
+  it("does not match words in wrong order", () => {
+    // "shop weekly" is not a consecutive phrase in any description
+    const result = service.list(listInput({ search: "shop weekly" }));
+    expect(result.total).toBe(0);
+  });
+
+  it("prefix-matches last word in phrase", () => {
+    // "weekly sho" — phrase match with prefix on last: "weekly sho"*
+    const result = service.list(listInput({ search: "weekly sho" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
+  });
+
+  it("returns empty for search with only special characters", () => {
+    const result = service.list(listInput({ search: "!@#" }));
+    expect(result.total).toBe(0);
+  });
+});
+
+// ─── list — FTS search by category name ──────────────────────────────────────
+
+describe("list — FTS search by category name", () => {
+  let catId: number;
+
+  beforeEach(() => {
+    [{ id: catId }] = db
+      .insert(categories)
+      .values({ name: "Groceries", icon: "cart" })
+      .returning({ id: categories.id })
+      .all();
+    service.create(tx({ description: "Weekly shop", merchant: "ALDI", categoryId: catId }));
+    service.create(tx({ description: "Coffee", merchant: "Starbucks" })); // no category
+  });
+
+  it("matches transactions by category name prefix", () => {
+    const result = service.list(listInput({ search: "groc" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].description).toBe("Weekly shop");
+  });
+
+  it("matches transactions by full category name", () => {
+    const result = service.list(listInput({ search: "Groceries" }));
+    expect(result.total).toBe(1);
+  });
+
+  it("does not match uncategorized transactions for category search", () => {
+    const result = service.list(listInput({ search: "Groceries" }));
+    expect(result.total).toBe(1);
+    expect(result.data[0].merchant).toBe("ALDI");
+  });
 });
 
 // ─── list — tag filtering ─────────────────────────────────────────────────────

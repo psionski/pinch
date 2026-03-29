@@ -120,11 +120,15 @@ export class TransactionService {
       filters.push(eq(transactions.recurringId, input.recurringId));
 
     if (input.search !== undefined) {
-      // Wrap in double quotes to force FTS5 phrase matching and neutralize special syntax
-      const sanitized = `"${input.search.replace(/"/g, '""')}"`;
-      filters.push(
-        sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${sanitized})`
-      );
+      const clean = input.search.replace(/[^\p{L}\p{N}\s_]/gu, "").trim();
+      if (clean) {
+        const ftsQuery = `"${clean}"*`;
+        filters.push(
+          sql`${transactions.id} IN (SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ${ftsQuery})`
+        );
+      } else {
+        filters.push(sql`0`);
+      }
     }
 
     if (input.tags !== undefined && input.tags.length > 0) {

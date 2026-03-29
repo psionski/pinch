@@ -11,13 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CategorySelectItems } from "./category-select-items";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 interface MergeCategoryDialogProps {
@@ -73,11 +68,7 @@ export function MergeCategoryDialog({
                 <SelectValue placeholder="Select target category..." />
               </SelectTrigger>
               <SelectContent>
-                {targetOptions.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.icon ? `${c.icon} ${c.name}` : c.name}
-                  </SelectItem>
-                ))}
+                <CategorySelectItems categories={targetOptions} />
               </SelectContent>
             </Select>
           </div>
