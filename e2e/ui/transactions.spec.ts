@@ -36,7 +36,8 @@ test.describe.serial("Transactions", () => {
     await page.goto("/transactions", { waitUntil: "networkidle" });
     const row = page.locator("tr").filter({ hasText: "Lunch at cafe" });
     await expect(row).toBeVisible();
-    await row.getByLabel("Edit transaction").click();
+    await row.getByLabel("Transaction actions").click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
 
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
     await page.locator("#tx-amount").fill("15.00");

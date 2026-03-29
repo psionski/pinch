@@ -197,7 +197,7 @@ export function AssetDetailClient({
           <div>
             <div className="flex items-center gap-2">
               {asset.icon && <span className="text-2xl">{asset.icon}</span>}
-              <h1 className="text-2xl font-bold tracking-tight">{asset.name}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">{asset.name}</h1>
             </div>
             <Badge variant="secondary" className="mt-1">
               {asset.type}

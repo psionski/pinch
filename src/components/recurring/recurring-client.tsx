@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import { RecurringTable } from "./recurring-table";
 import { RecurringFormDialog } from "./recurring-form-dialog";
 import { DeleteRecurringDialog } from "./delete-recurring-dialog";
@@ -106,13 +107,12 @@ export function RecurringClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Recurring Transactions</h1>
+      <PageHeader title="Recurring Transactions">
         <Button size="sm" onClick={() => setShowForm(true)}>
           <Plus className="size-4" />
           Add Recurring
         </Button>
-      </div>
+      </PageHeader>
 
       {/* Table */}
       <div className={loading ? "pointer-events-none opacity-60" : ""}>

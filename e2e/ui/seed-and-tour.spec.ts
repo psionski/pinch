@@ -5,15 +5,6 @@ test.describe.serial("Seed data & interactive tour", () => {
     await page.goto("/");
     // KPI cards should have content (seeded data)
     await expect(page.locator('[data-tour="kpi-cards"]')).toBeVisible();
-    // Sample data bar should be visible
-    await expect(page.getByRole("button", { name: "Clear sample data" })).toBeVisible();
-  });
-
-  test("sample data bar shows with clear button", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByText("You're viewing")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Clear sample data" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Clear sample data" })).toBeEnabled();
   });
 
   test("tutorial auto-starts after page load", async ({ page }) => {
@@ -36,13 +27,22 @@ test.describe.serial("Seed data & interactive tour", () => {
     // Should show "Spending Charts" step
     await expect(page.getByText("Spending Charts")).toBeVisible({ timeout: 5000 });
 
-    // Close the tour via the close button (skip is only on step 1)
+    // Close the tour via the close button (X) — ends the tour completely
     await page.getByTestId("button-close").click();
 
     // Tour should disappear — the overlay/tooltip should be gone
     await expect(page.getByText("Welcome to Pinch!")).not.toBeVisible({ timeout: 5000 });
     // Should be back on dashboard
     await expect(page).toHaveURL("/");
+  });
+
+  test("sample data bar shows after tour completes", async ({ page }) => {
+    await page.goto("/");
+    // Tour was completed in previous test (tutorial setting set to false),
+    // so bar should be visible immediately (initiallyHidden=false)
+    await expect(page.getByText("You're viewing")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear sample data" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear sample data" })).toBeEnabled();
   });
 
   test("clear sample data deletes DB and redirects to /settings", async ({ page }) => {

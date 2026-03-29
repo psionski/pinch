@@ -85,48 +85,34 @@ export default function DashboardPage(): React.ReactElement {
   }));
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
 
       {/* At a Glance — universal KPIs */}
       <KpiCards summary={summary} budgetStatus={budgetStatus} />
 
-      {/* Spending — where is my money going? */}
-      <section data-tour="spending-section" className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Spending</h2>
+      <section data-tour="spending-section">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <SpendingTrendChart data={trends} />
           <CategoryDonutChart data={breakdown} monthLabel={monthLabel} />
         </div>
       </section>
 
-      {/* Planning — am I on track? */}
-      <section className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Planning</h2>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <BudgetAlerts budgetStatus={budgetStatus} />
-          <UpcomingRecurring items={upcomingRecurring} />
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <BudgetAlerts budgetStatus={budgetStatus} />
+        <UpcomingRecurring items={upcomingRecurring} />
+      </div>
 
-      {/* Wealth — portfolio health */}
-      <section className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Wealth</h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-2">
-            <NetWorthCard portfolio={portfolio} />
-            <NetWorthSparkline data={netWorthTimeSeries} />
-          </div>
-          <TopMovers assets={portfolio.assets} />
-          <AllocationMiniDonut data={allocationData} />
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-2">
+          <NetWorthCard portfolio={portfolio} />
+          <NetWorthSparkline data={netWorthTimeSeries} />
         </div>
-      </section>
+        <TopMovers assets={portfolio.assets} />
+        <AllocationMiniDonut data={allocationData} />
+      </div>
 
-      {/* Activity — recent transactions */}
-      <section className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">Activity</h2>
-        <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
-      </section>
+      <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
     </div>
   );
 }

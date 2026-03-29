@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useJoyride, STATUS, type Status } from "react-joyride";
+import { useJoyride, ACTIONS, STATUS, type Status } from "react-joyride";
 import type { Step } from "react-joyride";
 
 function navigateAndWait(router: ReturnType<typeof useRouter>, target: string): Promise<void> {
@@ -312,7 +312,10 @@ export function InteractiveTour({
       skip: "Skip tour",
     },
     onEvent: (data) => {
-      if (([STATUS.FINISHED, STATUS.SKIPPED] as Status[]).includes(data.status)) {
+      if (
+        ([STATUS.FINISHED, STATUS.SKIPPED] as Status[]).includes(data.status) ||
+        data.action === ACTIONS.CLOSE
+      ) {
         handleTourEnd();
       }
     },

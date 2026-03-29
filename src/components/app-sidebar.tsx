@@ -13,6 +13,7 @@ import {
   DollarSign,
   PieChart,
   Settings,
+  Coins,
 } from "lucide-react";
 
 import {
@@ -47,20 +48,20 @@ const navGroups: NavGroup[] = [
     label: "Track",
     items: [
       { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/assets", label: "Assets", icon: TrendingUp },
       { href: "/recurring", label: "Recurring", icon: Repeat },
     ],
   },
   {
     label: "Plan",
     items: [
-      { href: "/budgets", label: "Budgets", icon: Wallet },
       { href: "/categories", label: "Categories", icon: Tags },
+      { href: "/budgets", label: "Budgets", icon: Wallet },
     ],
   },
   {
-    label: "Wealth",
+    label: "Reports",
     items: [
-      { href: "/assets", label: "Assets", icon: TrendingUp },
       { href: "/reports/cash-flow", label: "Cash Flow", icon: DollarSign },
       { href: "/reports/portfolio", label: "Portfolio", icon: PieChart },
     ],
@@ -96,9 +97,12 @@ export function AppSidebar(): React.ReactElement {
 
   return (
     <Sidebar>
-      <SidebarHeader className="px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span>🪙 Pinch</span>
+      <SidebarHeader className="p-4 pt-5 pb-2">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="bg-primary flex size-8 items-center justify-center rounded-lg">
+            <Coins className="text-primary-foreground size-4" />
+          </div>
+          <span className="text-foreground text-lg font-bold tracking-tight">Pinch</span>
         </Link>
       </SidebarHeader>
       <SidebarContent data-tour="sidebar-nav">

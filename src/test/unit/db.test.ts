@@ -296,5 +296,78 @@ describe("Database", () => {
 
       expect(results).toHaveLength(0);
     });
+
+    it("FTS indexes category name for search", () => {
+      const db = makeTestDb();
+
+      const [cat] = db
+        .insert(schema.categories)
+        .values({ name: "Groceries", icon: "cart" })
+        .returning()
+        .all();
+
+      db.insert(schema.transactions)
+        .values({
+          amount: 500,
+          type: "expense",
+          description: "Weekly shop",
+          categoryId: cat.id,
+          date: "2026-03-17",
+        })
+        .run();
+
+      const rawClient = Object.values(db).find(
+        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function"
+      ) as Database.Database | undefined;
+      expect(rawClient).toBeDefined();
+      if (!rawClient) return;
+
+      const results = rawClient
+        .prepare("SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ?")
+        .all("Groceries");
+      expect(results).toHaveLength(1);
+    });
+
+    it("FTS updates when category is renamed", () => {
+      const db = makeTestDb();
+
+      const [cat] = db
+        .insert(schema.categories)
+        .values({ name: "Food", icon: "utensils" })
+        .returning()
+        .all();
+
+      db.insert(schema.transactions)
+        .values({
+          amount: 500,
+          type: "expense",
+          description: "Lunch",
+          categoryId: cat.id,
+          date: "2026-03-17",
+        })
+        .run();
+
+      // Rename category
+      db.update(schema.categories)
+        .set({ name: "Dining" })
+        .where(eq(schema.categories.id, cat.id))
+        .run();
+
+      const rawClient = Object.values(db).find(
+        (v) => v && typeof v === "object" && typeof (v as Database.Database).prepare === "function"
+      ) as Database.Database | undefined;
+      expect(rawClient).toBeDefined();
+      if (!rawClient) return;
+
+      const oldResults = rawClient
+        .prepare("SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ?")
+        .all("Food");
+      const newResults = rawClient
+        .prepare("SELECT rowid FROM transactions_fts WHERE transactions_fts MATCH ?")
+        .all("Dining");
+
+      expect(oldResults).toHaveLength(0);
+      expect(newResults).toHaveLength(1);
+    });
   });
 });

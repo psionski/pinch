@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { Temporal } from "@js-temporal/polyfill";
 import { ChevronLeft, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import { BudgetTable } from "./budget-table";
 import { BudgetFormDialog } from "./budget-form-dialog";
 import { DeleteBudgetDialog } from "./delete-budget-dialog";
@@ -131,27 +132,23 @@ export function BudgetsClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
-
-        <div className="flex items-center gap-2">
-          {inheritedFrom === null && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleResetToInherited()}
-              disabled={loading}
-            >
-              <RotateCcw className="size-4" />
-              Reset to inherited
-            </Button>
-          )}
-          <Button size="sm" onClick={() => setShowForm(true)}>
-            <Plus className="size-4" />
-            Add Budget
+      <PageHeader title="Budgets">
+        {inheritedFrom === null && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleResetToInherited()}
+            disabled={loading}
+          >
+            <RotateCcw className="size-4" />
+            Reset to inherited
           </Button>
-        </div>
-      </div>
+        )}
+        <Button size="sm" onClick={() => setShowForm(true)}>
+          <Plus className="size-4" />
+          Add Budget
+        </Button>
+      </PageHeader>
 
       {/* Month navigator */}
       <div className="flex items-center gap-3">

@@ -55,7 +55,9 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
           <Receipt className="text-muted-foreground size-4" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(summary.period.total)}</div>
+          <div className="text-2xl font-semibold tabular-nums">
+            {formatCurrency(summary.period.total)}
+          </div>
           {summary.comparePeriod && (
             <div className="mt-1">
               <DeltaBadge current={summary.period.total} previous={summary.comparePeriod.total} />
@@ -71,7 +73,7 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
           <Receipt className="text-muted-foreground size-4" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{summary.period.count}</div>
+          <div className="text-2xl font-semibold tabular-nums">{summary.period.count}</div>
           {summary.comparePeriod && (
             <p className="text-muted-foreground mt-1 text-xs">
               {summary.comparePeriod.count} last month
@@ -88,7 +90,7 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
         <CardContent>
           {topCategory ? (
             <>
-              <div className="truncate text-2xl font-bold">{topCategory.key}</div>
+              <div className="truncate text-2xl font-semibold tabular-nums">{topCategory.key}</div>
               <p className="text-muted-foreground mt-1 text-xs">
                 {formatCurrency(topCategory.total)}
               </p>
@@ -107,7 +109,7 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
         <CardContent>
           {avgBudgetUsage !== null ? (
             <>
-              <div className={`text-2xl font-bold ${budgetColor}`}>
+              <div className={`text-2xl font-semibold tabular-nums ${budgetColor}`}>
                 {formatPercent(avgBudgetUsage)}
               </div>
               <p className="text-muted-foreground mt-1 text-xs">

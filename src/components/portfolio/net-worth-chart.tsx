@@ -59,7 +59,7 @@ export function NetWorthChart({ data }: NetWorthChartProps): React.ReactElement 
       </CardHeader>
       <CardContent>
         {chartData.length > 0 ? (
-          <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
+          <ChartContainer config={chartConfig} className="max-h-[350px] min-h-[250px] w-full">
             <AreaChart data={chartData} accessibilityLayer>
               <CartesianGrid vertical={false} />
               <XAxis
