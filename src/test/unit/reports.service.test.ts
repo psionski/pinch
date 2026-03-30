@@ -433,14 +433,14 @@ describe("trends", () => {
   });
 });
 
-// ─── netBalance ──────────────────────────────────────────────────────────────
+// ─── netIncome ───────────────────────────────────────────────────────────────
 
-describe("netBalance", () => {
+describe("netIncome", () => {
   it("returns zero when no transactions exist", () => {
-    const result = reports.netBalance({});
+    const result = reports.netIncome({});
     expect(result.totalIncome).toBe(0);
     expect(result.totalExpenses).toBe(0);
-    expect(result.netBalance).toBe(0);
+    expect(result.netIncome).toBe(0);
     expect(result.transactionCount).toBe(0);
   });
 
@@ -451,10 +451,10 @@ describe("netBalance", () => {
     txService.create(tx({ amount: 1200, type: "expense", date: "2026-03-05" }));
     txService.create(tx({ amount: 800, type: "expense", date: "2026-03-10" }));
 
-    const result = reports.netBalance({});
+    const result = reports.netIncome({});
     expect(result.totalIncome).toBe(5000);
     expect(result.totalExpenses).toBe(2000);
-    expect(result.netBalance).toBe(3000);
+    expect(result.netIncome).toBe(3000);
     expect(result.transactionCount).toBe(3);
   });
 
@@ -465,10 +465,10 @@ describe("netBalance", () => {
     txService.create(tx({ amount: 1000, type: "expense", date: "2026-03-15" }));
     txService.create(tx({ amount: 2000, type: "expense", date: "2026-04-01" }));
 
-    const result = reports.netBalance({ dateFrom: "2026-03-01", dateTo: "2026-03-31" });
+    const result = reports.netIncome({ dateFrom: "2026-03-01", dateTo: "2026-03-31" });
     expect(result.totalIncome).toBe(5000);
     expect(result.totalExpenses).toBe(1000);
-    expect(result.netBalance).toBe(4000);
+    expect(result.netIncome).toBe(4000);
     expect(result.transactionCount).toBe(2);
   });
 
@@ -476,7 +476,7 @@ describe("netBalance", () => {
     txService.create(tx({ amount: 500, type: "expense", date: "2026-02-15" }));
     txService.create(tx({ amount: 300, type: "expense", date: "2026-03-15" }));
 
-    const result = reports.netBalance({ dateFrom: "2026-03-01" });
+    const result = reports.netIncome({ dateFrom: "2026-03-01" });
     expect(result.totalExpenses).toBe(300);
     expect(result.transactionCount).toBe(1);
   });
@@ -485,7 +485,7 @@ describe("netBalance", () => {
     txService.create(tx({ amount: 500, type: "expense", date: "2026-02-15" }));
     txService.create(tx({ amount: 300, type: "expense", date: "2026-03-15" }));
 
-    const result = reports.netBalance({ dateTo: "2026-02-28" });
+    const result = reports.netIncome({ dateTo: "2026-02-28" });
     expect(result.totalExpenses).toBe(500);
     expect(result.transactionCount).toBe(1);
   });
@@ -496,8 +496,8 @@ describe("netBalance", () => {
     );
     txService.create(tx({ amount: 3000, type: "expense", date: "2026-03-05" }));
 
-    const result = reports.netBalance({});
-    expect(result.netBalance).toBe(-2000);
+    const result = reports.netIncome({});
+    expect(result.netIncome).toBe(-2000);
   });
 });
 

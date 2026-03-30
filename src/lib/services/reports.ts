@@ -12,14 +12,15 @@ import {
   type BudgetStatsInput,
   type TrendsInput,
   type TopMerchantsInput,
-  type NetBalanceInput,
+  type NetIncomeInput,
   type SpendingGroup,
   type CategorySpendingItem,
   type BudgetStatsItem,
   type TrendPoint,
   type TopMerchant,
   type SpendingSummaryResult,
-  type NetBalanceResult,
+  type NetIncomeResult,
+  type CashBalanceResult,
   type TransferGroup,
 } from "@/lib/validators/reports";
 
@@ -433,7 +434,7 @@ export class ReportService {
     }));
   }
 
-  netBalance(input: NetBalanceInput): NetBalanceResult {
+  netIncome(input: NetIncomeInput): NetIncomeResult {
     const filters: SQL[] = [];
     if (input.dateFrom) filters.push(gte(transactions.date, input.dateFrom));
     if (input.dateTo) filters.push(lte(transactions.date, input.dateTo));
@@ -461,8 +462,39 @@ export class ReportService {
     return {
       totalIncome: income,
       totalExpenses: expenses,
-      netBalance: income - expenses,
+      netIncome: income - expenses,
       transactionCount: row?.count ?? 0,
+    };
+  }
+
+  cashBalance(): CashBalanceResult {
+    const [row] = this.db
+      .select({
+        income:
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`.mapWith(
+            Number
+          ),
+        expenses:
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
+            Number
+          ),
+        transfers:
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`.mapWith(
+            Number
+          ),
+      })
+      .from(transactions)
+      .all();
+
+    const income = row?.income ?? 0;
+    const expenses = row?.expenses ?? 0;
+    const transfers = row?.transfers ?? 0;
+
+    return {
+      cashBalance: income - expenses + transfers,
+      totalIncome: income,
+      totalExpenses: expenses,
+      totalTransfers: transfers,
     };
   }
 

@@ -57,6 +57,7 @@ test.describe.serial("Recurring transactions", () => {
     await page.getByRole("menuitem", { name: "Delete" }).click();
 
     await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByText("Netflix Subscription")).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 5000 });
+    await expect(row).not.toBeVisible({ timeout: 5000 });
   });
 });

@@ -9,7 +9,7 @@ import { TrendsChart } from "@/components/charts/trends-chart";
 import { CategoryChangesCard } from "./category-changes-card";
 import { MerchantTable } from "./merchant-table";
 import type {
-  NetBalanceResult,
+  NetIncomeResult,
   TrendPoint,
   SpendingSummaryResult,
   TopMerchant,
@@ -17,7 +17,7 @@ import type {
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 export interface ReportsData {
-  balance: NetBalanceResult;
+  balance: NetIncomeResult;
   incomeTrend: TrendPoint[];
   expenseTrend: TrendPoint[];
   spendingTrend: TrendPoint[];
@@ -49,7 +49,7 @@ export function ReportsClient({
 
       const [balanceRes, incomeTrendRes, expenseTrendRes, summaryRes, merchantsRes] =
         await Promise.all([
-          fetch(`/api/reports/balance?${params({ dateFrom: r.dateFrom, dateTo: r.dateTo })}`),
+          fetch(`/api/reports/income?${params({ dateFrom: r.dateFrom, dateTo: r.dateTo })}`),
           fetch(`/api/reports/trends?${params({ months: String(r.months), type: "income" })}`),
           fetch(`/api/reports/trends?${params({ months: String(r.months), type: "expense" })}`),
           fetch(
@@ -79,7 +79,7 @@ export function ReportsClient({
         merchantsRes.ok
       ) {
         const [balance, incomeTrend, expenseTrend, summary, topMerchants] = await Promise.all([
-          balanceRes.json() as Promise<NetBalanceResult>,
+          balanceRes.json() as Promise<NetIncomeResult>,
           incomeTrendRes.json() as Promise<TrendPoint[]>,
           expenseTrendRes.json() as Promise<TrendPoint[]>,
           summaryRes.json() as Promise<SpendingSummaryResult>,

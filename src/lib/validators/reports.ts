@@ -79,23 +79,40 @@ export const TopMerchantsSchema = z.object({
 
 export type TopMerchantsInput = z.infer<typeof TopMerchantsSchema>;
 
-// ─── Net Balance ─────────────────────────────────────────────────────────
+// ─── Net Income ──────────────────────────────────────────────────────────
 
-export const NetBalanceSchema = z.object({
+export const NetIncomeSchema = z.object({
   dateFrom: IsoDateSchema.optional(),
   dateTo: IsoDateSchema.optional(),
 });
 
-export type NetBalanceInput = z.infer<typeof NetBalanceSchema>;
+export type NetIncomeInput = z.infer<typeof NetIncomeSchema>;
 
-export const NetBalanceResultSchema = z.object({
+export const NetIncomeResultSchema = z.object({
   totalIncome: z.number().int(),
   totalExpenses: z.number().int(),
-  netBalance: z.number().int(),
+  netIncome: z.number().int(),
   transactionCount: z.number().int(),
 });
 
-export type NetBalanceResult = z.infer<typeof NetBalanceResultSchema>;
+export type NetIncomeResult = z.infer<typeof NetIncomeResultSchema>;
+
+// ─── Cash Balance ────────────────────────────────────────────────────────
+
+export const CashBalanceResultSchema = z.object({
+  cashBalance: z
+    .number()
+    .int()
+    .describe("Current checking account balance in cents (income − expenses + asset transfers)"),
+  totalIncome: z.number().int(),
+  totalExpenses: z.number().int(),
+  totalTransfers: z
+    .number()
+    .int()
+    .describe("Net cash effect of asset purchases/sales (negative = net outflow to assets)"),
+});
+
+export type CashBalanceResult = z.infer<typeof CashBalanceResultSchema>;
 
 // ─── Return types ─────────────────────────────────────────────────────────────
 

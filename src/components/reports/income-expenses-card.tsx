@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatMonth } from "@/lib/format";
-import type { TrendPoint, NetBalanceResult } from "@/lib/validators/reports";
+import type { TrendPoint, NetIncomeResult } from "@/lib/validators/reports";
 
 const chartConfig = {
   income: { label: "Income", color: "var(--chart-2)" },
@@ -18,7 +18,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 interface IncomeExpensesCardProps {
-  balance: NetBalanceResult;
+  balance: NetIncomeResult;
   incomeTrend: TrendPoint[];
   expenseTrend: TrendPoint[];
   showChart?: boolean;
@@ -52,7 +52,7 @@ export function IncomeExpensesCard({
     return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
   }, [incomeTrend, expenseTrend]);
 
-  const netIsPositive = balance.netBalance >= 0;
+  const netIsPositive = balance.netIncome >= 0;
 
   return (
     <Card className="flex h-full flex-col">
@@ -75,12 +75,12 @@ export function IncomeExpensesCard({
             </p>
           </div>
           <div>
-            <p className="text-muted-foreground text-xs">Net Balance</p>
+            <p className="text-muted-foreground text-xs">Net Income</p>
             <p
               className={`text-lg font-semibold ${netIsPositive ? "text-green-600" : "text-red-600"}`}
             >
               {netIsPositive ? "+" : ""}
-              {formatCurrency(balance.netBalance)}
+              {formatCurrency(balance.netIncome)}
             </p>
           </div>
         </div>

@@ -1,41 +1,22 @@
-import { sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { transactions } from "@/lib/db/schema";
 import { AssetService } from "./assets";
+import { ReportService } from "./reports";
 import type { PortfolioResponse } from "@/lib/validators/assets";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
 export class PortfolioService {
   private assetService: AssetService;
+  private reportService: ReportService;
 
-  constructor(private db: Db) {
+  constructor(db: Db) {
     this.assetService = new AssetService(db);
+    this.reportService = new ReportService(db);
   }
 
   getPortfolio(): PortfolioResponse {
-    // Cash balance: income − expenses + transfers (signed: negative = purchase, positive = sale).
-    // Transfer amounts are signed, so a single sum covers both asset purchases and sales.
-    const [balRow] = this.db
-      .select({
-        income:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`.mapWith(
-            Number
-          ),
-        expenses:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
-            Number
-          ),
-        transfers:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`.mapWith(
-            Number
-          ),
-      })
-      .from(transactions)
-      .all();
-
-    const cashBalance = (balRow?.income ?? 0) - (balRow?.expenses ?? 0) + (balRow?.transfers ?? 0);
+    const { cashBalance } = this.reportService.cashBalance();
 
     // Assets with metrics
     const allAssets = this.assetService.list();

@@ -334,14 +334,15 @@ PRAGMA busy_timeout = 5000;
 | `list_unprocessed_receipts` | Find receipts with no linked transactions yet |
 | `delete_receipt` | Delete receipt(s) and their image files |
 
-### Reporting (5 tools)
+### Reporting (6 tools)
 | Tool | Description |
 |------|-------------|
 | `get_spending_summary` | Total spend for a period, grouped by category/month/merchant, with optional period comparison |
 | `get_category_stats` | Per-category spending with amounts, percentages, and hierarchy rollups |
 | `get_trends` | Monthly totals time series (up to 24 months), optionally filtered by category |
 | `get_top_merchants` | Highest-spend merchants with transaction counts and averages |
-| `get_net_balance` | Income minus expenses, optionally filtered by date range |
+| `get_net_income` | Profit & Loss: income minus expenses, optionally filtered by date range |
+| `get_cash_balance` | Current checking account balance (income − expenses ± asset transfers) |
 
 ### Portfolio Reports (6 tools)
 | Tool | Description |

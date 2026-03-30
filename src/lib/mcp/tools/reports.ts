@@ -1,10 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import {
   SpendingSummarySchema,
   CategoryStatsSchema,
   TrendsSchema,
   TopMerchantsSchema,
-  NetBalanceSchema,
+  NetIncomeSchema,
 } from "@/lib/validators/reports";
 import { getReportService } from "@/lib/api/services";
 import { ok } from "@/lib/mcp/response";
@@ -47,13 +48,26 @@ export function registerReportTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "get_net_balance",
+    "get_net_income",
     {
       description:
-        "Total income minus total expenses (net balance). Without dates, returns the all-time balance.",
-      inputSchema: NetBalanceSchema,
+        "Profit & Loss: total income minus total expenses. " +
+        "Does not include money moved into or out of assets (savings, investments). " +
+        "For the actual checking account balance, use get_cash_balance instead.",
+      inputSchema: NetIncomeSchema,
     },
-    (input) => ok(getReportService().netBalance(input))
+    (input) => ok(getReportService().netIncome(input))
+  );
+
+  server.registerTool(
+    "get_cash_balance",
+    {
+      description:
+        "Current checking account balance: income minus expenses, adjusted for money moved into and out of assets. " +
+        "For a Profit & Loss view (income vs expenses only), use get_net_income instead.",
+      inputSchema: z.object({}),
+    },
+    () => ok(getReportService().cashBalance())
   );
 
   server.registerTool(

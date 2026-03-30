@@ -8,7 +8,7 @@ describe("Report API Routes", () => {
   let GET_CATEGORY_STATS: (req: Request) => Promise<Response>;
   let GET_TRENDS: (req: Request) => Promise<Response>;
   let GET_TOP_MERCHANTS: (req: Request) => Promise<Response>;
-  let GET_BALANCE: (req: Request) => Promise<Response>;
+  let GET_INCOME: (req: Request) => Promise<Response>;
   let POST_TX: (req: Request) => Promise<Response>;
   let POST_CAT: (req: Request) => Promise<Response>;
 
@@ -17,14 +17,14 @@ describe("Report API Routes", () => {
     const categoryStats = await import("@/app/api/reports/category-stats/route");
     const trends = await import("@/app/api/reports/trends/route");
     const topMerchants = await import("@/app/api/reports/top-merchants/route");
-    const balance = await import("@/app/api/reports/balance/route");
+    const income = await import("@/app/api/reports/income/route");
     const txs = await import("@/app/api/transactions/route");
     const cats = await import("@/app/api/categories/route");
     GET_SUMMARY = summary.GET;
     GET_CATEGORY_STATS = categoryStats.GET;
     GET_TRENDS = trends.GET;
     GET_TOP_MERCHANTS = topMerchants.GET;
-    GET_BALANCE = balance.GET;
+    GET_INCOME = income.GET;
     POST_TX = txs.POST;
     POST_CAT = cats.POST;
   });
@@ -106,20 +106,18 @@ describe("Report API Routes", () => {
     expect(res.status).toBe(400);
   });
 
-  it("GET /balance returns net balance for all time", async () => {
+  it("GET /income returns net income for all time", async () => {
     await seedData();
     // seedData creates two expense transactions: 2000 + 3000 = 5000
-    const res = await GET_BALANCE(makeGet("/api/reports/balance"));
+    const res = await GET_INCOME(makeGet("/api/reports/income"));
     expect(res.status).toBe(200);
-    const body = await json<{ totalIncome: number; totalExpenses: number; netBalance: number }>(
-      res
-    );
+    const body = await json<{ totalIncome: number; totalExpenses: number; netIncome: number }>(res);
     expect(body.totalExpenses).toBe(5000);
     expect(body.totalIncome).toBe(0);
-    expect(body.netBalance).toBe(-5000);
+    expect(body.netIncome).toBe(-5000);
   });
 
-  it("GET /balance filters by date range", async () => {
+  it("GET /income filters by date range", async () => {
     await seedData();
     // Add income in a different month
     await POST_TX(
@@ -131,15 +129,13 @@ describe("Report API Routes", () => {
       })
     );
 
-    const res = await GET_BALANCE(
-      makeGet("/api/reports/balance", { dateFrom: "2025-01-01", dateTo: "2025-01-31" })
+    const res = await GET_INCOME(
+      makeGet("/api/reports/income", { dateFrom: "2025-01-01", dateTo: "2025-01-31" })
     );
     expect(res.status).toBe(200);
-    const body = await json<{ totalIncome: number; totalExpenses: number; netBalance: number }>(
-      res
-    );
+    const body = await json<{ totalIncome: number; totalExpenses: number; netIncome: number }>(res);
     expect(body.totalExpenses).toBe(5000);
     expect(body.totalIncome).toBe(0);
-    expect(body.netBalance).toBe(-5000);
+    expect(body.netIncome).toBe(-5000);
   });
 });

@@ -13,7 +13,7 @@ export default function ReportsPage(): React.ReactElement {
   const { dateFrom, dateTo } = computePresetRange(DEFAULT_PRESET);
   const computed = computeCompareRange({ dateFrom, dateTo });
 
-  const balance = reportService.netBalance({ dateFrom, dateTo });
+  const balance = reportService.netIncome({ dateFrom, dateTo });
   const incomeTrend = reportService.trends({ months: computed.months, type: "income" });
   const expenseTrend = reportService.trends({ months: computed.months, type: "expense" });
   const summary = reportService.spendingSummary({
