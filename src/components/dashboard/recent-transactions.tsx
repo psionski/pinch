@@ -50,7 +50,6 @@ export function RecentTransactions({
                       tx.type === "income" ? "text-emerald-600" : "text-foreground"
                     }`}
                   >
-                    {tx.type === "income" ? "+" : "-"}
                     {formatCurrency(tx.amount)}
                   </span>
                 </div>

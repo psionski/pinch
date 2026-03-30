@@ -162,7 +162,7 @@ async function seed(): Promise<void> {
       const [txRow] = await db
         .insert(transactions)
         .values({
-          amount: totalCents,
+          amount: lot.quantity >= 0 ? -totalCents : totalCents,
           type: "transfer",
           description: lot.description,
           date: lot.date,

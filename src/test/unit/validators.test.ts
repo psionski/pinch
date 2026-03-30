@@ -103,8 +103,9 @@ describe("CreateTransactionSchema", () => {
     expect(() => CreateTransactionSchema.parse({ ...valid, amount: 0 })).toThrow();
   });
 
-  it("rejects negative amount", () => {
-    expect(() => CreateTransactionSchema.parse({ ...valid, amount: -100 })).toThrow();
+  it("allows negative amount (signed transfers)", () => {
+    const result = CreateTransactionSchema.parse({ ...valid, amount: -100, type: "transfer" });
+    expect(result.amount).toBe(-100);
   });
 
   it("rejects decimal amount", () => {
@@ -142,8 +143,9 @@ describe("UpdateTransactionSchema", () => {
     expect(result.categoryId).toBeNull();
   });
 
-  it("rejects invalid amount on update", () => {
-    expect(() => UpdateTransactionSchema.parse({ amount: -1 })).toThrow();
+  it("allows negative amount on update (signed transfers)", () => {
+    const result = UpdateTransactionSchema.parse({ amount: -1 });
+    expect(result.amount).toBe(-1);
   });
 });
 

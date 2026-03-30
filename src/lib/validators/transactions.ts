@@ -37,8 +37,11 @@ export const CreateTransactionSchema = z.object({
   amount: z
     .number()
     .int()
-    .positive("Amount must be a positive integer (cents)")
-    .describe("Amount in cents (e.g. 1210 = €12.10)"),
+    .refine((n) => n !== 0, "Amount must not be zero")
+    .describe(
+      "Amount in cents (e.g. 1210 = €12.10). " +
+        "Positive for income/expense. Signed for transfers: negative = cash out (asset purchase), positive = cash in (asset sale)"
+    ),
   type: TransactionTypeSchema.default("expense").describe("Defaults to 'expense'"),
   description: z
     .string()
@@ -64,7 +67,11 @@ export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;
 // ─── Update ───────────────────────────────────────────────────────────────────
 
 export const UpdateTransactionSchema = z.object({
-  amount: z.number().int().positive().optional(),
+  amount: z
+    .number()
+    .int()
+    .refine((n) => n !== 0, "Amount must not be zero")
+    .optional(),
   type: TransactionTypeSchema.optional(),
   description: z.string().min(1).max(500).optional(),
   merchant: z.string().max(255).nullable().optional(),

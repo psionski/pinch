@@ -88,7 +88,7 @@ export const transactions = sqliteTable(
   "transactions",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    amount: integer("amount").notNull(), // cents, always positive
+    amount: integer("amount").notNull(), // cents; positive for income/expense, signed for transfers (negative = cash out, positive = cash in)
     type: text("type").notNull().default("expense"), // 'income' | 'expense' | 'transfer'
     description: text("description").notNull(),
     merchant: text("merchant"),

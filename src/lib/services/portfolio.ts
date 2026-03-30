@@ -1,7 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { transactions, assetLots } from "@/lib/db/schema";
+import { transactions } from "@/lib/db/schema";
 import { AssetService } from "./assets";
 import type { PortfolioResponse } from "@/lib/validators/assets";
 
@@ -15,10 +15,8 @@ export class PortfolioService {
   }
 
   getPortfolio(): PortfolioResponse {
-    // Cash balance: income − expenses − asset purchases + asset sales.
-    // Asset buy/sell transactions are type='transfer' and excluded from income/expense
-    // totals, but we explicitly account for them here so that moving money into/out of
-    // assets is net-worth-neutral (buying assets shouldn't increase net worth).
+    // Cash balance: income − expenses + transfers (signed: negative = purchase, positive = sale).
+    // Transfer amounts are signed, so a single sum covers both asset purchases and sales.
     const [balRow] = this.db
       .select({
         income:
@@ -29,31 +27,15 @@ export class PortfolioService {
           sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
             Number
           ),
+        transfers:
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`.mapWith(
+            Number
+          ),
       })
       .from(transactions)
       .all();
 
-    // Asset-linked transfer flows (via asset_lots → transactions join)
-    const [assetFlowRow] = this.db
-      .select({
-        purchases:
-          sql<number>`coalesce(sum(case when ${assetLots.quantity} > 0 then ${transactions.amount} else 0 end), 0)`.mapWith(
-            Number
-          ),
-        sales:
-          sql<number>`coalesce(sum(case when ${assetLots.quantity} < 0 then ${transactions.amount} else 0 end), 0)`.mapWith(
-            Number
-          ),
-      })
-      .from(assetLots)
-      .innerJoin(transactions, eq(assetLots.transactionId, transactions.id))
-      .all();
-
-    const cashBalance =
-      (balRow?.income ?? 0) -
-      (balRow?.expenses ?? 0) -
-      (assetFlowRow?.purchases ?? 0) +
-      (assetFlowRow?.sales ?? 0);
+    const cashBalance = (balRow?.income ?? 0) - (balRow?.expenses ?? 0) + (balRow?.transfers ?? 0);
 
     // Assets with metrics
     const allAssets = this.assetService.list();

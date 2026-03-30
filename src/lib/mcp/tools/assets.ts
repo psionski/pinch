@@ -102,7 +102,7 @@ export function registerAssetTools(server: McpServer): void {
     "buy_asset",
     {
       description:
-        "Record an asset purchase or deposit. Deducts from cash balance and adds to holdings. " +
+        "Record an asset purchase or deposit. Creates a negative-amount transfer transaction (cash out) and adds to holdings. " +
         "For EUR deposits: pricePerUnit = 100, quantity = EUR amount. " +
         "For foreign currency deposits: pricePerUnit = EUR exchange rate in cents " +
         "(use get_price with symbol='USD', currency='EUR' to find the rate).",
@@ -123,7 +123,7 @@ export function registerAssetTools(server: McpServer): void {
     "sell_asset",
     {
       description:
-        "Record an asset sale or withdrawal. Adds to cash balance and reduces holdings. " +
+        "Record an asset sale or withdrawal. Creates a positive-amount transfer transaction (cash in) and reduces holdings. " +
         "Returns error if quantity exceeds current holdings. " +
         "For EUR withdrawals: pricePerUnit = 100. For foreign currency: use EUR exchange rate in cents.",
       inputSchema: IdSchema.merge(SellAssetSchema),

@@ -75,7 +75,7 @@ export class AssetLotService {
       const [txRow] = this.db
         .insert(transactions)
         .values({
-          amount: totalCents,
+          amount: -totalCents,
           type: "transfer",
           description,
           date: input.date,

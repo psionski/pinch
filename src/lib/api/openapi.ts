@@ -194,7 +194,8 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       title: "Pinch API",
       version: "1.0.0",
       description:
-        "Personal finance tracker API. All monetary amounts are integers in cents (e.g. 1210 = €12.10).",
+        "Personal finance tracker API. All monetary amounts are integers in cents (e.g. 1210 = €12.10). " +
+        "Transfer transaction amounts are signed: negative = cash out (asset purchase), positive = cash in (asset sale).",
     },
     tags: [
       { name: "Transactions", description: "Transaction CRUD and listing" },
@@ -687,7 +688,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       "/api/assets/{id}/buy": {
         post: op({
           id: "buyAsset",
-          summary: "Record an asset purchase — creates a transfer transaction + lot",
+          summary: "Record an asset purchase — creates a negative transfer transaction + lot",
           tags: ["Assets"],
           pathId: "Asset ID",
           body: BuyAssetSchema,
@@ -699,7 +700,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       "/api/assets/{id}/sell": {
         post: op({
           id: "sellAsset",
-          summary: "Record an asset sale — creates a transfer transaction + negative lot",
+          summary: "Record an asset sale — creates a positive transfer transaction + negative lot",
           tags: ["Assets"],
           pathId: "Asset ID",
           body: SellAssetSchema,

@@ -111,6 +111,7 @@ function SummaryCards({ portfolio }: { portfolio: PortfolioResponse }): React.Re
 
 export function AssetsClient({ initialAssets, portfolio }: AssetsClientProps): React.ReactElement {
   const [assets, setAssets] = useState(initialAssets);
+  const [currentPortfolio, setCurrentPortfolio] = useState(portfolio);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [buyingAsset, setBuyingAsset] = useState<AssetWithMetrics | null>(null);
@@ -122,8 +123,12 @@ export function AssetsClient({ initialAssets, portfolio }: AssetsClientProps): R
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const res = await fetch("/api/assets");
-      if (res.ok) setAssets((await res.json()) as AssetWithMetrics[]);
+      const [assetsRes, portfolioRes] = await Promise.all([
+        fetch("/api/assets"),
+        fetch("/api/portfolio"),
+      ]);
+      if (assetsRes.ok) setAssets((await assetsRes.json()) as AssetWithMetrics[]);
+      if (portfolioRes.ok) setCurrentPortfolio((await portfolioRes.json()) as PortfolioResponse);
     } finally {
       setLoading(false);
     }
@@ -227,7 +232,7 @@ export function AssetsClient({ initialAssets, portfolio }: AssetsClientProps): R
         </p>
       ) : (
         <>
-          <SummaryCards portfolio={portfolio} />
+          <SummaryCards portfolio={currentPortfolio} />
 
           <div
             data-tour="asset-cards"

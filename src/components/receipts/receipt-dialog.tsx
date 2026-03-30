@@ -166,7 +166,6 @@ export function ReceiptDialog({
                         {tx.description}
                       </span>
                       <span className={tx.type === "income" ? "text-emerald-600" : ""}>
-                        {tx.type === "income" ? "+" : "-"}
                         {formatCurrency(tx.amount)}
                       </span>
                     </li>

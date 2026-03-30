@@ -239,8 +239,8 @@ export class ReportService {
           purchases: 0,
           sales: 0,
         };
-        if (row.quantity > 0) existing.purchases += row.amount;
-        else existing.sales += row.amount;
+        if (row.quantity > 0) existing.purchases += Math.abs(row.amount);
+        else existing.sales += Math.abs(row.amount);
         assetMap.set(row.assetId, existing);
       }
 

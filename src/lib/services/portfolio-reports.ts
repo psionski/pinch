@@ -74,32 +74,16 @@ export class PortfolioReportService {
             sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
               Number
             ),
+          transfers:
+            sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`.mapWith(
+              Number
+            ),
         })
         .from(transactions)
         .where(lte(transactions.date, date))
         .all();
 
-      const [flowRow] = this.db
-        .select({
-          purchases:
-            sql<number>`coalesce(sum(case when ${assetLots.quantity} > 0 then ${transactions.amount} else 0 end), 0)`.mapWith(
-              Number
-            ),
-          sales:
-            sql<number>`coalesce(sum(case when ${assetLots.quantity} < 0 then ${transactions.amount} else 0 end), 0)`.mapWith(
-              Number
-            ),
-        })
-        .from(assetLots)
-        .innerJoin(transactions, eq(assetLots.transactionId, transactions.id))
-        .where(lte(assetLots.date, date))
-        .all();
-
-      const cash =
-        (cashRow?.income ?? 0) -
-        (cashRow?.expenses ?? 0) -
-        (flowRow?.purchases ?? 0) +
-        (flowRow?.sales ?? 0);
+      const cash = (cashRow?.income ?? 0) - (cashRow?.expenses ?? 0) + (cashRow?.transfers ?? 0);
 
       let assetTotal = 0;
       for (const asset of allAssets) {
@@ -414,9 +398,9 @@ export class PortfolioReportService {
       };
 
       if (row.quantity > 0) {
-        existing.purchases += row.amount;
+        existing.purchases += Math.abs(row.amount);
       } else {
-        existing.sales += row.amount;
+        existing.sales += Math.abs(row.amount);
       }
 
       assetMap.set(row.assetId, existing);

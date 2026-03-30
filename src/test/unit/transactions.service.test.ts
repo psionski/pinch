@@ -526,12 +526,12 @@ describe("transfer type", () => {
     expect(result.amount).toBe(50000);
   });
 
-  it("lists transfer transactions with type filter", () => {
+  it("excludes transfers by default, includes with explicit type filter", () => {
     service.create(tx({ type: "expense" }));
     service.create(tx({ type: "transfer", description: "Asset purchase" }));
 
     const all = service.list(ListTransactionsSchema.parse({}));
-    expect(all.total).toBe(2);
+    expect(all.total).toBe(1); // transfers excluded by default
 
     const transfers = service.list(ListTransactionsSchema.parse({ type: "transfer" }));
     expect(transfers.total).toBe(1);

@@ -19,7 +19,8 @@ export function registerTransactionTools(server: McpServer): void {
         "Add a single transaction. Use list_categories to find valid categoryId values. " +
         "When someone sends the user money to a specific asset (e.g. 'Alice sent me 50 EUR to Revolut'), " +
         "use create_transactions to batch-add an income transaction and a transfer transaction " +
-        "as per the create_transactions tool description.",
+        "as per the create_transactions tool description. " +
+        "Transfer amounts are signed: negative = cash out (asset purchase), positive = cash in (asset sale).",
       inputSchema: CreateTransactionSchema,
     },
     (input) => ok(getTransactionService().create(input))

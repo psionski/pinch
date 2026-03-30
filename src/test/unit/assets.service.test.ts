@@ -119,7 +119,7 @@ describe("AssetLotService", () => {
     expect(lot.transactionId).toBe(transaction.id);
 
     expect(transaction.type).toBe("transfer");
-    expect(transaction.amount).toBe(4000000); // 0.5 * 8000000
+    expect(transaction.amount).toBe(-4000000); // -(0.5 * 8000000) — negative = cash out
     expect(transaction.date).toBe("2026-03-01");
   });
 
@@ -326,19 +326,19 @@ describe("PortfolioService", () => {
     expect(portfolio.pnl).toBeNull();
   });
 
-  it("cash balance is income minus expenses, transfers excluded", () => {
+  it("cash balance is income minus expenses plus signed transfers", () => {
     txService.create({ amount: 100000, type: "income", description: "Salary", date: "2026-03-01" });
     txService.create({ amount: 30000, type: "expense", description: "Rent", date: "2026-03-01" });
-    // Transfer — should not affect cash balance
+    // Negative transfer = asset purchase (cash out), should reduce cash balance
     txService.create({
-      amount: 50000,
+      amount: -50000,
       type: "transfer",
       description: "Buy ETF",
       date: "2026-03-01",
     });
 
     const portfolio = portfolioService.getPortfolio();
-    expect(portfolio.cashBalance).toBe(70000); // 100000 - 30000 (transfer excluded)
+    expect(portfolio.cashBalance).toBe(20000); // 100000 - 30000 - 50000
   });
 
   it("net worth includes asset values and buying is net-worth-neutral", () => {

@@ -1,6 +1,7 @@
 import {
   and,
   eq,
+  ne,
   gte,
   lte,
   like,
@@ -115,6 +116,7 @@ export class TransactionService {
     if (input.merchant !== undefined)
       filters.push(like(transactions.merchant, `%${input.merchant}%`));
     if (input.type !== undefined) filters.push(eq(transactions.type, input.type));
+    else filters.push(ne(transactions.type, "transfer"));
     if (input.receiptId !== undefined) filters.push(eq(transactions.receiptId, input.receiptId));
     if (input.recurringId !== undefined)
       filters.push(eq(transactions.recurringId, input.recurringId));
