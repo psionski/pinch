@@ -17,9 +17,10 @@ export function registerTransactionTools(server: McpServer): void {
     {
       description:
         "Add a single transaction. Use list_categories to find valid categoryId values. " +
-        "When someone sends the user money to a specific asset (e.g. 'Alice sent me 50 EUR to Revolut'), " +
-        "use create_transactions to batch-add an income transaction and a transfer transaction " +
-        "as per the create_transactions tool description. " +
+        "When someone pays FROM a specific account/wallet (e.g. 'paid from Revolut'): " +
+        "create the expense transaction, then call sell_asset on that asset to reduce its balance. " +
+        "When someone receives money INTO a specific account (e.g. 'Alice sent me 50 EUR to Revolut'): " +
+        "create the income transaction, then call buy_asset on that asset to increase its balance. " +
         "Transfer amounts are signed: negative = cash out (asset purchase), positive = cash in (asset sale).",
       inputSchema: CreateTransactionSchema,
     },
@@ -33,9 +34,9 @@ export function registerTransactionTools(server: McpServer): void {
         "Batch-add multiple transactions in one call. " +
         "Use list_categories to find valid categoryId values. " +
         "Optionally link all to an uploaded receipt via receiptId. " +
-        "When someone sends the user money to a specific asset (e.g. 'Alice sent me 50 EUR to Revolut'), " +
-        "create two transactions in the batch: (1) an income transaction for the amount, and " +
-        "(2) a transfer transaction moving the funds into the destination asset.",
+        "For account-linked transactions (paying from or receiving into a specific account), " +
+        "use create_transaction + buy_asset/sell_asset instead — buy_asset and sell_asset create " +
+        "the transfer transaction automatically and also update the account's holdings.",
       inputSchema: CreateTransactionsBatchSchema,
     },
     (input) => ok(getTransactionService().createBatch(input))

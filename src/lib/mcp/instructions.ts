@@ -11,6 +11,13 @@ export const INSTRUCTIONS = [
   "4. Ask about investments (stocks, ETFs, crypto) → if they have any, mention that free market data providers (Frankfurter, CoinGecko) work without API keys. Suggest setting up Alpha Vantage (free key, 25 req/day) if they track stocks/ETFs.",
   "4.1. After (potentially) setting up API keys, for each asset, use search_symbol to find the symbol, then add_opening_asset with the symbolMap.",
   // Normal usage
+  "Accounts and wallets (e.g. Revolut, a savings account) are modeled as 'deposit' type assets. " +
+    "When a user mentions paying FROM a specific account (e.g. 'paid from Revolut'), call list_assets to find it, then: " +
+    "(1) create_transaction for the expense, and (2) call sell_asset on that asset to reduce its balance. " +
+    "When a user receives money INTO a specific account (e.g. 'Alice sent me 50 EUR to Revolut'), call list_assets to find it, then: " +
+    "(1) create_transaction for the income, and (2) call buy_asset on that asset to increase its balance. " +
+    "The transfer transaction created by buy_asset/sell_asset offsets the income/expense in the cash balance. " +
+    "If the mentioned account doesn't exist as an asset yet, offer to create it with create_asset (type: 'deposit').",
   "When creating an investment, crypto, or foreign currency asset, use search_symbol to find the correct market identifier, then pass it as symbolMap to create_asset. This enables automatic price tracking. If search_symbol returns no results, create the asset without symbolMap and use record_price to update prices manually.",
   "For analysis not covered by the reporting tools, use get_db_schema to discover table structure, then use the query tool for arbitrary read-only SQL.",
   "Receipt upload flow: POST /api/receipts/upload (multipart/form-data, field: 'image'; optional fields: 'merchant', 'date', 'total', 'raw_text') → returns { receipt_id }.",
