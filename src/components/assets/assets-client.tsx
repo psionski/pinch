@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Plus, TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
+import { PnlDisplay } from "@/components/shared/pnl-display";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,20 +25,6 @@ const TYPE_LABELS: Record<string, string> = {
   crypto: "Crypto",
   other: "Other",
 };
-
-function PnlBadge({ pnl }: { pnl: number | null }): React.ReactElement | null {
-  if (pnl === null) return null;
-  const positive = pnl >= 0;
-  return (
-    <span
-      className={`flex items-center gap-1 text-sm font-medium ${positive ? "text-emerald-600" : "text-destructive"}`}
-    >
-      {positive ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
-      {positive ? "+" : ""}
-      {formatCurrency(pnl)}
-    </span>
-  );
-}
 
 function SummaryCards({ portfolio }: { portfolio: PortfolioResponse }): React.ReactElement {
   const { netWorth, cashBalance, totalAssetValue, pnl } = portfolio;
@@ -279,7 +266,7 @@ export function AssetsClient({ initialAssets, portfolio }: AssetsClientProps): R
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">P&amp;L</span>
-                      <PnlBadge pnl={asset.pnl} />
+                      <PnlDisplay pnl={asset.pnl} size="sm" />
                     </div>
                   </div>
 

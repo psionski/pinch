@@ -3,15 +3,8 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  TrendingUp,
-  TrendingDown,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  AlertTriangle,
-} from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { PnlDisplay } from "@/components/shared/pnl-display";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,21 +31,6 @@ interface AssetDetailClientProps {
   initialAsset: AssetWithMetrics;
   initialLots: AssetLotResponse[];
   realizedPnl: number | null;
-}
-
-function PnlDisplay({ pnl, label }: { pnl: number | null; label?: string }): React.ReactElement {
-  if (pnl === null) return <span className="text-muted-foreground">—</span>;
-  const positive = pnl >= 0;
-  return (
-    <span
-      className={`flex items-center gap-1 font-semibold ${positive ? "text-emerald-600" : "text-destructive"}`}
-    >
-      {positive ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
-      {label && <span className="text-muted-foreground mr-1 text-xs font-normal">{label}</span>}
-      {positive ? "+" : ""}
-      {formatCurrency(pnl)}
-    </span>
-  );
 }
 
 export function AssetDetailClient({
