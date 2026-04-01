@@ -12,7 +12,8 @@ export const recurringPaths = {
   "/api/recurring": {
     post: op({
       id: "createRecurring",
-      summary: "Create a recurring transaction template",
+      summary:
+        "Create a recurring transaction template. Auto-generates occurrences up to today if startDate is today or in the past",
       tags: ["Recurring"],
       body: CreateRecurringSchema,
       response: Recurring,

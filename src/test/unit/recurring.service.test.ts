@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { makeTestDb } from "../helpers";
 import { RecurringService, computeNextOccurrence } from "@/lib/services/recurring";
 import { TransactionService } from "@/lib/services/transactions";
@@ -13,19 +13,28 @@ let db: TestDb;
 let service: RecurringService;
 let txService: TransactionService;
 
+// Pin clock to 2026-04-01 — test data uses dates relative to this
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(Date.UTC(2026, 3, 1)));
   db = makeTestDb();
   service = new RecurringService(db);
   txService = new TransactionService(db);
   new CategoryService(db);
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** Helper — defaults to a future startDate so tests that don't care about
+ *  auto-generation aren't polluted with phantom transactions. */
 function rec(overrides: Record<string, unknown> = {}) {
   return CreateRecurringSchema.parse({
     amount: 1000,
     description: "Test recurring",
     frequency: "monthly",
-    startDate: "2026-01-01",
+    startDate: "2099-01-01",
     ...overrides,
   });
 }
@@ -72,7 +81,11 @@ describe("computeNextOccurrence", () => {
   });
 
   it("monthly: uses dayOfMonth when specified", () => {
-    const r = makeRow({ startDate: "2026-01-01", frequency: "monthly", dayOfMonth: 20 });
+    const r = makeRow({
+      startDate: "2026-01-01",
+      frequency: "monthly",
+      dayOfMonth: 20,
+    });
     expect(computeNextOccurrence(r, "2026-03-01")).toBe("2026-03-20");
   });
 
@@ -82,9 +95,12 @@ describe("computeNextOccurrence", () => {
   });
 
   it("weekly: returns correct day of week", () => {
-    // dayOfWeek 1 = Monday
-    const r = makeRow({ startDate: "2026-01-01", frequency: "weekly", dayOfWeek: 1 });
-    // 2026-03-16 is a Monday
+    // dayOfWeek 1 = Monday; 2026-03-16 is a Monday
+    const r = makeRow({
+      startDate: "2026-01-01",
+      frequency: "weekly",
+      dayOfWeek: 1,
+    });
     const result = computeNextOccurrence(r, "2026-03-15");
     expect(result).toBe("2026-03-16");
   });
@@ -111,7 +127,6 @@ describe("computeNextOccurrence", () => {
 
   it("monthly: handles cursor before startDate", () => {
     const r = makeRow({ startDate: "2026-06-15", frequency: "monthly" });
-    // cursor is before startDate — first occurrence should be the startDate itself
     expect(computeNextOccurrence(r, "2026-01-01")).toBe("2026-06-15");
   });
 });
@@ -134,7 +149,147 @@ describe("create", () => {
 
   it("includes nextOccurrence", () => {
     const result = service.create(rec({ startDate: "2026-01-15" }));
-    expect(result.nextOccurrence).not.toBeNull();
+    // After auto-generating Jan-15, Feb-15, Mar-15, next should be Apr-15
+    expect(result.nextOccurrence).toBe("2026-04-15");
+  });
+
+  // ─── auto-generation on create ─────────────────────────────────────────────
+
+  it("auto-generates transactions when startDate is in the past", () => {
+    // Clock = 2026-04-01 — should generate Jan-15, Feb-15, Mar-15
+    service.create(rec({ startDate: "2026-01-15", frequency: "monthly" }));
+
+    const txs = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
+    expect(txs.total).toBe(3);
+    expect(txs.data.map((t) => t.date)).toEqual(["2026-01-15", "2026-02-15", "2026-03-15"]);
+    for (const tx of txs.data) {
+      expect(tx.recurringId).not.toBeNull();
+    }
+  });
+
+  it("auto-generates exactly 1 transaction when startDate is today", () => {
+    // Clock = 2026-04-01
+    service.create(rec({ startDate: "2026-04-01", frequency: "monthly" }));
+
+    const txs = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
+    expect(txs.total).toBe(1);
+    expect(txs.data[0].date).toBe("2026-04-01");
+  });
+
+  it("does not auto-generate when startDate is in the future", () => {
+    service.create(rec({ startDate: "2099-01-01", frequency: "monthly" }));
+
+    const txs = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
+    expect(txs.total).toBe(0);
+  });
+
+  it("generated transactions inherit all fields from the template", () => {
+    const catService = new CategoryService(db);
+    const cat = catService.create({ name: "Subscriptions" });
+    service.create(
+      rec({
+        startDate: "2026-04-01",
+        amount: 1299,
+        type: "expense",
+        description: "Netflix",
+        merchant: "Netflix Inc",
+        categoryId: cat.id,
+        notes: "Shared plan",
+        tags: ["streaming", "entertainment"],
+      })
+    );
+
+    const txs = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
+    expect(txs.total).toBe(1);
+    const tx = txs.data[0];
+    expect(tx.amount).toBe(1299);
+    expect(tx.type).toBe("expense");
+    expect(tx.description).toBe("Netflix");
+    expect(tx.merchant).toBe("Netflix Inc");
+    expect(tx.categoryId).toBe(cat.id);
+    expect(tx.notes).toBe("Shared plan");
+    expect(tx.tags).toEqual(["streaming", "entertainment"]);
+  });
+
+  it("sets lastGenerated after auto-generation", () => {
+    // Clock = 2026-04-01, monthly from Jan-15 → generates up to Mar-15
+    const created = service.create(rec({ startDate: "2026-01-15", frequency: "monthly" }));
+
+    const fresh = service.getById(created.id)!;
+    expect(fresh.lastGenerated).toBe("2026-03-15");
+  });
+
+  it("leaves lastGenerated null when startDate is in the future", () => {
+    const created = service.create(rec());
+
+    const fresh = service.getById(created.id)!;
+    expect(fresh.lastGenerated).toBeNull();
+  });
+
+  it("auto-generation is idempotent with subsequent generatePending", () => {
+    service.create(rec({ startDate: "2026-01-15", frequency: "monthly" }));
+
+    const countAfterCreate = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    }).total;
+
+    // Running generatePending again should not create duplicates
+    service.generatePending();
+    const countAfterGenerate = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    }).total;
+
+    expect(countAfterGenerate).toBe(countAfterCreate);
+  });
+
+  it("create then advance clock — generatePending picks up new occurrences", () => {
+    service.create(rec({ startDate: "2026-04-01", frequency: "monthly" }));
+
+    // 1 transaction generated on create (2026-04-01)
+    expect(txService.list({ limit: 50, offset: 0, sortBy: "date", sortOrder: "asc" }).total).toBe(
+      1
+    );
+
+    // Advance clock by 2 months
+    vi.setSystemTime(new Date(Date.UTC(2026, 5, 1))); // 2026-06-01
+
+    const count = service.generatePending();
+    expect(count).toBe(2); // May-01, Jun-01
+
+    const txs = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
+    expect(txs.total).toBe(3);
+    expect(txs.data.map((t) => t.date)).toEqual(["2026-04-01", "2026-05-01", "2026-06-01"]);
   });
 });
 
@@ -157,7 +312,10 @@ describe("list", () => {
 describe("update", () => {
   it("updates specified fields", () => {
     const created = service.create(rec({ amount: 1000 }));
-    const updated = service.update(created.id, { amount: 2000, description: "Updated" });
+    const updated = service.update(created.id, {
+      amount: 2000,
+      description: "Updated",
+    });
     expect(updated).not.toBeNull();
     expect(updated!.amount).toBe(2000);
     expect(updated!.description).toBe("Updated");
@@ -188,21 +346,27 @@ describe("delete", () => {
     expect(service.delete(9999)).toBe(false);
   });
 
-  it("keeps generated transactions after deleting the template", () => {
-    const created = service.create(rec({ startDate: "2026-01-01" }));
-    txService.create({
-      amount: 1000,
-      type: "expense",
-      description: "Auto-generated",
-      date: "2026-02-01",
-      recurringId: created.id,
+  it("keeps auto-generated transactions after deleting the template", () => {
+    // Create with past startDate — auto-generates transactions
+    const created = service.create(rec({ startDate: "2026-01-01", frequency: "monthly" }));
+
+    const beforeDelete = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
     });
+    expect(beforeDelete.total).toBeGreaterThan(0);
 
     service.delete(created.id);
 
-    const allTx = txService.list({ limit: 50, offset: 0, sortBy: "date", sortOrder: "asc" });
-    expect(allTx.total).toBe(1);
-    expect(allTx.data[0].description).toBe("Auto-generated");
+    const afterDelete = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
+    expect(afterDelete.total).toBe(beforeDelete.total);
   });
 });
 
@@ -210,23 +374,28 @@ describe("delete", () => {
 
 describe("generatePending", () => {
   it("generates monthly transactions up to the given date", () => {
-    service.create(rec({ startDate: "2026-01-15", frequency: "monthly" }));
+    service.create(rec({ startDate: "2027-01-15", frequency: "monthly" }));
 
-    const count = service.generatePending("2026-04-30");
-    expect(count).toBeGreaterThanOrEqual(3); // Jan-15, Feb-15, Mar-15, Apr-15
+    const count = service.generatePending("2027-04-30");
+    expect(count).toBe(4); // Jan-15, Feb-15, Mar-15, Apr-15
 
-    const txs = txService.list({ limit: 50, offset: 0, sortBy: "date", sortOrder: "asc" });
+    const txs = txService.list({
+      limit: 50,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "asc",
+    });
     const dates = txs.data.map((t) => t.date);
-    expect(dates).toContain("2026-01-15");
-    expect(dates).toContain("2026-02-15");
-    expect(dates).toContain("2026-03-15");
-    expect(dates).toContain("2026-04-15");
+    expect(dates).toContain("2027-01-15");
+    expect(dates).toContain("2027-02-15");
+    expect(dates).toContain("2027-03-15");
+    expect(dates).toContain("2027-04-15");
   });
 
   it("does not generate past lastGenerated", () => {
-    service.create(rec({ startDate: "2026-01-15", frequency: "monthly" }));
+    service.create(rec({ startDate: "2027-01-15", frequency: "monthly" }));
     // First run: generates up to March
-    service.generatePending("2026-03-31");
+    service.generatePending("2027-03-31");
     const firstCount = txService.list({
       limit: 50,
       offset: 0,
@@ -235,7 +404,7 @@ describe("generatePending", () => {
     }).total;
 
     // Second run with same date: should not create duplicates
-    service.generatePending("2026-03-31");
+    service.generatePending("2027-03-31");
     const secondCount = txService.list({
       limit: 50,
       offset: 0,
@@ -247,44 +416,50 @@ describe("generatePending", () => {
   });
 
   it("generates daily transactions", () => {
-    service.create(rec({ startDate: "2026-03-01", frequency: "daily" }));
-    const count = service.generatePending("2026-03-07");
+    service.create(rec({ startDate: "2027-03-01", frequency: "daily" }));
+    const count = service.generatePending("2027-03-07");
     expect(count).toBe(7);
   });
 
   it("generates weekly transactions", () => {
-    // Monday start: 2026-03-02 is a Monday
-    service.create(rec({ startDate: "2026-03-02", frequency: "weekly" }));
-    const count = service.generatePending("2026-03-30");
-    // Mondays: Mar 2, 9, 16, 23, 30 = 5
+    // 2027-03-01 is a Monday
+    service.create(rec({ startDate: "2027-03-01", frequency: "weekly" }));
+    const count = service.generatePending("2027-03-29");
+    // Mondays: Mar 1, 8, 15, 22, 29 = 5
     expect(count).toBe(5);
   });
 
   it("generates yearly transactions", () => {
-    service.create(rec({ startDate: "2024-03-01", frequency: "yearly" }));
-    const count = service.generatePending("2026-12-31");
-    // 2024-03-01, 2025-03-01, 2026-03-01 = 3
+    service.create(rec({ startDate: "2027-03-01", frequency: "yearly" }));
+    const count = service.generatePending("2029-12-31");
+    // 2027-03-01, 2028-03-01, 2029-03-01 = 3
     expect(count).toBe(3);
   });
 
   it("respects endDate — does not generate past it", () => {
-    service.create(rec({ startDate: "2026-01-15", frequency: "monthly", endDate: "2026-02-28" }));
-    const count = service.generatePending("2026-06-30");
+    service.create(
+      rec({
+        startDate: "2027-01-15",
+        frequency: "monthly",
+        endDate: "2027-02-28",
+      })
+    );
+    const count = service.generatePending("2027-06-30");
     expect(count).toBe(2); // Jan-15 and Feb-15 only
   });
 
   it("skips inactive templates", () => {
-    service.create(rec({ startDate: "2026-01-15", frequency: "monthly" }));
+    service.create(rec({ startDate: "2027-01-15", frequency: "monthly" }));
     const created = service.list()[0];
     service.update(created.id, { isActive: false });
 
-    const count = service.generatePending("2026-06-30");
+    const count = service.generatePending("2027-06-30");
     expect(count).toBe(0);
   });
 
   it("links generated transactions to the recurring template via recurringId", () => {
-    const r = service.create(rec({ startDate: "2026-03-01", frequency: "monthly" }));
-    service.generatePending("2026-03-31");
+    const r = service.create(rec({ startDate: "2027-03-01", frequency: "monthly" }));
+    service.generatePending("2027-03-31");
 
     const txs = txService.list({
       limit: 50,

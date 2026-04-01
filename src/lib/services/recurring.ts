@@ -145,7 +145,16 @@ export class RecurringService {
       })
       .returning()
       .all();
-    return parseRecurring(row, isoToday());
+
+    const today = isoToday();
+    this.generateForTemplate(row, today);
+    // Re-read to pick up lastGenerated updated by generateForTemplate
+    const fresh = this.db
+      .select()
+      .from(recurringTransactions)
+      .where(eq(recurringTransactions.id, row.id))
+      .get()!;
+    return parseRecurring(fresh, today);
   }
 
   list(): RecurringResponse[] {
@@ -205,9 +214,59 @@ export class RecurringService {
   }
 
   /**
+   * Generate pending transactions for a single recurring template up to `upToDate`.
+   * Creates transactions for dates after `lastGenerated` (or `startDate`) up to
+   * and including `upToDate`. Returns the number of transactions created.
+   */
+  private generateForTemplate(r: RecurringTransaction, upToDate: string): number {
+    const fromStr = r.lastGenerated
+      ? r.lastGenerated
+      : Temporal.PlainDate.from(r.startDate).subtract({ days: 1 }).toString();
+
+    if (
+      r.endDate &&
+      Temporal.PlainDate.compare(
+        Temporal.PlainDate.from(r.endDate),
+        Temporal.PlainDate.from(fromStr)
+      ) < 0
+    ) {
+      return 0;
+    }
+
+    const dates = occurrencesBetween(r, fromStr, upToDate);
+    if (dates.length === 0) return 0;
+
+    this.db
+      .insert(transactions)
+      .values(
+        dates.map((date) => ({
+          amount: r.amount,
+          type: r.type,
+          description: r.description,
+          merchant: r.merchant,
+          categoryId: r.categoryId,
+          date,
+          recurringId: r.id,
+          notes: r.notes,
+          tags: r.tags,
+        }))
+      )
+      .run();
+
+    this.db
+      .update(recurringTransactions)
+      .set({
+        lastGenerated: dates[dates.length - 1],
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(recurringTransactions.id, r.id))
+      .run();
+
+    return dates.length;
+  }
+
+  /**
    * Generate all pending transactions for active recurring templates up to today.
-   * For each template, creates transactions for dates after `lastGenerated` (or `startDate`)
-   * up to and including today.
    * Returns the total number of transactions created.
    */
   generatePending(upTo?: string): number {
@@ -219,54 +278,9 @@ export class RecurringService {
       .all();
 
     let created = 0;
-
-    this.db.transaction((tx) => {
-      for (const r of active) {
-        const fromStr = r.lastGenerated
-          ? r.lastGenerated
-          : Temporal.PlainDate.from(r.startDate).subtract({ days: 1 }).toString();
-
-        if (
-          r.endDate &&
-          Temporal.PlainDate.compare(
-            Temporal.PlainDate.from(r.endDate),
-            Temporal.PlainDate.from(fromStr)
-          ) < 0
-        ) {
-          continue;
-        }
-
-        const dates = occurrencesBetween(r, fromStr, upToStr);
-        if (dates.length === 0) continue;
-
-        tx.insert(transactions)
-          .values(
-            dates.map((date) => ({
-              amount: r.amount,
-              type: r.type,
-              description: r.description,
-              merchant: r.merchant,
-              categoryId: r.categoryId,
-              date,
-              recurringId: r.id,
-              notes: r.notes,
-              tags: r.tags,
-            }))
-          )
-          .run();
-
-        // Update lastGenerated to the last date we created
-        tx.update(recurringTransactions)
-          .set({
-            lastGenerated: dates[dates.length - 1],
-            updatedAt: sql`(datetime('now'))`,
-          })
-          .where(eq(recurringTransactions.id, r.id))
-          .run();
-
-        created += dates.length;
-      }
-    });
+    for (const r of active) {
+      created += this.generateForTemplate(r, upToStr);
+    }
 
     return created;
   }

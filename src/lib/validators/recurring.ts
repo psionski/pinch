@@ -67,7 +67,7 @@ export const CreateRecurringSchema = z.object({
       "Day of week for weekly frequency (0=Sun, 6=Sat). If omitted, uses day from startDate"
     ),
   startDate: IsoDateSchema.describe(
-    "First occurrence date (YYYY-MM-DD). Past dates generate backdated transactions"
+    "First occurrence date (YYYY-MM-DD). Today or past: generates all occurrences up to today immediately. Future: no transactions until the date arrives"
   ),
   endDate: IsoDateSchema.nullable().optional().describe("Stop generating after this date"),
   notes: z.string().max(2000).optional(),

@@ -11,6 +11,8 @@ export function registerRecurringTools(server: McpServer): void {
     {
       description:
         "Create a recurring transaction template. " +
+        "If startDate is today or in the past, all occurrences up to today are generated immediately. " +
+        "Future startDate: no transactions created until the date arrives. " +
         "Use list_categories to find valid categoryId values.",
       inputSchema: CreateRecurringSchema,
     },
