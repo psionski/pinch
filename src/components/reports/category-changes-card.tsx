@@ -50,7 +50,7 @@ export function CategoryChangesCard({ groups }: CategoryChangesCardProps): React
             {changes.map((row) => (
               <div
                 key={row.name}
-                className="flex items-center justify-between rounded-md border px-3 py-2"
+                className="flex flex-col gap-1 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex items-center gap-2">
                   {row.delta > 0 ? (

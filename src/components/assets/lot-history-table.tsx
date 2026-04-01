@@ -24,7 +24,7 @@ export function LotHistoryTable({
             <th className="pr-4 pb-2 font-medium">Date</th>
             <th className="pr-4 pb-2 font-medium">Type</th>
             <th className="pr-4 pb-2 text-right font-medium">Quantity</th>
-            <th className="pr-4 pb-2 text-right font-medium">Price / unit</th>
+            <th className="hidden pr-4 pb-2 text-right font-medium md:table-cell">Price / unit</th>
             <th className="pb-2 text-right font-medium">Total</th>
           </tr>
         </thead>
@@ -56,7 +56,7 @@ export function LotHistoryTable({
                   {isBuy ? "+" : "−"}
                   {Math.abs(lot.quantity)}
                 </td>
-                <td className="py-2 pr-4 text-right font-mono">
+                <td className="hidden py-2 pr-4 text-right font-mono md:table-cell">
                   {(lot.pricePerUnit / 100).toFixed(2)} {currency}
                 </td>
                 <td className="py-2 text-right font-mono">{formatCurrency(Math.round(total))}</td>

@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronRight, ChevronDown, MoreHorizontal, Pencil, Merge, Trash2 } from "lucide-react";
+import Link from "next/link";
+import {
+  ChevronRight,
+  ChevronDown,
+  MoreHorizontal,
+  Pencil,
+  List,
+  Merge,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -91,7 +99,6 @@ function CategoryRow({
   onEdit,
   onMerge,
   onDelete,
-  onNavigate,
 }: {
   node: TreeNode;
   depth: number;
@@ -101,7 +108,6 @@ function CategoryRow({
   onEdit: (category: CategoryWithCountResponse) => void;
   onMerge: (category: CategoryWithCountResponse) => void;
   onDelete: (category: CategoryWithCountResponse) => void;
-  onNavigate: (categoryId: number) => void;
 }): React.ReactElement {
   const cat = node.category;
   const catStats = stats.get(cat.id);
@@ -110,13 +116,20 @@ function CategoryRow({
 
   return (
     <>
-      <TableRow data-testid={`category-row-${cat.id}`}>
+      <TableRow
+        data-testid={`category-row-${cat.id}`}
+        className="cursor-pointer"
+        onClick={() => onEdit(cat)}
+      >
         {/* Name with indent + expand/collapse */}
         <TableCell className="py-2 pr-2" style={{ paddingLeft: `${depth * 24 + 8}px` }}>
           <div className="flex items-center gap-1.5">
             {hasChildren ? (
               <button
-                onClick={() => onToggle(cat.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(cat.id);
+                }}
                 className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
               >
                 {isExpanded ? (
@@ -135,17 +148,12 @@ function CategoryRow({
               />
             )}
             {cat.icon && <span className="shrink-0 text-sm">{cat.icon}</span>}
-            <button
-              onClick={() => onNavigate(cat.id)}
-              className="hover:text-primary truncate text-left font-medium hover:underline"
-            >
-              {cat.name}
-            </button>
+            <span className="truncate font-medium">{cat.name}</span>
           </div>
         </TableCell>
 
         {/* Transaction count — all-time rollup for parents, own count for leaves */}
-        <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
+        <TableCell className="text-muted-foreground hidden text-right text-sm tabular-nums md:table-cell">
           {catStats?.rollupCount ?? cat.transactionCount}
         </TableCell>
 
@@ -157,7 +165,7 @@ function CategoryRow({
         </TableCell>
 
         {/* Budget status — use rollup spend vs budget (includes child category spend) */}
-        <TableCell>
+        <TableCell className="hidden md:table-cell">
           {catStats?.budgetAmount ? (
             <BudgetBar spent={catStats.rollupTotal} budget={catStats.budgetAmount} />
           ) : (
@@ -166,7 +174,7 @@ function CategoryRow({
         </TableCell>
 
         {/* Actions */}
-        <TableCell className="text-right">
+        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -182,6 +190,12 @@ function CategoryRow({
               <DropdownMenuItem onClick={() => onEdit(cat)}>
                 <Pencil className="size-4" />
                 Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/transactions?categoryId=${cat.id}`}>
+                  <List className="size-4" />
+                  View Transactions
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onMerge(cat)}>
                 <Merge className="size-4" />
@@ -212,7 +226,6 @@ function CategoryRow({
             onEdit={onEdit}
             onMerge={onMerge}
             onDelete={onDelete}
-            onNavigate={onNavigate}
           />
         ))}
     </>
@@ -226,7 +239,6 @@ export function CategoryTree({
   onMerge,
   onDelete,
 }: CategoryTreeProps): React.ReactElement {
-  const router = useRouter();
   const tree = buildTree(categories);
   const statsMap = new Map(
     stats.filter((s) => s.categoryId !== null).map((s) => [s.categoryId!, s])
@@ -271,10 +283,6 @@ export function CategoryTree({
     });
   }
 
-  function handleNavigate(categoryId: number): void {
-    router.push(`/transactions?categoryId=${categoryId}`);
-  }
-
   if (categories.length === 0) {
     return (
       <EmptyState
@@ -289,9 +297,9 @@ export function CategoryTree({
       <TableHeader>
         <TableRow>
           <TableHead>Category</TableHead>
-          <TableHead className="text-right">Transactions</TableHead>
+          <TableHead className="hidden text-right md:table-cell">Transactions</TableHead>
           <TableHead className="text-right">This Month</TableHead>
-          <TableHead>Budget</TableHead>
+          <TableHead className="hidden md:table-cell">Budget</TableHead>
           <TableHead className="w-[50px]" />
         </TableRow>
       </TableHeader>
@@ -307,7 +315,6 @@ export function CategoryTree({
             onEdit={onEdit}
             onMerge={onMerge}
             onDelete={onDelete}
-            onNavigate={handleNavigate}
           />
         ))}
       </TableBody>

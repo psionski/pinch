@@ -48,17 +48,22 @@ export function BudgetTable({ budgets, onEdit, onDelete }: BudgetTableProps): Re
       <TableHeader>
         <TableRow>
           <TableHead>Category</TableHead>
-          <TableHead className="w-[200px]">Progress</TableHead>
-          <TableHead className="text-right">Spent</TableHead>
-          <TableHead className="text-right">Budget</TableHead>
-          <TableHead className="text-right">Remaining</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead className="min-w-[100px] md:w-[200px]">Progress</TableHead>
+          <TableHead className="hidden text-right md:table-cell">Spent</TableHead>
+          <TableHead className="hidden text-right md:table-cell">Budget</TableHead>
+          <TableHead className="hidden text-right md:table-cell">Remaining</TableHead>
+          <TableHead className="hidden md:table-cell">Status</TableHead>
           <TableHead className="w-[50px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
         {budgets.map((item) => (
-          <TableRow key={item.categoryId} data-testid={`budget-row-${item.categoryId}`}>
+          <TableRow
+            key={item.categoryId}
+            data-testid={`budget-row-${item.categoryId}`}
+            className="cursor-pointer"
+            onClick={() => onEdit(item)}
+          >
             <TableCell className="font-medium">{item.categoryName}</TableCell>
             <TableCell>
               <div className="flex items-center gap-2">
@@ -68,13 +73,19 @@ export function BudgetTable({ budgets, onEdit, onDelete }: BudgetTableProps): Re
                 </span>
               </div>
             </TableCell>
-            <TableCell className="text-right">{formatCurrency(item.spentAmount)}</TableCell>
-            <TableCell className="text-right">{formatCurrency(item.budgetAmount)}</TableCell>
-            <TableCell className={`text-right ${item.isOver ? "text-destructive" : ""}`}>
+            <TableCell className="hidden text-right md:table-cell">
+              {formatCurrency(item.spentAmount)}
+            </TableCell>
+            <TableCell className="hidden text-right md:table-cell">
+              {formatCurrency(item.budgetAmount)}
+            </TableCell>
+            <TableCell
+              className={`hidden text-right md:table-cell ${item.isOver ? "text-destructive" : ""}`}
+            >
               {formatCurrency(item.remainingAmount)}
             </TableCell>
-            <TableCell>{statusBadge(item)}</TableCell>
-            <TableCell>
+            <TableCell className="hidden md:table-cell">{statusBadge(item)}</TableCell>
+            <TableCell onClick={(e) => e.stopPropagation()}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

@@ -127,6 +127,11 @@
     @apply font-sans;
   }
 
+  /* Joyride tooltip: ensure scrollIntoView accounts for sticky header */
+  .react-joyride__floater {
+    scroll-margin: 80px 0 16px;
+  }
+
   /* Hide number input spinners */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {
@@ -135,6 +140,21 @@
   }
   input[type="number"] {
     -moz-appearance: textfield;
+  }
+
+  /* Normalize native date inputs so iOS Safari respects our sizing */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    font: inherit;
+  }
+  input[type="date"]::-webkit-datetime-edit {
+    font: inherit;
+  }
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    font: inherit;
   }
 
   /* Fix native date picker icon color in dark mode */

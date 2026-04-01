@@ -129,10 +129,14 @@ export function TransactionTable({
               aria-label="Select all"
             />
           </TableHead>
-          <TableHead>{renderSortableHeader("Date", "date")}</TableHead>
+          <TableHead className="hidden md:table-cell">
+            {renderSortableHeader("Date", "date")}
+          </TableHead>
           <TableHead>Description</TableHead>
-          <TableHead>{renderSortableHeader("Merchant", "merchant")}</TableHead>
-          <TableHead>Category</TableHead>
+          <TableHead className="hidden md:table-cell">
+            {renderSortableHeader("Merchant", "merchant")}
+          </TableHead>
+          <TableHead className="hidden md:table-cell">Category</TableHead>
           <TableHead className="text-right">{renderSortableHeader("Amount", "amount")}</TableHead>
           <TableHead className="w-[50px]" />
         </TableRow>
@@ -146,22 +150,29 @@ export function TransactionTable({
               key={tx.id}
               data-testid={`transaction-row-${tx.id}`}
               data-state={selectedIds.has(tx.id) ? "selected" : undefined}
+              className="cursor-pointer"
+              onClick={() => onEdit(tx)}
             >
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <Checkbox
                   checked={selectedIds.has(tx.id)}
                   onCheckedChange={() => toggleOne(tx.id)}
                   aria-label={`Select transaction ${tx.id}`}
                 />
               </TableCell>
-              <TableCell className="text-sm tabular-nums">{formatDate(tx.date)}</TableCell>
-              <TableCell className="max-w-[250px]">
+              <TableCell className="hidden text-sm tabular-nums md:table-cell">
+                {formatDate(tx.date)}
+              </TableCell>
+              <TableCell className="max-w-none md:max-w-[250px]">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate">{tx.description}</span>
                   {tx.receiptId && (
                     <button
                       type="button"
-                      onClick={() => onReceiptClick?.(tx.receiptId!)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReceiptClick?.(tx.receiptId!);
+                      }}
                       className="text-muted-foreground hover:text-foreground shrink-0"
                       aria-label="View receipt"
                     >
@@ -176,14 +187,16 @@ export function TransactionTable({
                   )}
                 </div>
               </TableCell>
-              <TableCell className="text-sm">{tx.merchant ?? "—"}</TableCell>
-              <TableCell>{category ? category.name : "—"}</TableCell>
+              <TableCell className="hidden text-sm md:table-cell">{tx.merchant ?? "—"}</TableCell>
+              <TableCell className="hidden md:table-cell">
+                {category ? category.name : "—"}
+              </TableCell>
               <TableCell className="text-right text-sm tabular-nums">
                 <span className={tx.type === "income" ? "text-emerald-600" : "text-foreground"}>
                   {formatCurrency(tx.amount)}
                 </span>
               </TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon-xs" aria-label="Transaction actions">

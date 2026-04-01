@@ -89,7 +89,7 @@ export default function DashboardPage(): React.ReactElement {
       <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
 
       {/* At a Glance — universal KPIs */}
-      <KpiCards summary={summary} budgetStatus={budgetStatus} />
+      <KpiCards summary={summary} budgetStatus={budgetStatus} categories={categoryMap} />
 
       <section data-tour="spending-section">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

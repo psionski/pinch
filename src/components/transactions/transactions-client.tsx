@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Trash2, FolderInput, ScanLine } from "lucide-react";
+import { Plus, Trash2, FolderInput, ScanLine, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import {
@@ -246,29 +246,6 @@ export function TransactionsClient({
         />
       </div>
 
-      {/* Bulk actions */}
-      {selectedIds.size > 0 && (
-        <div className="bg-muted/50 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-          <span className="font-medium">{selectedIds.size} selected</span>
-          <Button variant="outline" size="sm" onClick={() => setShowRecategorize(true)}>
-            <FolderInput className="size-3.5" />
-            Recategorize
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={loading}
-          >
-            <Trash2 className="size-3.5" />
-            Delete
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-            Clear selection
-          </Button>
-        </div>
-      )}
-
       {/* Table */}
       <div
         data-tour="transaction-table"
@@ -296,6 +273,45 @@ export function TransactionsClient({
         onPageChange={setOffset}
         onLimitChange={handleLimitChange}
       />
+
+      {/* Floating bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-16 z-20 flex justify-center px-4 md:bottom-6">
+          <div className="bg-popover animate-in slide-in-from-bottom-2 fade-in pointer-events-auto flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm shadow-lg duration-200">
+            <span className="font-medium whitespace-nowrap">{selectedIds.size} selected</span>
+            <div className="bg-border mx-0.5 h-4 w-px" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 gap-1.5 rounded-full"
+              onClick={() => setShowRecategorize(true)}
+            >
+              <FolderInput className="size-4" />
+              <span className="hidden sm:inline">Recategorize</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive h-9 gap-1.5 rounded-full"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={loading}
+            >
+              <Trash2 className="size-4" />
+              <span className="hidden sm:inline">Delete</span>
+            </Button>
+            <div className="bg-border mx-0.5 h-4 w-px" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="size-4" />
+              <span className="sr-only">Clear selection</span>
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Add form dialog */}
       <TransactionFormDialog

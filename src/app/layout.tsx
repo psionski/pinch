@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Menu } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
 import { getSettingsService } from "@/lib/api/services";
@@ -20,6 +21,8 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin", "latin-ext", "cyrillic"],
 });
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Pinch",
@@ -45,11 +48,26 @@ export default function RootLayout({
           <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
-              <SampleDataBar show={sampleData} initiallyHidden={tutorial} />
-              <header className="flex h-14 items-center gap-2 border-b px-4">
-                <SidebarTrigger />
-              </header>
-              <div className="flex-1 p-4 md:p-6">{children}</div>
+              <div className="bg-background sticky top-0 z-10">
+                <header className="relative flex h-14 items-center gap-2 border-b px-4">
+                  {/* Desktop: icon-only trigger */}
+                  <SidebarTrigger
+                    className="hidden md:inline-flex"
+                    data-testid="sidebar-trigger-desktop"
+                  />
+                  {/* Mobile: hamburger left-aligned */}
+                  <SidebarTrigger className="md:hidden" data-testid="sidebar-trigger-mobile">
+                    <Menu className="size-4" />
+                    <span className="sr-only">Toggle Sidebar</span>
+                  </SidebarTrigger>
+                  {/* Mobile: centered Pinch branding, also opens sidebar */}
+                  <SidebarTrigger className="absolute left-1/2 -translate-x-1/2 gap-2 px-0 md:hidden">
+                    <span className="text-base font-bold tracking-tight">Pinch</span>
+                  </SidebarTrigger>
+                </header>
+                <SampleDataBar show={sampleData} initiallyHidden={tutorial} />
+              </div>
+              <div className="flex-1 p-4 pb-20 md:p-6 md:pb-6">{children}</div>
             </SidebarInset>
           </SidebarProvider>
         </TooltipProvider>

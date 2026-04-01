@@ -189,7 +189,7 @@ export function AssetDetailClient({
   return (
     <div className={`space-y-6 ${loading ? "pointer-events-none opacity-60" : ""}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/assets" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-5" />
@@ -205,7 +205,7 @@ export function AssetDetailClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {asset.type === "deposit" ? (
             <>
               <Button size="sm" variant="outline" onClick={() => setShowDeposit(true)}>

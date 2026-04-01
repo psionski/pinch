@@ -87,7 +87,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 200000,
+      amount: 280000,
       type: "income",
       description: "Monthly salary",
       merchant: "Employer",

@@ -102,9 +102,9 @@ export function PnlSummary({ realizedPnl, unrealizedPnl }: PnlSummaryProps): Rea
               <TableHeader>
                 <TableRow>
                   <TableHead>Asset</TableHead>
-                  <TableHead className="text-right">Qty Sold</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Qty Sold</TableHead>
                   <TableHead className="text-right">Proceeds</TableHead>
-                  <TableHead className="text-right">Cost Basis</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Cost Basis</TableHead>
                   <TableHead className="text-right">Realized P&amp;L</TableHead>
                 </TableRow>
               </TableHeader>
@@ -112,9 +112,13 @@ export function PnlSummary({ realizedPnl, unrealizedPnl }: PnlSummaryProps): Rea
                 {realizedPnl.items.map((item) => (
                   <TableRow key={item.assetId}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-right">{item.totalSold}</TableCell>
+                    <TableCell className="hidden text-right md:table-cell">
+                      {item.totalSold}
+                    </TableCell>
                     <TableCell className="text-right">{formatCurrency(item.proceeds)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(item.costBasis)}</TableCell>
+                    <TableCell className="hidden text-right md:table-cell">
+                      {formatCurrency(item.costBasis)}
+                    </TableCell>
                     <TableCell className={`text-right font-medium ${pnlColor(item.realizedPnl)}`}>
                       {formatCurrency(item.realizedPnl)}
                     </TableCell>

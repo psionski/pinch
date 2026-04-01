@@ -58,9 +58,9 @@ export function RecurringTable({
         <TableRow>
           <TableHead>Description</TableHead>
           <TableHead className="text-right">Amount</TableHead>
-          <TableHead>Category</TableHead>
-          <TableHead>Frequency</TableHead>
-          <TableHead>Next</TableHead>
+          <TableHead className="hidden md:table-cell">Category</TableHead>
+          <TableHead className="hidden md:table-cell">Frequency</TableHead>
+          <TableHead className="hidden md:table-cell">Next</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="w-[50px]" />
         </TableRow>
@@ -70,7 +70,12 @@ export function RecurringTable({
           const category = item.categoryId ? categories.get(item.categoryId) : null;
 
           return (
-            <TableRow key={item.id} data-testid={`recurring-row-${item.id}`}>
+            <TableRow
+              key={item.id}
+              data-testid={`recurring-row-${item.id}`}
+              className="cursor-pointer"
+              onClick={() => onEdit(item)}
+            >
               <TableCell>
                 <div className="font-medium">{item.description}</div>
                 {item.merchant && (
@@ -86,7 +91,7 @@ export function RecurringTable({
                   {formatCurrency(item.amount)}
                 </span>
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden md:table-cell">
                 {category ? (
                   <Badge variant="secondary">
                     {category.icon ? `${category.icon} ` : ""}
@@ -96,12 +101,14 @@ export function RecurringTable({
                   <span className="text-muted-foreground text-sm">—</span>
                 )}
               </TableCell>
-              <TableCell className="text-sm">{formatFrequency(item)}</TableCell>
-              <TableCell className="text-sm">
+              <TableCell className="hidden text-sm md:table-cell">
+                {formatFrequency(item)}
+              </TableCell>
+              <TableCell className="hidden text-sm md:table-cell">
                 {item.nextOccurrence ? formatDate(item.nextOccurrence) : "—"}
               </TableCell>
               <TableCell>{statusBadge(item)}</TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button

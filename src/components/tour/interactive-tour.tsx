@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useJoyride, ACTIONS, STATUS, type Status } from "react-joyride";
+import { useJoyride, ACTIONS, EVENTS, STATUS, type Status } from "react-joyride";
 import type { Step } from "react-joyride";
 
 function navigateAndWait(router: ReturnType<typeof useRouter>, target: string): Promise<void> {
@@ -104,7 +104,7 @@ function buildSteps(router: ReturnType<typeof useRouter>): Step[] {
     // ── Budgets ──
     {
       target: '[data-tour="budget-table"]',
-      placement: "top",
+      placement: "bottom",
       title: "Budget Tracking",
       content:
         "Set monthly budgets per category and track progress with visual progress bars. " +
@@ -266,6 +266,7 @@ export function InteractiveTour({
     steps,
     scrollToFirstStep: true,
     options: {
+      scrollOffset: 80,
       primaryColor: "#e8e8e8",
       textColor: "#fafafa",
       backgroundColor: "#2e2e2e",
@@ -317,6 +318,18 @@ export function InteractiveTour({
         data.action === ACTIONS.CLOSE
       ) {
         handleTourEnd();
+      }
+
+      // After Joyride scrolls and renders the tooltip, ensure it's actually visible.
+      // Joyride only scrolls the *target* into view — the tooltip itself may end up
+      // off-screen (above the sticky header or below the fold).
+      if (data.type === EVENTS.TOOLTIP) {
+        requestAnimationFrame(() => {
+          const floater = document.querySelector<HTMLElement>(".react-joyride__floater");
+          if (floater) {
+            floater.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }
+        });
       }
     },
   });

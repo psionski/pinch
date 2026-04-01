@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Repeat, Search, X } from "lucide-react";
+import { Repeat, Search, SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CategorySelectItems } from "@/components/categories/category-select-items";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
@@ -44,6 +46,103 @@ interface TransactionFilterBarProps {
   recurringName?: string;
 }
 
+/** Vertical filter controls rendered inside the mobile Sheet. */
+function SheetFilterControls({
+  filters,
+  categories,
+  onFiltersChange,
+}: {
+  filters: TransactionFilters;
+  categories: CategoryWithCountResponse[];
+  onFiltersChange: (filters: TransactionFilters) => void;
+}): React.ReactElement {
+  return (
+    <div className="space-y-4">
+      {/* Type */}
+      <div className="space-y-1.5">
+        <label className="text-muted-foreground text-sm">Type</label>
+        <Select
+          value={filters.type || "all"}
+          onValueChange={(v) => onFiltersChange({ ...filters, type: v === "all" ? "" : v })}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="expense">Expenses</SelectItem>
+            <SelectItem value="income">Income</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Category */}
+      <div className="space-y-1.5">
+        <label className="text-muted-foreground text-sm">Category</label>
+        <Select
+          value={filters.categoryId || "all"}
+          onValueChange={(v) => onFiltersChange({ ...filters, categoryId: v === "all" ? "" : v })}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            <SelectItem value="uncategorized">Uncategorized</SelectItem>
+            <CategorySelectItems categories={categories} />
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Date range */}
+      <div className="space-y-1.5">
+        <label className="text-muted-foreground text-sm">Date range</label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => onFiltersChange({ ...filters, dateFrom: e.target.value })}
+            className="h-8 flex-1"
+          />
+          <span className="text-muted-foreground">to</span>
+          <Input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => onFiltersChange({ ...filters, dateTo: e.target.value })}
+            className="h-8 flex-1"
+          />
+        </div>
+      </div>
+
+      {/* Amount range */}
+      <div className="space-y-1.5">
+        <label className="text-muted-foreground text-sm">Amount range</label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            placeholder="Min"
+            value={filters.amountMin}
+            onChange={(e) => onFiltersChange({ ...filters, amountMin: e.target.value })}
+            className="h-8 flex-1"
+            min="0"
+            step="0.01"
+          />
+          <span className="text-muted-foreground">to</span>
+          <Input
+            type="number"
+            placeholder="Max"
+            value={filters.amountMax}
+            onChange={(e) => onFiltersChange({ ...filters, amountMax: e.target.value })}
+            className="h-8 flex-1"
+            min="0"
+            step="0.01"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TransactionFilterBar({
   filters,
   categories,
@@ -51,20 +150,34 @@ export function TransactionFilterBar({
   recurringName,
 }: TransactionFilterBarProps): React.ReactElement {
   const [searchInput, setSearchInput] = useState(filters.search);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   function handleSearchSubmit(): void {
     onFiltersChange({ ...filters, search: searchInput });
   }
 
-  const hasActiveFilters = Object.entries(filters).some(
-    ([key, value]) => value !== "" && key !== "search"
-  );
+  const activeFilterCount = [
+    filters.type,
+    filters.categoryId,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.amountMin,
+    filters.amountMax,
+  ].filter(Boolean).length;
+
+  const hasActiveFilters = activeFilterCount > 0;
+
+  function handleClearAll(): void {
+    setSearchInput("");
+    onFiltersChange(EMPTY_FILTERS);
+  }
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* Text search */}
-        <div className="relative min-w-[200px] flex-1">
+        {/* Text search — always visible */}
+        <div className="relative min-w-0 flex-1 sm:min-w-[200px]">
           <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
             placeholder="Search transactions..."
@@ -80,90 +193,145 @@ export function TransactionFilterBar({
           />
         </div>
 
-        {/* Type toggle */}
-        <Select
-          value={filters.type || "all"}
-          onValueChange={(v) => onFiltersChange({ ...filters, type: v === "all" ? "" : v })}
-        >
-          <SelectTrigger className="w-[120px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="expense">Expenses</SelectItem>
-            <SelectItem value="income">Income</SelectItem>
-          </SelectContent>
-        </Select>
+        {isMobile ? (
+          <>
+            {/* Mobile: filter button with active count badge */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSheetOpen(true)}
+              className="gap-1.5"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Filters
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-xs">
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </Button>
+            {(hasActiveFilters || filters.search) && (
+              <Button variant="ghost" size="icon-xs" onClick={handleClearAll}>
+                <X className="size-3.5" />
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Desktop: inline type + category selects */}
+            <Select
+              value={filters.type || "all"}
+              onValueChange={(v) => onFiltersChange({ ...filters, type: v === "all" ? "" : v })}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="expense">Expenses</SelectItem>
+                <SelectItem value="income">Income</SelectItem>
+              </SelectContent>
+            </Select>
 
-        {/* Category */}
-        <Select
-          value={filters.categoryId || "all"}
-          onValueChange={(v) => onFiltersChange({ ...filters, categoryId: v === "all" ? "" : v })}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            <SelectItem value="uncategorized">Uncategorized</SelectItem>
-            <CategorySelectItems categories={categories} />
-          </SelectContent>
-        </Select>
+            <Select
+              value={filters.categoryId || "all"}
+              onValueChange={(v) =>
+                onFiltersChange({ ...filters, categoryId: v === "all" ? "" : v })
+              }
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                <CategorySelectItems categories={categories} />
+              </SelectContent>
+            </Select>
 
-        {/* Clear filters */}
-        {(hasActiveFilters || filters.search) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearchInput("");
-              onFiltersChange(EMPTY_FILTERS);
-            }}
-          >
-            <X className="size-3.5" />
-            Clear
-          </Button>
+            {(hasActiveFilters || filters.search) && (
+              <Button variant="ghost" size="sm" onClick={handleClearAll}>
+                <X className="size-3.5" />
+                Clear
+              </Button>
+            )}
+          </>
         )}
       </div>
 
-      {/* Date and amount range row */}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Date:</span>
-        <Input
-          type="date"
-          value={filters.dateFrom}
-          onChange={(e) => onFiltersChange({ ...filters, dateFrom: e.target.value })}
-          className="h-8 w-[150px]"
-        />
-        <span className="text-muted-foreground">to</span>
-        <Input
-          type="date"
-          value={filters.dateTo}
-          onChange={(e) => onFiltersChange({ ...filters, dateTo: e.target.value })}
-          className="h-8 w-[150px]"
-        />
+      {/* Desktop: date and amount range row */}
+      {!isMobile && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Date:</span>
+          <Input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => onFiltersChange({ ...filters, dateFrom: e.target.value })}
+            className="h-8 w-[150px]"
+          />
+          <span className="text-muted-foreground">to</span>
+          <Input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => onFiltersChange({ ...filters, dateTo: e.target.value })}
+            className="h-8 w-[150px]"
+          />
 
-        <span className="text-muted-foreground ml-2">Amount:</span>
-        <Input
-          type="number"
-          placeholder="Min"
-          value={filters.amountMin}
-          onChange={(e) => onFiltersChange({ ...filters, amountMin: e.target.value })}
-          className="h-8 w-[100px]"
-          min="0"
-          step="0.01"
-        />
-        <span className="text-muted-foreground">to</span>
-        <Input
-          type="number"
-          placeholder="Max"
-          value={filters.amountMax}
-          onChange={(e) => onFiltersChange({ ...filters, amountMax: e.target.value })}
-          className="h-8 w-[100px]"
-          min="0"
-          step="0.01"
-        />
-      </div>
+          <span className="text-muted-foreground ml-2">Amount:</span>
+          <Input
+            type="number"
+            placeholder="Min"
+            value={filters.amountMin}
+            onChange={(e) => onFiltersChange({ ...filters, amountMin: e.target.value })}
+            className="h-8 w-[100px]"
+            min="0"
+            step="0.01"
+          />
+          <span className="text-muted-foreground">to</span>
+          <Input
+            type="number"
+            placeholder="Max"
+            value={filters.amountMax}
+            onChange={(e) => onFiltersChange({ ...filters, amountMax: e.target.value })}
+            className="h-8 w-[100px]"
+            min="0"
+            step="0.01"
+          />
+        </div>
+      )}
+
+      {/* Mobile filter sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto p-4">
+          <SheetHeader className="px-0">
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <SheetFilterControls
+            filters={filters}
+            categories={categories}
+            onFiltersChange={onFiltersChange}
+          />
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                onFiltersChange({
+                  ...EMPTY_FILTERS,
+                  search: filters.search,
+                  recurringId: filters.recurringId,
+                });
+              }}
+            >
+              Clear all
+            </Button>
+            <Button size="sm" className="flex-1" onClick={() => setSheetOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Active filter badges */}
       {filters.recurringId && recurringName && (

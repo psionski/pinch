@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Pie, PieChart, Cell, Label } from "recharts";
 import { ArrowLeft } from "lucide-react";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CategorySpendingItem } from "@/lib/validators/reports";
 
 const FALLBACK_COLORS = [
@@ -128,9 +128,10 @@ export function CategoryDonutChart({
   }
 
   return (
-    <Card>
+    <Card className="gap-0">
       <CardHeader>
         <CardTitle>Spending by Category &mdash; {monthLabel}</CardTitle>
+        <CardDescription>Tap to drill down</CardDescription>
       </CardHeader>
       <CardContent>
         {chartData.length > 0 ? (

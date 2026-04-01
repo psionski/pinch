@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/format";
@@ -60,24 +60,26 @@ function sortItems(
   });
 }
 
-interface ColumnDef {
-  key: SortKey;
-  label: string;
-  hideOnMobile?: boolean;
-  align?: "left" | "right";
+function SortIcon({
+  field,
+  currentSort,
+  currentDir,
+}: {
+  field: SortKey;
+  currentSort: SortKey;
+  currentDir: SortDir;
+}): React.ReactElement {
+  if (field !== currentSort) {
+    return <ArrowUpDown className="ml-1 inline size-3.5 opacity-40" />;
+  }
+  return currentDir === "asc" ? (
+    <ArrowUp className="ml-1 inline size-3.5" />
+  ) : (
+    <ArrowDown className="ml-1 inline size-3.5" />
+  );
 }
 
-const COLUMNS: ColumnDef[] = [
-  { key: "name", label: "Asset", align: "left" },
-  { key: "costBasis", label: "Cost Basis", align: "right" },
-  { key: "currentValue", label: "Current Value", align: "right" },
-  { key: "pnl", label: "P&L (\u20ac)", align: "right" },
-  { key: "pnlPct", label: "P&L (%)", align: "right" },
-  { key: "annualizedReturn", label: "Ann. Return", align: "right", hideOnMobile: true },
-  { key: "daysHeld", label: "Days Held", align: "right", hideOnMobile: true },
-];
-
-export function PerformanceTable({ data }: PerformanceTableProps): React.JSX.Element {
+export function PerformanceTable({ data }: PerformanceTableProps): React.ReactElement {
   const [sortKey, setSortKey] = useState<SortKey>("pnl");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -88,6 +90,19 @@ export function PerformanceTable({ data }: PerformanceTableProps): React.JSX.Ele
       setSortKey(key);
       setSortDir("desc");
     }
+  }
+
+  function renderSortableHeader(label: string, field: SortKey): React.ReactElement {
+    return (
+      <button
+        type="button"
+        className="hover:text-foreground inline-flex items-center"
+        onClick={() => handleSort(field)}
+      >
+        {label}
+        <SortIcon field={field} currentSort={sortKey} currentDir={sortDir} />
+      </button>
+    );
   }
 
   const sorted = sortItems(data, sortKey, sortDir);
@@ -107,22 +122,27 @@ export function PerformanceTable({ data }: PerformanceTableProps): React.JSX.Ele
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  {COLUMNS.map((col) => (
-                    <th
-                      key={col.key}
-                      className={`text-muted-foreground cursor-pointer text-xs font-medium select-none ${
-                        col.align === "right" ? "text-right" : "text-left"
-                      } ${col.hideOnMobile ? "hidden md:table-cell" : ""} px-2 py-2`}
-                      onClick={() => handleSort(col.key)}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {col.label}
-                        <ArrowUpDown
-                          className={`h-3 w-3 ${sortKey === col.key ? "opacity-100" : "opacity-0"}`}
-                        />
-                      </span>
-                    </th>
-                  ))}
+                  <th className="text-muted-foreground px-2 py-2 text-left text-xs font-medium">
+                    {renderSortableHeader("Asset", "name")}
+                  </th>
+                  <th className="text-muted-foreground hidden px-2 py-2 text-right text-xs font-medium md:table-cell">
+                    {renderSortableHeader("Cost Basis", "costBasis")}
+                  </th>
+                  <th className="text-muted-foreground hidden px-2 py-2 text-right text-xs font-medium md:table-cell">
+                    {renderSortableHeader("Current Value", "currentValue")}
+                  </th>
+                  <th className="text-muted-foreground px-2 py-2 text-right text-xs font-medium">
+                    {renderSortableHeader("P&L (€)", "pnl")}
+                  </th>
+                  <th className="text-muted-foreground px-2 py-2 text-right text-xs font-medium">
+                    {renderSortableHeader("P&L (%)", "pnlPct")}
+                  </th>
+                  <th className="text-muted-foreground hidden px-2 py-2 text-right text-xs font-medium md:table-cell">
+                    {renderSortableHeader("Ann. Return", "annualizedReturn")}
+                  </th>
+                  <th className="text-muted-foreground hidden px-2 py-2 text-right text-xs font-medium md:table-cell">
+                    {renderSortableHeader("Days Held", "daysHeld")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -139,8 +159,12 @@ export function PerformanceTable({ data }: PerformanceTableProps): React.JSX.Ele
                         <Badge variant="secondary">{item.type}</Badge>
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-right">{formatCurrency(item.costBasis)}</td>
-                    <td className="px-2 py-2 text-right">{formatCurrency(item.currentValue)}</td>
+                    <td className="hidden px-2 py-2 text-right md:table-cell">
+                      {formatCurrency(item.costBasis)}
+                    </td>
+                    <td className="hidden px-2 py-2 text-right md:table-cell">
+                      {formatCurrency(item.currentValue)}
+                    </td>
                     <td className={`px-2 py-2 text-right font-medium ${pnlColor(item.pnl)}`}>
                       {formatPnlCurrency(item.pnl)}
                     </td>
@@ -148,11 +172,9 @@ export function PerformanceTable({ data }: PerformanceTableProps): React.JSX.Ele
                       {formatPct(item.pnlPct)}
                     </td>
                     <td
-                      className={`hidden px-2 py-2 text-right md:table-cell ${
-                        item.annualizedReturn !== null ? pnlColor(item.annualizedReturn) : ""
-                      }`}
+                      className={`hidden px-2 py-2 text-right md:table-cell ${item.annualizedReturn !== null ? pnlColor(item.annualizedReturn) : ""}`}
                     >
-                      {item.annualizedReturn !== null ? formatPct(item.annualizedReturn) : "\u2014"}
+                      {item.annualizedReturn !== null ? formatPct(item.annualizedReturn) : "—"}
                     </td>
                     <td className="hidden px-2 py-2 text-right md:table-cell">{item.daysHeld}</td>
                   </tr>

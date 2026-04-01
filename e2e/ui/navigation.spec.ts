@@ -24,8 +24,8 @@ test("all sidebar links navigate correctly", async ({ page }) => {
 test("sidebar collapse and expand", async ({ page }) => {
   await page.goto("/");
 
-  // Click the sidebar trigger to collapse
-  const trigger = page.locator("button[data-sidebar='trigger']");
+  // Click the sidebar trigger to collapse (desktop trigger)
+  const trigger = page.locator("[data-testid='sidebar-trigger-desktop']");
   await trigger.click();
   // Wait for collapse animation
   await page.waitForTimeout(500);
@@ -54,8 +54,8 @@ test("mobile sidebar opens as overlay", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
 
-  // Click the trigger/hamburger to open sidebar
-  const trigger = page.locator("button[data-sidebar='trigger']");
+  // Click the mobile trigger/hamburger to open sidebar
+  const trigger = page.locator("[data-testid='sidebar-trigger-mobile']");
   await trigger.click();
 
   // Sidebar nav should now be visible
@@ -67,8 +67,8 @@ test("mobile menu closes on nav item click", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
 
-  // Open the sidebar
-  const trigger = page.locator("button[data-sidebar='trigger']");
+  // Open the sidebar via mobile trigger
+  const trigger = page.locator("[data-testid='sidebar-trigger-mobile']");
   await trigger.click();
 
   const sidebarNav = page.locator("[data-tour='sidebar-nav']");

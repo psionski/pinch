@@ -7,14 +7,11 @@ import { AllocationChart } from "./allocation-chart";
 import { PerformanceTable } from "./performance-table";
 import { CurrencyExposure } from "./currency-exposure";
 import { PnlSummary } from "./pnl-summary";
-import { TransferFlow } from "./transfer-flow";
 import type { NetWorthPoint } from "@/lib/validators/portfolio-reports";
 import type { AssetPerformanceItem } from "@/lib/validators/portfolio-reports";
 import type { AllocationResult } from "@/lib/validators/portfolio-reports";
 import type { CurrencyExposureItem } from "@/lib/validators/portfolio-reports";
 import type { RealizedPnlResult } from "@/lib/validators/portfolio-reports";
-import type { TransferSummaryItem } from "@/lib/validators/portfolio-reports";
-
 const WINDOWS = ["3m", "6m", "12m", "ytd", "all"] as const;
 type Window = (typeof WINDOWS)[number];
 
@@ -24,83 +21,61 @@ export interface PortfolioReportsData {
   allocation: AllocationResult;
   currencyExposure: CurrencyExposureItem[];
   realizedPnl: RealizedPnlResult;
-  transferSummary: TransferSummaryItem[];
   unrealizedPnl: number | null;
 }
 
 interface PortfolioReportsClientProps {
   initialData: PortfolioReportsData;
   initialWindow: Window;
-  currentMonth: string;
 }
 
 export function PortfolioReportsClient({
   initialData,
   initialWindow,
-  currentMonth,
 }: PortfolioReportsClientProps): React.ReactElement {
   const [data, setData] = useState(initialData);
   const [window, setWindow] = useState<Window>(initialWindow);
   const [loading, setLoading] = useState(false);
 
-  const fetchAll = useCallback(
-    async (w: Window): Promise<void> => {
-      setLoading(true);
-      try {
-        const [netWorthRes, perfRes, allocRes, currRes, pnlRes, transferRes] = await Promise.all([
-          fetch(`/api/portfolio/net-worth?window=${w}&interval=monthly`),
-          fetch("/api/portfolio/performance"),
-          fetch("/api/portfolio/allocation"),
-          fetch("/api/portfolio/currency-exposure"),
-          fetch("/api/portfolio/realized-pnl"),
-          fetch(`/api/portfolio/transfer-summary?month=${currentMonth}`),
-        ]);
+  const fetchAll = useCallback(async (w: Window): Promise<void> => {
+    setLoading(true);
+    try {
+      const [netWorthRes, perfRes, allocRes, currRes, pnlRes] = await Promise.all([
+        fetch(`/api/portfolio/net-worth?window=${w}&interval=monthly`),
+        fetch("/api/portfolio/performance"),
+        fetch("/api/portfolio/allocation"),
+        fetch("/api/portfolio/currency-exposure"),
+        fetch("/api/portfolio/realized-pnl"),
+      ]);
 
-        if (
-          netWorthRes.ok &&
-          perfRes.ok &&
-          allocRes.ok &&
-          currRes.ok &&
-          pnlRes.ok &&
-          transferRes.ok
-        ) {
-          const [
-            netWorth,
-            performance,
-            allocation,
-            currencyExposure,
-            realizedPnl,
-            transferSummary,
-          ] = await Promise.all([
+      if (netWorthRes.ok && perfRes.ok && allocRes.ok && currRes.ok && pnlRes.ok) {
+        const [netWorth, performance, allocation, currencyExposure, realizedPnl] =
+          await Promise.all([
             netWorthRes.json() as Promise<NetWorthPoint[]>,
             perfRes.json() as Promise<AssetPerformanceItem[]>,
             allocRes.json() as Promise<AllocationResult>,
             currRes.json() as Promise<CurrencyExposureItem[]>,
             pnlRes.json() as Promise<RealizedPnlResult>,
-            transferRes.json() as Promise<TransferSummaryItem[]>,
           ]);
 
-          // Compute unrealized P&L from performance data
-          const totalCostBasis = performance.reduce((s, p) => s + p.costBasis, 0);
-          const totalCurrentValue = performance.reduce((s, p) => s + p.currentValue, 0);
-          const unrealizedPnl = totalCurrentValue - totalCostBasis;
+        // Compute unrealized P&L from performance data
+        const totalCostBasis = performance.reduce((s, p) => s + p.costBasis, 0);
+        const totalCurrentValue = performance.reduce((s, p) => s + p.currentValue, 0);
+        const unrealizedPnl = totalCurrentValue - totalCostBasis;
 
-          setData({
-            netWorth,
-            performance,
-            allocation,
-            currencyExposure,
-            realizedPnl,
-            transferSummary,
-            unrealizedPnl,
-          });
-        }
-      } finally {
-        setLoading(false);
+        setData({
+          netWorth,
+          performance,
+          allocation,
+          currencyExposure,
+          realizedPnl,
+          unrealizedPnl,
+        });
       }
-    },
-    [currentMonth]
-  );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   function handleWindowChange(w: Window): void {
     setWindow(w);
@@ -138,8 +113,6 @@ export function PortfolioReportsClient({
           <PerformanceTable data={data.performance} />
 
           <PnlSummary realizedPnl={data.realizedPnl} unrealizedPnl={data.unrealizedPnl} />
-
-          <TransferFlow data={data.transferSummary} />
         </div>
       </div>
     </div>

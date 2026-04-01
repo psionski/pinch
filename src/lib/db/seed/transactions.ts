@@ -139,7 +139,7 @@ export function generateMonth(
 
     if (day === 25) {
       tryAdd({
-        amount: 200000,
+        amount: 280000,
         type: "income",
         description: "Monthly salary",
         merchant: "Employer",

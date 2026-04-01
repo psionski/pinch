@@ -74,6 +74,14 @@ function lerp(anchors: Array<{ date: string; value: number }>, target: string): 
   return last.value;
 }
 
+/** Map a fraction (0–1) of the seed period to a calendar date. */
+function dateAtFrac(first: MonthSpec, last: MonthSpec, f: number): string {
+  const start = Temporal.PlainDate.from(dateAt(first, 1));
+  const end = Temporal.PlainDate.from(dateAt(last, last.lastDay));
+  const days = start.until(end, { largestUnit: "days" }).total("days");
+  return start.add({ days: Math.round(f * days) }).toString();
+}
+
 interface LotDef {
   monthIdx: number;
   day: number;
@@ -86,7 +94,7 @@ interface LotDef {
 /** Convert lot definitions to concrete lots, filtering out lots past the month's lastDay. */
 function buildLots(defs: LotDef[], months: MonthSpec[]): AssetSeed["lots"] {
   return defs
-    .filter((d) => d.day <= months[d.monthIdx].lastDay)
+    .filter((d) => d.monthIdx < months.length && d.day <= months[d.monthIdx].lastDay)
     .map((d) => ({
       quantity: d.quantity,
       pricePerUnit: d.pricePerUnit,
@@ -103,8 +111,8 @@ function buildLots(defs: LotDef[], months: MonthSpec[]): AssetSeed["lots"] {
  * market prices for chart resolution.
  *
  * Demonstrates:
- * - EUR deposit with monthly deposits & a withdrawal
- * - Crypto with buys, a partial sell (realized P&L), and volatile pricing
+ * - EUR deposit with monthly deposits & occasional withdrawals
+ * - Crypto with buys on dips, sells near peaks (realized P&L), and volatile pricing
  * - Investment ETF with monthly DCA and steady growth
  * - Allocation across asset types (deposit / crypto / investment)
  * - Net worth time series with multiple asset classes
@@ -113,13 +121,46 @@ export function generateAssets(months: MonthSpec[]): {
   assets: AssetSeed[];
   marketPrices: MarketPriceSeed[];
 } {
-  const [m0, m1, m2, m3] = months;
+  const n = months.length;
+  const first = months[0];
+  const last = months[n - 1];
+  const frac = (f: number): string => dateAtFrac(first, last, f);
 
   // Weekly date points for market price data
-  const priceDates = dateRange(dateAt(m0, 1), dateAt(m3, m3.lastDay), 7);
+  const priceDates = dateRange(dateAt(first, 1), dateAt(last, last.lastDay), 7);
 
   // ── Savings Account (EUR deposit) ──────────────────────────────────────────
-  // €300/month deposits (after salary day 25), one €300 withdrawal
+  // €300/month deposits (after salary day 25), with occasional withdrawals
+
+  const savingsLots: LotDef[] = [];
+  for (let i = 0; i < n; i++) {
+    savingsLots.push({
+      monthIdx: i,
+      day: 26,
+      quantity: 300,
+      pricePerUnit: 100,
+      description: "Monthly savings",
+    });
+  }
+  // Withdrawals at ~1/3 and ~2/3 through the period
+  if (n >= 6) {
+    savingsLots.push({
+      monthIdx: Math.floor(n / 3),
+      day: 10,
+      quantity: -300,
+      pricePerUnit: 100,
+      description: "Withdrawal for holiday booking",
+      notes: "Booked spring trip",
+    });
+    savingsLots.push({
+      monthIdx: Math.floor((2 * n) / 3),
+      day: 15,
+      quantity: -500,
+      pricePerUnit: 100,
+      description: "Withdrawal for new laptop",
+      notes: "Emergency purchase",
+    });
+  }
 
   const savings: AssetSeed = {
     asset: {
@@ -130,43 +171,30 @@ export function generateAssets(months: MonthSpec[]): {
       color: "#34d399",
       notes: "Emergency fund and general savings",
     },
-    lots: buildLots(
-      [
-        { monthIdx: 0, day: 26, quantity: 300, pricePerUnit: 100, description: "Monthly savings" },
-        { monthIdx: 1, day: 26, quantity: 300, pricePerUnit: 100, description: "Monthly savings" },
-        {
-          monthIdx: 2,
-          day: 10,
-          quantity: -300,
-          pricePerUnit: 100,
-          description: "Withdrawal for holiday booking",
-          notes: "Booked spring trip",
-        },
-        { monthIdx: 2, day: 26, quantity: 300, pricePerUnit: 100, description: "Monthly savings" },
-        { monthIdx: 3, day: 5, quantity: 300, pricePerUnit: 100, description: "Monthly savings" },
-      ],
-      months
-    ),
+    lots: buildLots(savingsLots, months),
   };
 
   // ── Bitcoin (crypto) ───────────────────────────────────────────────────────
-  // Price: ~€75k → crash to ~€65k → surge to ~€88k → settle ~€82k
-  // Buy on dips, partial sell near peak for realized P&L
+  // Overall uptrend €62k → €87k with two dips for buying opportunities.
+  // Buy on dips, partial sells near peaks for realized P&L.
 
   const btcAnchors = [
-    { date: dateAt(m0, 1), value: 75000 },
-    { date: dateAt(m0, 12), value: 72000 },
-    { date: dateAt(m0, 25), value: 78000 },
-    { date: dateAt(m1, 5), value: 74000 },
-    { date: dateAt(m1, 15), value: 65000 },
-    { date: dateAt(m1, 22), value: 68000 },
-    { date: dateAt(m1, 28), value: 70000 },
-    { date: dateAt(m2, 7), value: 78000 },
-    { date: dateAt(m2, 14), value: 85000 },
-    { date: dateAt(m2, 21), value: 88000 },
-    { date: dateAt(m2, 28), value: 86000 },
-    { date: dateAt(m3, 5), value: 84000 },
-    { date: dateAt(m3, m3.lastDay), value: 82000 },
+    { date: frac(0.0), value: 62000 },
+    { date: frac(0.05), value: 65000 },
+    { date: frac(0.12), value: 60000 },
+    { date: frac(0.2), value: 55000 }, // dip 1
+    { date: frac(0.27), value: 59000 },
+    { date: frac(0.33), value: 66000 },
+    { date: frac(0.4), value: 72000 },
+    { date: frac(0.47), value: 78000 }, // peak 1
+    { date: frac(0.53), value: 75000 },
+    { date: frac(0.6), value: 70000 },
+    { date: frac(0.67), value: 68000 }, // dip 2
+    { date: frac(0.73), value: 74000 },
+    { date: frac(0.8), value: 80000 },
+    { date: frac(0.87), value: 86000 },
+    { date: frac(0.93), value: 90000 }, // peak 2
+    { date: frac(1.0), value: 87000 },
   ];
 
   const btcMarket: MarketPriceSeed[] = priceDates.map((date) => ({
@@ -176,6 +204,13 @@ export function generateAssets(months: MonthSpec[]): {
     date,
     provider: "coingecko",
   }));
+
+  // Buy at dips, sell near peaks
+  const btcBuy1 = 0;
+  const btcBuy2 = Math.min(Math.floor(n * 0.2), n - 1);
+  const btcSell1 = Math.min(Math.floor(n * 0.47), n - 1);
+  const btcBuy3 = Math.min(Math.floor(n * 0.67), n - 1);
+  const btcSell2 = Math.min(Math.floor(n * 0.93), n - 1);
 
   const bitcoin: AssetSeed = {
     asset: {
@@ -190,36 +225,44 @@ export function generateAssets(months: MonthSpec[]): {
     lots: buildLots(
       [
         {
-          monthIdx: 0,
+          monthIdx: btcBuy1,
           day: 28,
           quantity: 0.005,
-          pricePerUnit: 7700000, // €77,000
+          pricePerUnit: 6300000, // ~€63,000
           description: "Buy 0.005 BTC",
           notes: "Initial position",
         },
         {
-          monthIdx: 1,
-          day: 27,
-          quantity: 0.005,
-          pricePerUnit: 6900000, // €69,000
-          description: "Buy 0.005 BTC (buying the dip)",
-          notes: "DCA on dip",
+          monthIdx: btcBuy2,
+          day: 15,
+          quantity: 0.008,
+          pricePerUnit: 5500000, // ~€55,000 — buying the dip
+          description: "Buy 0.008 BTC (buying the dip)",
+          notes: "DCA on first dip",
         },
         {
-          monthIdx: 2,
-          day: 22,
-          quantity: -0.004,
-          pricePerUnit: 8700000, // €87,000
-          description: "Sell 0.004 BTC (take profit)",
-          notes: "Partial profit taking",
+          monthIdx: btcSell1,
+          day: 18,
+          quantity: -0.005,
+          pricePerUnit: 7800000, // ~€78,000
+          description: "Sell 0.005 BTC (take profit)",
+          notes: "Partial profit at first peak",
         },
         {
-          monthIdx: 3,
+          monthIdx: btcBuy3,
+          day: 20,
+          quantity: 0.006,
+          pricePerUnit: 6800000, // ~€68,000 — buying second dip
+          description: "Buy 0.006 BTC",
+          notes: "DCA on second dip",
+        },
+        {
+          monthIdx: btcSell2,
           day: 12,
-          quantity: 0.003,
-          pricePerUnit: 8300000, // €83,000
-          description: "Buy 0.003 BTC",
-          notes: "Resuming DCA",
+          quantity: -0.004,
+          pricePerUnit: 8900000, // ~€89,000
+          description: "Sell 0.004 BTC (take profit)",
+          notes: "Partial profit at second peak",
         },
       ],
       months
@@ -227,22 +270,23 @@ export function generateAssets(months: MonthSpec[]): {
   };
 
   // ── MSCI World ETF (investment) ─────────────────────────────────────────────
-  // Price: ~€95 → steady climb to ~€98.50
-  // Monthly DCA of 1 share
+  // Steady growth from ~€90 to ~€102 with a slight sine wobble for realism.
+  // Monthly DCA of 1 share.
 
-  const etfAnchors = [
-    { date: dateAt(m0, 1), value: 95.0 },
-    { date: dateAt(m0, 15), value: 95.5 },
-    { date: dateAt(m0, 28), value: 96.3 },
-    { date: dateAt(m1, 10), value: 94.5 },
-    { date: dateAt(m1, 20), value: 94.2 },
-    { date: dateAt(m1, 28), value: 95.5 },
-    { date: dateAt(m2, 10), value: 96.5 },
-    { date: dateAt(m2, 20), value: 97.0 },
-    { date: dateAt(m2, 28), value: 97.5 },
-    { date: dateAt(m3, 5), value: 98.0 },
-    { date: dateAt(m3, m3.lastDay), value: 98.5 },
-  ];
+  const etfStart = 90.0;
+  const etfEnd = 102.0;
+
+  const etfAnchors: Array<{ date: string; value: number }> = [];
+  for (let i = 0; i < n; i++) {
+    const f = n > 1 ? i / (n - 1) : 0;
+    const trend = etfStart + (etfEnd - etfStart) * f;
+    const wobble = Math.sin(f * Math.PI * 3) * 1.5;
+    etfAnchors.push({ date: dateAt(months[i], 1), value: trend + wobble });
+    if (i < n - 1) {
+      etfAnchors.push({ date: dateAt(months[i], 15), value: trend - wobble * 0.5 });
+    }
+  }
+  etfAnchors.push({ date: dateAt(last, last.lastDay), value: etfEnd });
 
   const etfMarket: MarketPriceSeed[] = priceDates.map((date) => ({
     symbol: "IWDA.AS",
@@ -251,6 +295,19 @@ export function generateAssets(months: MonthSpec[]): {
     date,
     provider: "alpha-vantage",
   }));
+
+  const etfLots: LotDef[] = [];
+  for (let i = 0; i < n; i++) {
+    const f = n > 1 ? i / (n - 1) : 0;
+    const price = etfStart + (etfEnd - etfStart) * f;
+    etfLots.push({
+      monthIdx: i,
+      day: 28,
+      quantity: 1,
+      pricePerUnit: Math.round(price * 100),
+      description: "Buy 1 IWDA share",
+    });
+  }
 
   const etf: AssetSeed = {
     asset: {
@@ -262,15 +319,7 @@ export function generateAssets(months: MonthSpec[]): {
       color: "#3b82f6",
       notes: "Core index position, monthly DCA",
     },
-    lots: buildLots(
-      [
-        { monthIdx: 0, day: 28, quantity: 1, pricePerUnit: 9630, description: "Buy 1 IWDA share" },
-        { monthIdx: 1, day: 28, quantity: 1, pricePerUnit: 9550, description: "Buy 1 IWDA share" },
-        { monthIdx: 2, day: 28, quantity: 1, pricePerUnit: 9750, description: "Buy 1 IWDA share" },
-        { monthIdx: 3, day: 3, quantity: 1, pricePerUnit: 9800, description: "Buy 1 IWDA share" },
-      ],
-      months
-    ),
+    lots: buildLots(etfLots, months),
   };
 
   return {

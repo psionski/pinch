@@ -2,10 +2,12 @@ import { TrendingDown, TrendingUp, Receipt, PieChart, Target } from "lucide-reac
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { BudgetStatusItem, SpendingSummaryResult } from "@/lib/validators/reports";
+import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 interface KpiCardsProps {
   summary: SpendingSummaryResult;
   budgetStatus: BudgetStatusItem[];
+  categories: Map<number, CategoryWithCountResponse>;
 }
 
 function DeltaBadge({
@@ -29,7 +31,18 @@ function DeltaBadge({
   );
 }
 
-export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactElement {
+function getParentName(
+  categoryId: number | null | undefined,
+  categories: Map<number, CategoryWithCountResponse>
+): string | null {
+  if (categoryId == null) return null;
+  const cat = categories.get(categoryId);
+  if (!cat || cat.parentId === null) return null;
+  const parent = categories.get(cat.parentId);
+  return parent?.name ?? null;
+}
+
+export function KpiCards({ summary, budgetStatus, categories }: KpiCardsProps): React.ReactElement {
   const topCategory =
     summary.groups.length > 0 ? summary.groups.reduce((a, b) => (a.total > b.total ? a : b)) : null;
 
@@ -67,7 +80,7 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden lg:block">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Transactions</CardTitle>
           <Receipt className="text-muted-foreground size-4" />
@@ -82,7 +95,7 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hidden lg:block">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Top Category</CardTitle>
           <PieChart className="text-muted-foreground size-4" />
@@ -90,7 +103,18 @@ export function KpiCards({ summary, budgetStatus }: KpiCardsProps): React.ReactE
         <CardContent>
           {topCategory ? (
             <>
-              <div className="truncate text-2xl font-semibold tabular-nums">{topCategory.key}</div>
+              <div className="flex text-2xl font-semibold">
+                {(() => {
+                  const parentName = getParentName(topCategory.categoryId, categories);
+                  return parentName ? (
+                    <span className="text-muted-foreground flex min-w-0 shrink items-baseline font-normal">
+                      <span className="truncate">{parentName}</span>
+                      <span className="shrink-0">&nbsp;›&nbsp;</span>
+                    </span>
+                  ) : null;
+                })()}
+                <span className="shrink-0">{topCategory.key}</span>
+              </div>
               <p className="text-muted-foreground mt-1 text-xs">
                 {formatCurrency(topCategory.total)}
               </p>

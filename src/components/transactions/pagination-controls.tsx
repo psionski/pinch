@@ -26,20 +26,20 @@ export function PaginationControls({
   offset,
   onPageChange,
   onLimitChange,
-}: PaginationControlsProps): React.ReactElement {
+}: PaginationControlsProps): React.ReactElement | null {
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(offset + limit, total);
 
+  if (total === 0) return null;
+
   return (
-    <div className="flex items-center justify-between text-sm">
-      <div className="text-muted-foreground">
-        {total === 0 ? "No results" : `${start}–${end} of ${total}`}
-      </div>
+    <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-muted-foreground">{`${start}–${end} of ${total}`}</div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
+        <div className="hidden items-center gap-1.5 sm:flex">
           <span className="text-muted-foreground">Rows:</span>
           <Select value={String(limit)} onValueChange={(v) => onLimitChange(Number(v))}>
             <SelectTrigger className="h-7 w-[70px]" size="sm">

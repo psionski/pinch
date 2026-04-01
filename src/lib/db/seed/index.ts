@@ -60,14 +60,14 @@ async function seed(): Promise<void> {
   const catIds: Record<string, number> = {};
   for (const c of cats) catIds[c.name] = c.id;
 
-  // ── Date range (4 months ending with current month) ───────────────────
+  // ── Date range (12 months ending with current month) ──────────────────
   const today = Temporal.Now.plainDateISO();
   const todayYear = today.year;
   const todayMonth = today.month;
   const todayDay = today.day;
 
   const months: Array<{ year: number; month: number; lastDay: number }> = [];
-  for (let i = 3; i >= 0; i--) {
+  for (let i = 11; i >= 0; i--) {
     const ym = Temporal.PlainYearMonth.from({ year: todayYear, month: todayMonth }).subtract({
       months: i,
     });
@@ -99,7 +99,7 @@ async function seed(): Promise<void> {
   seedLogger.info(`  ${templates.length} recurring templates created.`);
 
   // ── Transactions ──────────────────────────────────────────────────────
-  seedLogger.info(`Generating 4 months of transactions (${rangeLabel})...`);
+  seedLogger.info(`Generating 12 months of transactions (${rangeLabel})...`);
 
   let balance = 200000; // €2 000 — previous month's salary leftovers
   const allTxs: TxInput[] = [];
