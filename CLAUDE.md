@@ -192,7 +192,7 @@ Browser-based E2E tests live in `e2e/ui/`. Run with `npm run test:e2e`.
 - File naming: kebab-case for files, PascalCase for components.
 - Imports: use `@/` path alias for `src/`.
 - Prefer named exports over default exports.
-- Keep files under ~300 lines. If longer, split into focused modules.
+- Keep files under ~400 lines. If longer, split into focused modules.
 
 ## Documentation
 
