@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { makeTestDb } from "../helpers";
 import { ReportService } from "@/lib/services/reports";
 import { TransactionService } from "@/lib/services/transactions";
@@ -22,12 +22,19 @@ let txService: TransactionService;
 let catService: CategoryService;
 let budgetService: BudgetService;
 
+// Pin clock to March 2026 — test data uses March dates
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(Date.UTC(2026, 2, 15)));
   db = makeTestDb();
   reports = new ReportService(db);
   txService = new TransactionService(db);
   catService = new CategoryService(db);
   budgetService = new BudgetService(db, reports);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function tx(overrides: Record<string, unknown> = {}) {
