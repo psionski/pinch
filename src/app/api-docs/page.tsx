@@ -12,6 +12,7 @@ export default function ApiDocsPage(): React.JSX.Element {
   useEffect(() => {
     function tryInit(): void {
       if (window.SwaggerUIBundle) {
+        document.documentElement.classList.add("dark-mode");
         window.SwaggerUIBundle({
           url: "/api/openapi",
           dom_id: "#swagger-ui",
@@ -39,13 +40,15 @@ export default function ApiDocsPage(): React.JSX.Element {
     document.head.appendChild(script);
 
     return () => {
+      document.documentElement.classList.remove("dark-mode");
       document.head.removeChild(link);
       document.head.removeChild(script);
     };
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#fafafa" }}>
+    <div style={{ minHeight: "100vh" }}>
+      <style>{`html.dark-mode .swagger-ui { background: inherit; }`}</style>
       <div id="swagger-ui" />
     </div>
   );
