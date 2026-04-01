@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
+import { and, eq, lte, sql, desc } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { assetPrices, assetLots } from "@/lib/db/schema";
@@ -71,22 +71,17 @@ export function resolvePrice(db: Db, asset: AssetResponse, date?: string): Resol
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** User-recorded price within ±1 day of `date`, closest first. */
+/** Most recent user-recorded price on or before `date`. */
 function findUserPrice(db: Db, assetId: number, date: string): number | null {
-  const dayBefore = offsetDate(date, -1);
   const dayAfter = offsetDate(date, 1);
 
   const row = db
     .select({ pricePerUnit: assetPrices.pricePerUnit })
     .from(assetPrices)
     .where(
-      and(
-        eq(assetPrices.assetId, assetId),
-        gte(assetPrices.recordedAt, dayBefore),
-        lte(assetPrices.recordedAt, dayAfter + "T23:59:59Z")
-      )
+      and(eq(assetPrices.assetId, assetId), lte(assetPrices.recordedAt, dayAfter + "T00:00:00Z"))
     )
-    .orderBy(sql`abs(julianday(substr(${assetPrices.recordedAt}, 1, 10)) - julianday(${date}))`)
+    .orderBy(sql`${assetPrices.recordedAt} desc`)
     .limit(1)
     .get();
 

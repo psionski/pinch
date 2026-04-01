@@ -5,7 +5,7 @@ import { AssetService } from "@/lib/services/assets";
 import { AssetLotService } from "@/lib/services/asset-lots";
 import { AssetPriceService } from "@/lib/services/asset-prices";
 import { resolvePrice } from "@/lib/services/price-resolver";
-import { marketPrices } from "@/lib/db/schema";
+import { assetLots, marketPrices } from "@/lib/db/schema";
 import { isoToday } from "@/lib/date-ranges";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type * as schema from "@/lib/db/schema";
@@ -81,9 +81,23 @@ describe("resolvePrice", () => {
     expect(result!.price).toBe(9000000);
   });
 
-  it("falls back to lot cost basis when no prices", () => {
+  it("uses buy-time price snapshot when no later user prices exist", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
     lotService.buy(asset.id, { quantity: 5, pricePerUnit: 10000, date: "2026-01-15" });
+
+    // buy() records a price snapshot, so the user price persists forward
+    const result = resolvePrice(db, asset, "2026-06-15");
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe("user");
+    expect(result!.price).toBe(10000);
+  });
+
+  it("falls back to lot cost basis when no user prices exist", () => {
+    const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
+    // Create a lot directly without a price snapshot
+    db.insert(assetLots)
+      .values({ assetId: asset.id, quantity: 5, pricePerUnit: 10000, date: "2026-01-15" })
+      .run();
 
     const result = resolvePrice(db, asset, "2026-06-15");
     expect(result).not.toBeNull();
