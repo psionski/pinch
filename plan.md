@@ -32,39 +32,42 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────┐
-│                  Next.js App                  │
-│                                               │
-│  ┌─────────────┐  ┌──────────────────────┐   │
-│  │  React UI   │  │    API Routes         │   │
-│  │  (Recharts  │  │  /api/transactions    │   │
-│  │   charts,   │  │  /api/categories      │   │
-│  │   shadcn)   │  │  /api/reports         │   │
-│  │             │  │  /api/receipts/upload  │   │
-│  │             │  │  /api/receipts/[id]/…  │   │
-│  └──────┬──────┘  └──────────┬───────────┘   │
-│         │                    │                │
-│         │         ┌──────────┴───────────┐   │
-│         │         │    MCP Endpoint       │   │
-│         │         │  /api/mcp             │   │
-│         │         └──────────┬───────────┘   │
-│         │                    │                │
-│  ┌──────┴────────────────────┴───────────┐   │
-│  │         Service Layer (shared)         │   │
-│  │   Transactions, Categories, Reports,   │   │
-│  │   Budgets, Recurring, Receipts,        │   │
-│  │   Assets, Portfolio, FinancialData,    │   │
-│  │   Settings                             │   │
-│  └──────────────────┬────────────────────┘   │
-│                     │                         │
-│  ┌──────────────────┴────────────────────┐   │
-│  │          Drizzle ORM + SQLite          │   │
-│  │          (better-sqlite3)              │   │
-│  └────────────────────────────────────────┘   │
-└──────────────────────────────────────────────┘
+        Browser                          AI Assistant
+           │                                  │
+┌──────────┼──────────────────────────────────┼───────┐
+│          ▼            Next.js App           ▼       │
+│                                                     │
+│  ┌───────────────┐                    ┌───────────┐ │
+│  │   React UI    │                    │    MCP    │ │
+│  │ Server│Client │                    │ /api/mcp  │ │
+│  └──┬────┘──┬────┘                    └─────┬─────┘ │
+│     │       │                               │       │
+│     │  ┌────▼────────┐                      │       │
+│     │  │  API Routes │                      │       │
+│     │  │  /api/*     │                      │       │
+│     │  └────┬────────┘                      │       │
+│     │       │                               │       │
+│     ▼       ▼                               ▼       │
+│  ┌──────────────────────────────────────────────┐   │
+│  │            Service Layer (shared)            │   │
+│  │  Transactions, Categories, Reports, Budgets, │   │
+│  │  Recurring, Receipts, Assets, Portfolio,     │   │
+│  │  FinancialData, Settings                     │   │
+│  └────────────────────┬─────────────────────────┘   │
+│                       ▼                             │
+│  ┌──────────────────────────────────────────────┐   │
+│  │           Drizzle ORM + SQLite               │   │
+│  │           (better-sqlite3)                   │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
 ```
 
-Key: API routes and MCP tools call the **same service layer**. No logic duplication. The UI calls API routes; the AI assistant calls MCP tools. Both hit the same services → same DB.
+**Three entry points to the service layer:**
+- **Server Components** call services directly during SSR (initial page data)
+- **Client Components** call API routes (`/api/*`), which call services
+- **AI assistants** call the MCP endpoint (`/api/mcp`), which calls services
+
+No logic duplication — all paths converge on the same services → same DB.
 
 ## Access & Security
 
@@ -77,409 +80,106 @@ Key: API routes and MCP tools call the **same service layer**. No logic duplicat
 
 **Why Tailscale-first:** Single user, personal VPS. Tailscale gives us mutual WireGuard authentication at the network level — good enough to start without building login flows.
 
-**Future: app-level auth.** The architecture should not make auth hard to add later. Keep auth concerns isolated (middleware/route guards), so we can slot in session-based or token-based auth when needed (e.g., shared access, public exposure). **Note:** Once auth is added and pages call `cookies()`/`headers()`, Next.js will automatically treat them as dynamic — at that point, remove the `export const dynamic = "force-dynamic"` lines from page files, as they'll be redundant.
+**Future: app-level auth.** Keep auth concerns isolated (middleware/route guards), so we can slot in session-based or token-based auth when needed. **Note:** Once auth is added and pages call `cookies()`/`headers()`, Next.js will automatically treat them as dynamic — at that point, remove the `export const dynamic = "force-dynamic"` lines from page files.
 
 ## Database Schema
 
-### Tables
+Schema defined in `src/lib/db/schema.ts` (Drizzle ORM). Migrations in `drizzle/`.
 
-**Money amounts are stored as integers in cents** (e.g., €12.10 → `1210`). This avoids floating-point precision errors. Format to decimal only on display/output.
+### Key design decisions
 
-```sql
--- Categories (hierarchical — parent_id allows subcategories)
-CREATE TABLE categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE,
-  parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-  icon TEXT,                     -- emoji or icon name
-  color TEXT,                    -- hex color for charts
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+- **Money as integers in cents** (e.g., €12.10 → `1210`). Avoids floating-point precision errors. Format to decimal only on display/output.
+- **Hierarchical categories** via `parent_id` self-reference.
+- **Soft-delete on budgets** (`deleted` flag) for inheritance — a deleted budget means "revert to default" for that month, not "no budget."
+- **Receipts** group transactions from a single purchase. A receipt can span multiple categories.
+- **Recurring templates** define schedule + template fields; generated transactions are normal, independently editable rows linked via `recurring_id`.
+- **Settings** as a key-value store (timezone, API keys, preferences).
+- **Unified price cache** (`market_prices`): exchange rates stored as prices (e.g., symbol='USD', currency='EUR', price=0.92 means 1 USD = 0.92 EUR).
+- **Assets + lots model**: `assets` for metadata, `asset_lots` for buy/sell/deposit/withdrawal events (positive qty = buy, negative = sell), `asset_prices` for user-recorded or auto-fetched valuations.
+- **FTS5** virtual table for full-text search on transaction descriptions, merchants, and notes. Kept in sync via triggers (see migrations).
 
--- Transactions
-CREATE TABLE transactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  amount INTEGER NOT NULL,       -- cents (e.g. 1210 = €12.10); always positive
-  type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense', 'transfer')),
-  description TEXT NOT NULL,
-  merchant TEXT,                 -- store/vendor name
-  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-  date TEXT NOT NULL,            -- ISO 8601 date (YYYY-MM-DD)
-  receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL,
-  recurring_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL,
-  notes TEXT,
-  tags TEXT,                     -- JSON array of strings
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+**Price resolution order** (in `src/lib/services/price-resolver.ts`): user-recorded `asset_prices` → provider data in `market_prices` (via `symbolMap`) → lot cost basis → deposit identity (EUR deposits = €1.00).
 
--- Receipts (groups transactions from a single purchase)
-CREATE TABLE receipts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  merchant TEXT,
-  date TEXT NOT NULL,
-  total INTEGER,                 -- cents; receipt total (for validation against sum of items)
-  image_path TEXT,               -- path to stored receipt image
-  raw_text TEXT,                 -- OCR/vision extracted text
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+**`updated_at` management:** No triggers — services are the single mutation path and set `updated_at` explicitly on every UPDATE.
 
--- Budgets (per category per month, with soft-delete for inheritance)
-CREATE TABLE budgets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-  month TEXT NOT NULL,           -- YYYY-MM format
-  amount INTEGER NOT NULL,       -- cents
-  deleted INTEGER NOT NULL DEFAULT 0,  -- soft-delete flag (1 = deleted)
-  UNIQUE(category_id, month)
-);
+**SQLite PRAGMAs** (set on every connection in `src/lib/db/index.ts`): WAL mode, foreign keys ON, 64MB cache, 5s busy timeout.
 
--- Recurring Transactions (templates for auto-generated transactions)
-CREATE TABLE recurring_transactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  amount INTEGER NOT NULL,       -- cents
-  type TEXT NOT NULL DEFAULT 'expense' CHECK(type IN ('income', 'expense', 'transfer')),
-  description TEXT NOT NULL,
-  merchant TEXT,
-  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-  frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
-  day_of_month INTEGER,          -- for monthly: 1-31 (NULL = same as start_date day)
-  day_of_week INTEGER,           -- for weekly: 0=Sun, 1=Mon, ..., 6=Sat
-  start_date TEXT NOT NULL,      -- ISO 8601 date — first occurrence
-  end_date TEXT,                 -- NULL = indefinite
-  last_generated TEXT,           -- last date a transaction was auto-created
-  is_active INTEGER NOT NULL DEFAULT 1,
-  notes TEXT,
-  tags TEXT,                     -- JSON array of strings
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+## MCP Tools (67 tools)
 
--- App-level settings (key-value store for API keys, timezone, preferences)
-CREATE TABLE settings (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
+Tool definitions live in `src/lib/mcp/tools/` (one file per domain), plus `get_started` in `src/lib/mcp/register.ts`. See each file for exact schemas and descriptions.
 
--- Unified price cache: market prices, exchange rates, and any other provider data.
--- Exchange rates are stored as prices: symbol='USD', currency='EUR', price=0.92 means 1 USD = 0.92 EUR.
-CREATE TABLE market_prices (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  symbol        TEXT NOT NULL,           -- ticker/id: 'AAPL', 'bitcoin', or currency code: 'USD'
-  price         TEXT NOT NULL,           -- string to avoid float imprecision
-  currency      TEXT NOT NULL,           -- target currency (e.g. 'EUR')
-  date          TEXT NOT NULL,           -- YYYY-MM-DD
-  provider      TEXT NOT NULL,
-  fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(symbol, currency, date)
-);
-
--- Assets: anything you own that has value (deposit, investment, crypto, other)
-CREATE TABLE assets (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT NOT NULL,
-  type        TEXT NOT NULL CHECK(type IN ('deposit', 'investment', 'crypto', 'other')),
-  currency    TEXT NOT NULL DEFAULT 'EUR',
-  symbol_map  TEXT,                     -- JSON: {"coingecko":"bitcoin"} for auto price tracking
-  icon        TEXT,
-  color       TEXT,
-  notes       TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Lots: every buy/sell/deposit/withdrawal event
-CREATE TABLE asset_lots (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  quantity        REAL NOT NULL,         -- positive = buy/deposit, negative = sell/withdraw
-  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
-  date            TEXT NOT NULL,
-  transaction_id  INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
-  notes           TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Price snapshots: user-recorded or auto-fetched asset valuations
-CREATE TABLE asset_prices (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  price_per_unit  INTEGER NOT NULL,      -- cents, in the asset's currency
-  recorded_at     TEXT NOT NULL
-);
-
--- Full-text search for transaction descriptions and merchants
-CREATE VIRTUAL TABLE transactions_fts USING fts5(
-  description,
-  merchant,
-  notes,
-  content='transactions',
-  content_rowid='id'
-);
-```
-
-**FTS5 sync:** The service layer keeps `transactions_fts` in sync with the `transactions` table on insert/update/delete. This powers text search in `list_transactions` and the MCP `list_transactions` tool.
-
-**Price resolution:** When valuing an asset, the unified price resolver (`src/lib/services/price-resolver.ts`) checks in order: user-recorded `asset_prices` → provider data in `market_prices` (via `symbolMap`) → lot cost basis → deposit identity (EUR deposits = €1.00).
-
-**`updated_at` management:** SQLite has no auto-update trigger for timestamps. The service layer is responsible for setting `updated_at = datetime('now')` on every UPDATE call. No triggers needed — services are the single mutation path.
-
-### Indices
-
-```sql
--- Transaction query patterns
-CREATE INDEX idx_transactions_date ON transactions(date);
-CREATE INDEX idx_transactions_category ON transactions(category_id);
-CREATE INDEX idx_transactions_date_category ON transactions(date, category_id);
-CREATE INDEX idx_transactions_merchant ON transactions(merchant);
-CREATE INDEX idx_transactions_amount ON transactions(amount);
-CREATE INDEX idx_transactions_type_date ON transactions(type, date);
-CREATE INDEX idx_transactions_receipt ON transactions(receipt_id);
-CREATE INDEX idx_transactions_recurring ON transactions(recurring_id);
-
--- Budget lookups
-CREATE INDEX idx_budgets_month ON budgets(month);
-CREATE INDEX idx_budgets_category_month ON budgets(category_id, month);
-
--- Recurring lookups
-CREATE INDEX idx_recurring_active ON recurring_transactions(is_active);
-CREATE INDEX idx_recurring_frequency ON recurring_transactions(frequency, is_active);
-
--- Market prices
-CREATE INDEX idx_market_prices_symbol ON market_prices(symbol, date);
-
--- Asset lots & prices
-CREATE INDEX idx_asset_lots_asset ON asset_lots(asset_id);
-CREATE INDEX idx_asset_lots_date ON asset_lots(asset_id, date);
-CREATE INDEX idx_asset_lots_transaction ON asset_lots(transaction_id);
-CREATE INDEX idx_asset_prices_asset ON asset_prices(asset_id);
-CREATE INDEX idx_asset_prices_latest ON asset_prices(asset_id, recorded_at);
-
--- FTS5 sync triggers (keep full-text index in sync with transactions table)
-CREATE TRIGGER transactions_ai AFTER INSERT ON transactions BEGIN
-  INSERT INTO transactions_fts(rowid, description, merchant, notes)
-  VALUES (new.id, new.description, new.merchant, new.notes);
-END;
-CREATE TRIGGER transactions_ad AFTER DELETE ON transactions BEGIN
-  INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes)
-  VALUES ('delete', old.id, old.description, old.merchant, old.notes);
-END;
-CREATE TRIGGER transactions_au AFTER UPDATE ON transactions BEGIN
-  INSERT INTO transactions_fts(transactions_fts, rowid, description, merchant, notes)
-  VALUES ('delete', old.id, old.description, old.merchant, old.notes);
-  INSERT INTO transactions_fts(rowid, description, merchant, notes)
-  VALUES (new.id, new.description, new.merchant, new.notes);
-END;
-```
-
-### SQLite PRAGMAs (set on every connection)
-
-```sql
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA foreign_keys = ON;
-PRAGMA cache_size = -64000;    -- 64MB cache
-PRAGMA busy_timeout = 5000;
-```
-
-## MCP Tools (59 tools)
+### Getting Started (1 tool)
+`get_started` — returns instructions, conventions, and onboarding flow. AI clients should call this first.
 
 ### Transactions (8 tools)
-| Tool | Description |
-|------|-------------|
-| `create_transaction` | Add a single transaction |
-| `create_transactions` | Batch add, optionally linked to an uploaded receipt via `receipt_id` |
-| `get_transaction` | Get a single transaction by ID |
-| `list_transactions` | List/filter by date range, category, amount range, merchant, text search, tags, type. Pagination via limit+offset. |
-| `update_transaction` | Update fields on an existing transaction by ID |
-| `batch_update_transactions` | Bulk-update multiple transactions in one call |
-| `delete_transaction` | Delete by ID or array of IDs |
-| `list_tags` | List all distinct tags used across transactions |
+`create_transaction`, `create_transactions` (batch, with optional `receipt_id`), `get_transaction`, `list_transactions` (filter/paginate/search), `update_transaction`, `batch_update_transactions`, `delete_transaction`, `list_tags`
 
 ### Categories (7 tools)
-| Tool | Description |
-|------|-------------|
-| `list_categories` | All categories with hierarchy, transaction counts, and metadata |
-| `get_category` | Get a single category by ID |
-| `create_category` | New category (name, optional parent, icon, color) |
-| `update_category` | Rename, reparent, change icon/color |
-| `delete_category` | Delete a category (transactions become uncategorized) |
-| `recategorize` | Bulk-move transactions matching a filter to a new category |
-| `merge_categories` | Merge source into target — reassign transactions, transfer budgets, delete source |
+`list_categories`, `get_category`, `create_category`, `update_category`, `delete_category`, `recategorize_transactions`, `merge_categories`
 
 ### Budgets (4 tools)
-| Tool | Description |
-|------|-------------|
-| `set_budget` | Set or update a monthly budget for a category |
-| `get_budget_status` | Spend vs budget for all budgeted categories in a month, with amounts, percentages, and over/under status |
-| `delete_budget` | Remove a budget for a category + month |
-| `reset_budgets` | Revert a month's budgets to inherited defaults |
+`set_budget`, `get_budget_status`, `delete_budget`, `reset_budgets`
 
 ### Recurring Transactions (6 tools)
-| Tool | Description |
-|------|-------------|
-| `create_recurring` | Create a recurring template (daily/weekly/monthly/yearly) |
-| `get_recurring` | Get a single recurring template by ID |
-| `list_recurring` | List all templates with next occurrence and status |
-| `update_recurring` | Modify a template (or pause with `isActive: false`) |
-| `delete_recurring` | Delete a template (past transactions kept) |
-| `generate_pending_recurring` | Manually trigger generation of pending recurring transactions up to today |
+`create_recurring`, `get_recurring`, `list_recurring`, `update_recurring`, `delete_recurring`, `generate_pending_recurring`
 
 ### Receipts (4 tools)
-| Tool | Description |
-|------|-------------|
-| `get_receipt` | Get receipt metadata and image URL by ID |
-| `list_receipts` | List/filter receipts by date range or merchant |
-| `list_unprocessed_receipts` | Find receipts with no linked transactions yet |
-| `delete_receipt` | Delete receipt(s) and their image files |
+`get_receipt`, `list_receipts`, `list_unprocessed_receipts`, `delete_receipt`
 
 ### Reporting (6 tools)
-| Tool | Description |
-|------|-------------|
-| `get_spending_summary` | Total spend for a period, grouped by category/month/merchant, with optional period comparison |
-| `get_category_stats` | Per-category spending with amounts, percentages, and hierarchy rollups |
-| `get_trends` | Monthly totals time series (up to 24 months), optionally filtered by category |
-| `get_top_merchants` | Highest-spend merchants with transaction counts and averages |
-| `get_net_income` | Profit & Loss: income minus expenses, optionally filtered by date range |
-| `get_cash_balance` | Current checking account balance (income − expenses ± asset transfers) |
+`get_spending_summary`, `get_category_stats`, `get_trends`, `get_top_merchants`, `get_net_income`, `get_cash_balance`
 
 ### Portfolio Reports (6 tools)
-| Tool | Description |
-|------|-------------|
-| `get_net_worth_history` | Net worth time series. Params: window (3m/6m/12m/ytd/all), interval (daily/weekly/monthly). Returns date + cash + assets + total per point. |
-| `get_asset_performance` | All assets ranked by performance. Returns cost basis, current value, P&L, P&L %, annualized return per asset. |
-| `get_allocation` | Current portfolio allocation by asset and by type. |
-| `get_currency_exposure` | Net worth breakdown by currency. |
-| `get_realized_pnl` | Realized P&L from sells in a date range, using FIFO cost basis. |
-| `get_asset_history` | Combined lot + price + value timeline for one asset. Params: asset ID, window. |
+`get_net_worth_history`, `get_asset_performance`, `get_allocation`, `get_currency_exposure`, `get_realized_pnl`, `get_asset_history`
 
 ### Assets (10 tools)
-| Tool | Description |
-|------|-------------|
-| `create_asset` | Create an asset (name, type, currency, symbolMap, icon, color) |
-| `list_assets` | All assets with current holdings, cost basis, current value, P&L |
-| `get_asset` | Single asset with full details |
-| `update_asset` | Update asset metadata |
-| `delete_asset` | Delete an asset and its lots |
-| `buy_asset` | Record purchase/deposit — creates transfer transaction + lot atomically |
-| `sell_asset` | Record sale/withdrawal — creates transfer transaction + negative lot atomically |
-| `record_price` | Update current price for an asset |
-| `list_lots` | Lot history for a single asset |
-| `get_price_history` | Price time series for a single asset |
+`create_asset`, `list_assets`, `get_asset`, `update_asset`, `delete_asset`, `buy_asset`, `sell_asset`, `record_price`, `get_portfolio`, `list_lots`
 
 ### Financial Data (5 tools)
-| Tool | Description |
-|------|-------------|
-| `convert_currency` | Convert amount between currencies (cache-first, provider fallback) |
-| `get_price` | Unified price lookup — exchange rates, crypto, stocks, ETFs |
-| `search_symbol` | Search for market symbols across all providers |
-| `list_providers` | List configured financial data providers with status |
-| `set_api_key` | Configure an API key for a provider |
+`convert_currency`, `get_price`, `search_symbol`, `list_providers`, `set_api_key`
+
+### Backups (3 tools)
+`create_backup`, `list_backups`, `restore_backup`
+
+### Onboarding (2 tools)
+`set_opening_cash_balance`, `add_opening_asset`
 
 ### Settings (2 tools)
-| Tool | Description |
-|------|-------------|
-| `get_timezone` | Get the configured user timezone |
-| `set_timezone` | Set the user timezone (IANA identifier) |
+`get_timezone`, `set_timezone`
+
+### Sample Data (1 tool)
+`clear_sample_data`
 
 ### Escape Hatch (2 tools)
-| Tool | Description |
-|------|-------------|
-| `get_db_schema` | Return CREATE TABLE DDL and data conventions (use before writing queries) |
-| `query` | Execute read-only SQL (SELECT/WITH) for ad-hoc analysis |
+`get_db_schema`, `query` (read-only SQL)
 
 ## Scheduled Tasks & Recurring Transaction Engine
 
-### Scheduling approach: `instrumentation.ts` + `node-cron`
+Three cron jobs run in-process via `node-cron`, started from `src/instrumentation.ts` → `src/lib/cron.ts`:
 
-Next.js provides a stable `instrumentation.ts` hook whose `register()` function runs exactly once when the server starts. Since Pinch is self-hosted (long-lived Node.js process, not serverless), we use this to start in-process cron jobs via `node-cron`.
+| Time | Job | Details |
+|------|-----|---------|
+| 02:00 | Recurring transaction generation | Creates pending transactions from active templates up to today |
+| 03:00 | SQLite backup | `.backup` to `data/backups/`, keeps last 7 daily |
+| 04:00 | Market price auto-fetch | For each asset with a `symbolMap`, fetches today's price from the linked provider |
 
-```typescript
-// src/instrumentation.ts
-export async function register(): Promise<void> {
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { initCronJobs } = await import("@/lib/cron");
-    initCronJobs();
-  }
-}
-```
+**Why in-process cron:** Pinch is self-hosted (long-lived Node.js process, not serverless). `instrumentation.ts` runs exactly once on server start — perfect for scheduling. A `globalThis` singleton guard prevents duplicate jobs from dev-mode hot-reload.
 
-**Dev mode safety:** Use a `globalThis` singleton guard to prevent duplicate jobs from hot-reload re-execution:
-
-```typescript
-// src/lib/cron.ts
-const globalForCron = globalThis as unknown as { cronInitialized?: boolean };
-
-export function initCronJobs(): void {
-  if (globalForCron.cronInitialized) return;
-  globalForCron.cronInitialized = true;
-
-  // Schedule recurring transaction generation — daily at 02:00
-  cron.schedule("0 2 * * *", async () => {
-    await recurringService.generatePending(new Date());
-  });
-
-  // Schedule SQLite backup — daily at 03:00
-  cron.schedule("0 3 * * *", async () => {
-    await backupDatabase();
-  });
-
-  // Schedule market price auto-fetch — daily at 04:00
-  // For each asset with a symbolMap, fetches today's price from the linked provider
-  cron.schedule("0 4 * * *", async () => {
-    await autoRecordMarketPrices();
-  });
-}
-```
-
-### Recurring transaction generation
-
-1. Each recurring template defines: amount, description, category, frequency (daily/weekly/monthly/yearly), schedule details, start/end date
-2. The engine tracks `last_generated` — the last date it created a transaction for this template
-3. Runs daily at 02:00 via cron (see above) + on first request after startup via middleware. Also manually triggerable via `generate_pending_recurring` MCP tool.
-4. Generated transactions link back to their template via `recurring_id`
-5. Generated transactions are normal transactions — editable, deletable, recategorizable independently
-6. Deactivating a template stops future generation but doesn't touch already-generated transactions
-
-**MCP management:** The AI assistant can create/modify/pause/resume recurring templates. Example: "I'm canceling my Netflix" → `update_recurring(id, is_active: false)`.
+**Recurring engine behavior:**
+1. Templates define amount, description, category, frequency, schedule details, start/end date
+2. Engine tracks `last_generated` per template
+3. Runs daily via cron + on first request after startup via middleware + manually via `generate_pending_recurring` MCP tool
+4. Generated transactions are normal rows linked via `recurring_id` — independently editable/deletable
+5. Deactivating a template stops future generation but doesn't touch existing transactions
 
 ## MCP Integration Details
 
-The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint at `/api/mcp`. Each POST request creates a fresh `McpServer` + transport instance, registers tools, handles the request, and tears down. No session state between requests.
+The MCP server runs inside Next.js as a **stateless** Streamable HTTP endpoint at `/api/mcp` (see `src/app/api/mcp/route.ts`).
 
 **Key decisions:**
-- **Stateless mode:** `sessionIdGenerator: undefined` — no `Mcp-Session-Id` headers, no SSE resumption. This is the simplest model and fits Next.js route handlers perfectly. The AI assistant makes independent tool calls; there is no multi-turn MCP session state to preserve.
-- **JSON responses:** `enableJsonResponse: true` — returns plain JSON instead of SSE. Simpler to debug, no streaming needed for our tool calls.
-- **Request/Response compatibility:** Uses `WebStandardStreamableHTTPServerTransport` which works natively with Next.js App Router's Web `Request`/`Response`.
-- **Tool registration:** Factor tool registration into a shared `registerTools(server)` function so the per-request server setup is minimal.
-- **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt image uploads. This is how unknown AI clients discover that binary uploads go through REST, not MCP. Tool descriptions on `create_transactions` reference `receipt_id` and point to the instructions for the upload flow.
-
-```typescript
-// Simplified pattern for /api/mcp/route.ts
-export async function POST(req: Request): Promise<Response> {
-  const body = await req.json();
-  const server = new McpServer({
-    name: "pinch",
-    version: "1.0.0",
-    instructions: [
-      "Personal finance tracker.",
-      "Receipt images: upload via POST /api/receipts/upload",
-      "(multipart/form-data, field: 'image', optional fields: 'merchant', 'date', 'total', 'raw_text')",
-      "→ returns { receipt_id }.",
-      "Then pass receipt_id to create_transactions to link line items to the receipt.",
-      "All monetary amounts are integers in cents (e.g. 1210 = €12.10).",
-    ].join(" "),
-  });
-  registerTools(server);
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
-  });
-  await server.connect(transport);
-  // ... handle request conversion and return response
-}
-```
+- **Stateless mode:** `sessionIdGenerator: undefined` — no session headers, no SSE resumption. Each POST creates a fresh server, handles the request, tears down. Fits Next.js route handlers perfectly.
+- **JSON responses:** `enableJsonResponse: true` — plain JSON, no streaming needed for tool calls.
+- **Server instructions:** The `McpServer` `instructions` field advertises the companion REST endpoint for receipt uploads. This is how AI clients discover that binary uploads go through REST, not MCP.
 
 ## Web UI Pages
 
@@ -487,34 +187,21 @@ export async function POST(req: Request): Promise<Response> {
 - **KPI cards:** Total spend this month, vs last month (delta + percentage), top category, budget utilization percentage
 - **Spending trend:** Area chart, last 6 months
 - **Category breakdown:** Donut chart, current month
-- **Recent transactions:** Last 10-20 entries, quick list with category badges
-- **Budget alerts:** Categories approaching (>80%) or over budget, sorted by severity
+- **Recent transactions:** Last 10-20 entries with category badges
+- **Budget alerts:** Categories approaching (>80%) or over budget
 - **Upcoming recurring:** Next 5 recurring transactions due
 - **Net worth card + sparkline:** Total net worth with 6-month mini area chart
 - **Top movers:** Assets with biggest P&L change this month
 - **Allocation mini-donut:** Portfolio allocation at a glance
 
 ### Transactions (`/transactions`)
-- Full transaction list, sortable columns (date, amount, category, merchant)
-- Filter bar: date range picker, category dropdown, amount range, text search, type toggle (income/expense/all)
-- Inline edit (click to modify)
-- Bulk select → recategorize / delete
-- Add transaction form (manual entry)
-- Receipt indicator badge (links to receipt details)
-- Recurring indicator badge (links to template)
+Full transaction list with sortable columns, filter bar (date range, category, amount range, text search, type toggle), inline edit, bulk select, receipt/recurring indicator badges.
 
 ### Categories (`/categories`)
-- Tree view showing hierarchy (parent → children)
-- Per-category: total spend (current month), transaction count, budget status
-- CRUD: create, rename, reparent, change icon/color
-- Merge UI: select source → target, preview affected transactions, confirm
-- Click-through to filtered transaction list
+Tree view showing hierarchy, per-category spend + transaction count + budget status, CRUD, merge UI, click-through to filtered transactions.
 
 ### Assets (`/assets`)
-- **Summary cards:** Total net worth, total invested, total P&L (absolute + %), cash balance
-- **Performance table:** Sortable columns — name, type, holdings, cost basis, current value, P&L, annualized return
-- **Allocation donut chart** + **currency exposure bar**
-- **Asset detail** (`/assets/[id]`): value-over-time chart with buy/sell markers, lot history table, price history chart, P&L breakdown
+Summary cards (net worth, invested, P&L, cash balance), performance table, allocation donut + currency exposure bar. Asset detail (`/assets/[id]`): value-over-time chart, lot history, price history, P&L breakdown.
 
 ### Cash Flow (`/reports/cash-flow`)
 Date range picker, spending by category, trends, merchant breakdown, budget vs actual, income vs expenses. (`/reports` redirects here.)
@@ -522,121 +209,52 @@ Date range picker, spending by category, trends, merchant breakdown, budget vs a
 ### Portfolio (`/reports/portfolio`)
 Net worth over time, allocation breakdown, performance ranking, realized vs unrealized P&L, transfer flow.
 
-*Assets, Cash Flow, and Portfolio are grouped under a "Wealth" section in the sidebar as flat navigation items.*
+*Sidebar groups: **Track** (Transactions, Assets, Recurring), **Plan** (Categories, Budgets), **Reports** (Cash Flow, Portfolio).*
 
 ### Settings (`/settings`)
-- Timezone selector (required on first run — onboarding gate redirects here)
-- API key management for financial data providers
+Timezone selector (required on first run — onboarding gate), API key management for financial data providers.
 
 ### Budgets (`/budgets`)
-- Set monthly budgets per category (form with amount input)
-- Visual progress bars: green (< 60%) → yellow (60-90%) → red (> 90%)
-- Copy budgets from previous month (one-click)
-- Historical budget adherence chart (how well did you stick to budgets over time)
+Monthly budgets per category, visual progress bars (green/yellow/red), copy from previous month, historical adherence chart.
 
 ### Recurring (`/recurring`)
-- List all templates: description, amount, frequency, next occurrence, status (active/paused)
-- Create/edit form: amount, description, merchant, category, frequency, schedule, start/end date
-- Toggle active/inactive
-- View generated transactions for a template
+Template list with description, amount, frequency, next occurrence, status. Create/edit form, toggle active/inactive, view generated transactions.
 
 ## Receipt Flow
 
-### Image upload design
+Receipt images are binary — MCP tools accept only JSON. So uploads go through a **companion REST endpoint**:
 
-Receipt images are binary data. MCP tools accept JSON parameters — no native binary upload. Rather than bloating MCP payloads with base64-encoded images, receipt uploads go through a **companion REST endpoint**:
+1. `POST /api/receipts/upload` — multipart/form-data. Saves image to `data/receipts/YYYY-MM/`, creates DB row, returns `{ receipt_id }`.
+2. MCP `create_transactions` accepts `receipt_id` to link line items.
+3. `GET /api/receipts/[id]/image` — streams the image with correct `Content-Type`.
 
-- `POST /api/receipts/upload` — multipart/form-data. Accepts `image` file field + optional metadata fields (`merchant`, `date`, `total`, `raw_text`). Saves image to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, creates a `receipts` row, returns `{ receipt_id }`.
-- MCP `create_transactions` then accepts `receipt_id` to link line items to the uploaded receipt.
+**AI workflow:** User sends receipt photo → AI extracts items via vision → uploads image via REST → calls `create_transactions` with line items + `receipt_id`. Each item categorized independently.
 
-**Discovery:** AI clients learn about this REST endpoint via the MCP server's `instructions` field (see MCP Integration Details). Any MCP-compatible agent that reads server instructions on connect will know the upload flow. Tool descriptions on `create_transactions` also reference `receipt_id`.
-
-### From an AI client (e.g., via Telegram)
-
-1. User sends receipt photo to the AI assistant via Telegram
-2. AI uses vision model to extract: merchant name, date, line items (description + amount per item), total
-3. AI uploads the image via `POST /api/receipts/upload` (multipart) → gets `{ receipt_id }`
-4. AI calls MCP `create_transactions` with line items + `receipt_id`
-5. Each transaction linked via `receipt_id` — a single receipt can span multiple categories (e.g. eggs → Groceries, cigarettes → Tobacco on the same Kaufland receipt)
-6. AI confirms: "Added 7 items from Kaufland (€43.20) — 5× Groceries, 1× Tobacco, 1× Household"
-
-### From the web UI
-
-1. User clicks "Add Receipt" → file picker or drag-and-drop
-2. Frontend uploads to `POST /api/receipts/upload` → gets `{ receipt_id }`
-3. Manual entry form for line items, pre-filled with receipt metadata
-4. Submit → `POST /api/transactions` with items + `receipt_id`
-
-### Image serving
-
-- Web UI renders `<img src="/api/receipts/{id}/image" />`
-- `GET /api/receipts/[id]/image` reads `image_path` from DB, streams file with correct `Content-Type`
-- Receipt icon on transactions → click to see full receipt, all items, original image
-
-### Category assignment
-
-The AI assistant uses item descriptions (per line item) and merchant name to assign categories. Each item on a receipt is categorized independently. If a merchant/item pattern has been seen before, reuse the previous category. If ambiguous, ask. Over time, category assignment gets smarter via accumulated history.
-
-## Currency
-
-Default currency is **EUR (€)**. Start single-currency for simplicity, but keep the door open for multi-currency later — avoid hardcoding EUR assumptions deep in business logic. When multi-currency is needed, add a `currency` field to transactions and an exchange rate table.
+**Discovery:** AI clients learn about the REST endpoint via MCP server `instructions` field.
 
 ## API Conventions
 
 ### Error response contract
 
-All API routes and MCP tool errors return a consistent shape:
-
-```json
-{
-  "error": "Human-readable error message",
-  "code": "VALIDATION_ERROR",
-  "details": { }
-}
-```
-
-Error codes: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `INTERNAL_ERROR`. The `details` field is optional and carries structured info (e.g., Zod validation issues). MCP tools return errors via the MCP protocol's error mechanism but use the same `code` values for consistency.
+All API routes and MCP tools return a consistent error shape with `error` (message), `code` (`VALIDATION_ERROR | NOT_FOUND | CONFLICT | INTERNAL_ERROR`), and optional `details`. See `src/lib/api/helpers.ts` for the `errorResponse` helper.
 
 ### Pagination contract
 
-All list endpoints use consistent pagination:
-
-- **Request:** `limit` (default 50, max 200) + `offset` (default 0)
-- **Response envelope:**
-```json
-{
-  "data": [ ... ],
-  "total": 1234,
-  "limit": 50,
-  "offset": 0,
-  "hasMore": true
-}
-```
-
-Shared Zod schema for pagination params in `src/lib/validators/common.ts`.
+All list endpoints: `limit` (default 50, max 200) + `offset` (default 0). Response envelope: `{ data, total, limit, offset, hasMore }`. Shared Zod schema in `src/lib/validators/common.ts`.
 
 ### Tags
 
-Tags are stored as a JSON text array on transactions and recurring templates (e.g., `["groceries", "weekly-shop"]`). Query support:
+Stored as JSON text arrays on transactions and recurring templates. Filter via `json_each()` in SQLite (OR logic). Dedicated `list_tags` tool for autocomplete. No separate tags table — intentionally simple.
 
-- **Filter by tag:** `list_transactions` accepts a `tags` filter param — matches transactions containing any of the specified tags (OR logic). Implemented via `json_each()` in SQLite.
-- **List all tags:** Dedicated service method that scans distinct tags across all transactions (for autocomplete in UI and MCP).
-- No separate tags table — kept simple. If tagging gets complex (e.g., tag colors, descriptions), promote to a table later.
+## Currency
 
-### Receipt image upload & serving
-
-Receipt images are uploaded via a **companion REST endpoint** (not MCP — see Receipt Flow section for rationale):
-
-- `POST /api/receipts/upload` — multipart/form-data. Accepts `image` file + optional `merchant`, `date`, `total`, `raw_text` fields. Saves to `data/receipts/YYYY-MM/receipt-{id}.{ext}`, creates a `receipts` DB row, returns `{ receipt_id }`. Used by both AI clients and the web UI.
-- `GET /api/receipts/[id]/image` — looks up the receipt by ID, reads `image_path`, streams the file with appropriate `Content-Type`.
-- Both protected by the same access controls as other API routes.
-- AI clients discover the upload endpoint via MCP server `instructions` (see MCP Integration Details).
+Default currency is **EUR (€)**. Single-currency for now, but avoid hardcoding EUR assumptions deep in business logic. Assets already support per-asset currencies. Full multi-currency is a future sprint.
 
 ## Data Storage
 
 - **Database:** `data/pinch.db` (SQLite, gitignored)
-- **Receipt images:** `data/receipts/YYYY-MM/receipt-{id}.{ext}` (organized by month, gitignored)
-- **Backups:** Daily automated backup via cron job (see Scheduled Tasks section). Uses SQLite `.backup` command to `data/backups/pinch-YYYY-MM-DD.db`. Keep last 7 daily backups (auto-rotate old ones).
+- **Receipt images:** `data/receipts/YYYY-MM/receipt-{id}.{ext}` (gitignored)
+- **Backups:** `data/backups/pinch-YYYY-MM-DD.db` (daily, last 7 kept)
 
 ## Project Structure
 
@@ -652,8 +270,7 @@ src/
 │   │                            #   portfolio/, dashboard/, …)
 │   └── ui/                      #   + shadcn/ui primitives
 ├── lib/
-│   ├── api/                     # Route helpers (parseBody, errorResponse), service
-│   │                            #   factory functions, OpenAPI spec
+│   ├── api/                     # Route helpers, service factories, OpenAPI spec
 │   ├── db/                      # Drizzle schema, connection singleton, seed
 │   ├── services/                # One service per domain — single source of truth
 │   ├── providers/               # Financial data providers (ECB, Frankfurter,
@@ -676,9 +293,7 @@ drizzle/                         # Generated migrations
 
 ## Development Sprints
 
-Each sprint is a self-contained chunk of work that results in something testable. Sprints are designed to be completable in a single AI agent session with human review between sprints.
-
-Sprints are organized into two phases: **MVP** and **Full App**.
+Each sprint is a self-contained chunk of work. Sprints are organized into two phases: **MVP** and **Full App**.
 
 **Completed sprints (1-21):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio), portfolio reports backend (asset–market price linking via symbolMap, unified price resolver, portfolio report services — net worth history, asset performance, allocation, currency exposure, realized P&L, asset history), portfolio reports UI (reports sidebar with Cash Flow / Portfolio sub-pages, portfolio reports page, enhanced assets page with summary cards and charts, asset detail enhancements, dashboard net worth sparkline / top movers / allocation donut, onboarding tools and interactive tutorial).
 
@@ -688,7 +303,7 @@ Sprints are organized into two phases: **MVP** and **Full App**.
 **Goal:** Production readiness.
 
 - [x] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
-- [ ] Mobile-responsive audit and fixes
+- [x] Mobile-responsive audit and fixes
    - transactions table is too wide
    - better positioning for the menu button on mobile
 - [ ] CSV export for any filtered view
