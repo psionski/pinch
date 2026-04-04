@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -8,8 +8,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
 import { getSettingsService } from "@/lib/api/services";
 import { TimezoneInit } from "@/components/timezone-init";
-import { InteractiveTour } from "@/components/tour/interactive-tour";
 import { SampleDataBar } from "@/components/sample-data-bar";
+import { LazyTour } from "@/components/tour/lazy-tour";
 import { hasSampleData } from "@/lib/services/sample-data";
 
 const geistSans = Geist({
@@ -29,6 +29,12 @@ export const metadata: Metadata = {
   description: "AI-powered personal finance tracker",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,7 +49,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className="antialiased">
         <TimezoneInit timezone={timezone} />
-        <InteractiveTour initialTutorial={tutorial} />
+        <LazyTour initialTutorial={tutorial} />
         <TooltipProvider>
           <SidebarProvider>
             <AppSidebar />

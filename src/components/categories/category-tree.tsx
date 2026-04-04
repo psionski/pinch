@@ -125,19 +125,21 @@ function CategoryRow({
         <TableCell className="py-2 pr-2" style={{ paddingLeft: `${depth * 24 + 8}px` }}>
           <div className="flex items-center gap-1.5">
             {hasChildren ? (
-              <button
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggle(cat.id);
                 }}
-                className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
+                className="text-muted-foreground hover:text-foreground"
               >
                 {isExpanded ? (
                   <ChevronDown className="size-4" />
                 ) : (
                   <ChevronRight className="size-4" />
                 )}
-              </button>
+              </Button>
             ) : (
               <span className="w-5 shrink-0" />
             )}

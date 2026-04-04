@@ -167,17 +167,18 @@ export function TransactionTable({
                 <div className="flex items-center gap-1.5">
                   <span className="truncate">{tx.description}</span>
                   {tx.receiptId && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         onReceiptClick?.(tx.receiptId!);
                       }}
-                      className="text-muted-foreground hover:text-foreground shrink-0"
+                      className="text-muted-foreground hover:text-foreground"
                       aria-label="View receipt"
                     >
                       <Receipt className="size-3.5" />
-                    </button>
+                    </Button>
                   )}
                   {tx.recurringId && (
                     <Repeat

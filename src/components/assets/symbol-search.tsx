@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Loader2 } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { Search, X, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PROVIDER_LABELS } from "@/lib/providers/labels";
+import type { AssetType } from "@/lib/validators/assets";
 
 const MAX_PER_PROVIDER = 5;
 const DEBOUNCE_MS = 300;
@@ -16,13 +25,13 @@ interface SymbolSearchResult {
   type?: string;
 }
 
-/** The symbolMap: one symbol per provider. */
 type SymbolMap = Record<string, string>;
 
 interface SymbolSearchProps {
   value: SymbolMap;
   onChange: (map: SymbolMap) => void;
   disabled?: boolean;
+  assetType?: AssetType;
 }
 
 function groupByProvider(results: SymbolSearchResult[]): Map<string, SymbolSearchResult[]> {
@@ -37,75 +46,113 @@ function groupByProvider(results: SymbolSearchResult[]): Map<string, SymbolSearc
   return grouped;
 }
 
-import { PROVIDER_LABELS } from "@/lib/providers/types";
+// ─── Search Dialog (shared by both form field and standalone trigger) ────────
 
-export function SymbolSearch({ value, onChange, disabled }: SymbolSearchProps): React.ReactElement {
+interface SymbolSearchDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  value: SymbolMap;
+  onDone: (map: SymbolMap) => void;
+  assetType?: AssetType;
+}
+
+export function SymbolSearchDialog({
+  open,
+  onOpenChange,
+  value,
+  onDone,
+  assetType,
+}: SymbolSearchDialogProps): React.ReactElement {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SymbolSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [pending, setPending] = useState<SymbolMap>(value);
-  const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const valueRef = useRef(value);
-  valueRef.current = value;
+  const abortRef = useRef<AbortController | null>(null);
 
-  const doSearch = useCallback(async (q: string): Promise<void> => {
-    if (q.trim().length < 2) {
+  // Reset pending state when dialog opens
+  function handleOpenChange(v: boolean): void {
+    if (v) {
+      setPending(value);
+      setQuery("");
       setResults([]);
-      setShowDropdown(false);
-      return;
     }
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/financial/search-symbol?query=${encodeURIComponent(q.trim())}`);
-      if (res.ok) {
-        const data = (await res.json()) as SymbolSearchResult[];
-        setResults(data);
-        if (data.length > 0) {
-          setPending(valueRef.current);
-          setShowDropdown(true);
-        } else {
-          setShowDropdown(false);
-        }
+    onOpenChange(v);
+  }
+
+  function handleDone(): void {
+    onDone(pending);
+    onOpenChange(false);
+    setQuery("");
+    setResults([]);
+  }
+
+  const doSearch = useCallback(
+    async (q: string): Promise<void> => {
+      if (q.trim().length < 2) {
+        setResults([]);
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setLoading(true);
+      setResults([]);
+
+      const params = new URLSearchParams({ query: q.trim() });
+      if (assetType) params.set("assetType", assetType);
+
+      try {
+        const res = await fetch(`/api/financial/search-symbol?${params}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) return;
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value: chunk } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(chunk, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+
+          for (const part of parts) {
+            const lines = part.split("\n");
+            const eventLine = lines.find((l) => l.startsWith("event: "));
+            const dataLine = lines.find((l) => l.startsWith("data: "));
+            if (!eventLine || !dataLine) continue;
+
+            const eventType = eventLine.slice(7);
+            if (eventType === "done") break;
+            if (eventType !== "results") continue;
+
+            const payload = JSON.parse(dataLine.slice(6)) as {
+              provider: string;
+              results: SymbolSearchResult[];
+            };
+            setResults((prev) => [...prev, ...payload.results]);
+          }
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [assetType]
+  );
 
   function handleInputChange(val: string): void {
     setQuery(val);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => void doSearch(val), DEBOUNCE_MS);
   }
-
-  function openDropdown(): void {
-    setPending(value);
-    setShowDropdown(true);
-  }
-
-  function commitAndClose(): void {
-    onChange(pending);
-    setShowDropdown(false);
-  }
-
-  function cancelAndClose(): void {
-    setPending(valueRef.current);
-    setShowDropdown(false);
-  }
-
-  // Close dropdown on outside click (acts as cancel)
-  useEffect(() => {
-    function handleClick(e: MouseEvent): void {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setPending(valueRef.current);
-        setShowDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
 
   function toggleResult(result: SymbolSearchResult): void {
     const next = { ...pending };
@@ -117,104 +164,152 @@ export function SymbolSearch({ value, onChange, disabled }: SymbolSearchProps): 
     setPending(next);
   }
 
-  function removeEntry(provider: string): void {
-    const next = { ...value };
-    delete next[provider];
-    onChange(next);
-  }
-
-  const selectedEntries = Object.entries(value);
   const grouped = groupByProvider(results);
 
   return (
-    <div ref={containerRef} className="space-y-2">
-      <div className="relative">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Search Symbols</DialogTitle>
+        </DialogHeader>
+
         <div className="relative">
           <Search className="text-muted-foreground absolute top-2.5 left-3 size-4" />
           <Input
             value={query}
             onChange={(e) => handleInputChange(e.target.value)}
-            onFocus={() => results.length > 0 && openDropdown()}
-            placeholder="Search symbols across providers…"
+            placeholder="Search by name or symbol…"
             className="pl-9"
-            disabled={disabled}
+            autoFocus
           />
           {loading && (
             <Loader2 className="text-muted-foreground absolute top-2.5 right-3 size-4 animate-spin" />
           )}
         </div>
 
-        {showDropdown && (
-          <div className="bg-popover border-border absolute top-full left-0 z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border shadow-md">
-            {[...grouped.entries()].map(([provider, items]) => (
-              <div key={provider}>
-                <div className="text-muted-foreground bg-muted/50 px-3 py-1.5 text-xs font-medium">
-                  {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}
-                </div>
-                {items.map((item) => {
-                  const isSelected = pending[item.provider] === item.symbol;
-                  return (
-                    <button
-                      key={`${item.provider}-${item.symbol}`}
-                      type="button"
-                      className={`hover:bg-accent flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${
-                        isSelected ? "bg-accent/50 font-medium" : ""
-                      }`}
-                      onClick={() => toggleResult(item)}
-                    >
-                      <span
-                        className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${
-                          isSelected ? "border-primary" : "border-muted-foreground/30"
-                        }`}
-                      >
-                        {isSelected && <span className="bg-primary size-2 rounded-full" />}
-                      </span>
-                      <span className="min-w-0 truncate">{item.name}</span>
-                      {item.type && (
-                        <Badge variant="secondary" className="ml-auto shrink-0 text-xs">
-                          {item.type}
-                        </Badge>
-                      )}
-                    </button>
-                  );
-                })}
+        <div
+          data-testid="symbol-search-results"
+          className="border-border max-h-64 overflow-y-auto rounded-md border"
+        >
+          {results.length === 0 && !loading && query.length >= 2 && (
+            <p className="text-muted-foreground p-4 text-center text-sm">No results found.</p>
+          )}
+          {results.length === 0 && !loading && query.length < 2 && (
+            <p className="text-muted-foreground p-4 text-center text-sm">
+              Type at least 2 characters to search. You can select from multiple providers for
+              better reliability.
+            </p>
+          )}
+          {[...grouped.entries()].map(([provider, items]) => (
+            <div key={provider}>
+              <div className="text-muted-foreground bg-muted/50 px-3 py-1.5 text-xs font-medium">
+                {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}
               </div>
-            ))}
-            <div className="bg-popover sticky bottom-0 flex gap-2 border-t px-3 py-2">
-              <Button type="button" size="sm" onClick={commitAndClose}>
-                Done
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={cancelAndClose}>
-                Cancel
-              </Button>
+              {items.map((item) => {
+                const isSelected = pending[item.provider] === item.symbol;
+                return (
+                  <button
+                    key={`${item.provider}-${item.symbol}`}
+                    type="button"
+                    className={`hover:bg-accent flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${
+                      isSelected ? "bg-accent/50 font-medium" : ""
+                    }`}
+                    onClick={() => toggleResult(item)}
+                  >
+                    <span
+                      className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${
+                        isSelected ? "border-primary" : "border-muted-foreground/30"
+                      }`}
+                    >
+                      {isSelected && <span className="bg-primary size-2 rounded-full" />}
+                    </span>
+                    <span className="min-w-0 truncate">{item.name}</span>
+                    {item.type && (
+                      <Badge variant="secondary" className="ml-auto shrink-0 text-xs">
+                        {item.type}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-        )}
-      </div>
-
-      {selectedEntries.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedEntries.map(([provider, symbol]) => (
-            <span
-              key={provider}
-              className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
-            >
-              <span className="text-muted-foreground">
-                {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}:
-              </span>
-              <span className="font-medium">{symbol}</span>
-              <button
-                type="button"
-                onClick={() => removeEntry(provider)}
-                className="hover:text-destructive ml-0.5"
-                disabled={disabled}
-              >
-                <X className="size-3" />
-              </button>
-            </span>
           ))}
         </div>
-      )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleDone}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Form Field (for use inside asset form dialogs) ─────────────────────────
+
+/**
+ * A form-field-style component: shows selected symbol pills with remove buttons,
+ * plus a link to open the search dialog. Used inside asset creation/edit forms.
+ */
+export function SymbolSearch({
+  value,
+  onChange,
+  disabled,
+  assetType,
+}: SymbolSearchProps): React.ReactElement {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const entries = Object.entries(value);
+
+  function removeEntry(provider: string): void {
+    const next = { ...value };
+    delete next[provider];
+    onChange(next);
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {entries.map(([provider, symbol]) => (
+          <span
+            key={provider}
+            className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
+          >
+            <span className="text-muted-foreground">
+              {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}:
+            </span>
+            <span className="font-medium">{symbol}</span>
+            <button
+              type="button"
+              onClick={() => removeEntry(provider)}
+              className="hover:text-destructive relative ml-0.5 after:absolute after:-inset-2"
+              disabled={disabled}
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={() => setDialogOpen(true)}
+          className="text-muted-foreground"
+        >
+          <Plus className="size-3" />
+          Add
+        </Button>
+      </div>
+
+      <SymbolSearchDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        value={value}
+        onDone={onChange}
+        assetType={assetType}
+      />
     </div>
   );
 }

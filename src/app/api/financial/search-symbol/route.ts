@@ -1,16 +1,35 @@
-import { NextResponse } from "next/server";
 import { getFinancialDataService } from "@/lib/api/services";
 import { parseSearchParams, isErrorResponse } from "@/lib/api/helpers";
-import { z } from "zod";
+import { SearchSymbolQuerySchema } from "@/lib/validators/financial";
 
-const SearchSymbolQuerySchema = z.object({
-  query: z.string().min(1),
-});
-
-export async function GET(req: Request): Promise<NextResponse> {
+export async function GET(req: Request): Promise<Response> {
   const input = parseSearchParams(req.url, SearchSymbolQuerySchema);
   if (isErrorResponse(input)) return input;
 
-  const results = await getFinancialDataService().searchSymbol(input.query);
-  return NextResponse.json(results);
+  const service = getFinancialDataService();
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const batch of service.searchSymbolStream(input.query, input.assetType)) {
+          const event = `event: results\ndata: ${JSON.stringify(batch)}\n\n`;
+          controller.enqueue(encoder.encode(event));
+        }
+        controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
+      } catch {
+        controller.enqueue(encoder.encode("event: error\ndata: {}\n\n"));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }

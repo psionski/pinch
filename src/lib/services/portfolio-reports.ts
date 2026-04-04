@@ -6,7 +6,7 @@ import {
   windowToDateRange,
   generateDatePoints,
 } from "@/lib/date-ranges";
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { assets, assetLots, transactions } from "@/lib/db/schema";
 import { resolvePrice } from "./price-resolver";
 import {
@@ -60,34 +60,72 @@ export class PortfolioReportService {
     }
 
     const datePoints = generateDatePoints(dateRange.from, dateRange.to, interval);
+    if (datePoints.length === 0) return [];
 
     const allAssets = this.db.select().from(assets).all().map(parseAssetRow);
 
-    return datePoints.map((date) => {
-      const [cashRow] = this.db
-        .select({
-          income:
-            sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`.mapWith(
-              Number
-            ),
-          expenses:
-            sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
-              Number
-            ),
-          transfers:
-            sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`.mapWith(
-              Number
-            ),
-        })
-        .from(transactions)
-        .where(lte(transactions.date, date))
+    // ── Batch cash: fetch all transactions once, compute running totals ──
+    const txRows = this.db
+      .select({
+        date: transactions.date,
+        type: transactions.type,
+        amount: transactions.amount,
+      })
+      .from(transactions)
+      .where(lte(transactions.date, datePoints[datePoints.length - 1]))
+      .orderBy(asc(transactions.date))
+      .all();
+
+    // Build cumulative cash at each date point in a single pass
+    const cashAtDate = new Map<string, number>();
+    let txIdx = 0;
+    let runningCash = 0;
+    for (const dp of datePoints) {
+      while (txIdx < txRows.length && txRows[txIdx].date <= dp) {
+        const row = txRows[txIdx];
+        if (row.type === "income") runningCash += row.amount;
+        else if (row.type === "expense") runningCash -= row.amount;
+        else if (row.type === "transfer") runningCash += row.amount;
+        txIdx++;
+      }
+      cashAtDate.set(dp, runningCash);
+    }
+
+    // ── Batch holdings: fetch all lots per asset once, compute running qty ──
+    const holdingsPerAsset = new Map<number, Map<string, number>>();
+    for (const asset of allAssets) {
+      const lots = this.db
+        .select({ date: assetLots.date, quantity: assetLots.quantity })
+        .from(assetLots)
+        .where(
+          and(
+            eq(assetLots.assetId, asset.id),
+            lte(assetLots.date, datePoints[datePoints.length - 1])
+          )
+        )
+        .orderBy(asc(assetLots.date), asc(assetLots.id))
         .all();
 
-      const cash = (cashRow?.income ?? 0) - (cashRow?.expenses ?? 0) + (cashRow?.transfers ?? 0);
+      const qtyAtDate = new Map<string, number>();
+      let lotIdx = 0;
+      let runningQty = 0;
+      for (const dp of datePoints) {
+        while (lotIdx < lots.length && lots[lotIdx].date <= dp) {
+          runningQty += lots[lotIdx].quantity;
+          lotIdx++;
+        }
+        qtyAtDate.set(dp, parseFloat(runningQty.toFixed(8)));
+      }
+      holdingsPerAsset.set(asset.id, qtyAtDate);
+    }
+
+    // ── Build result ────────────────────────────────────────────────────────
+    return datePoints.map((date) => {
+      const cash = cashAtDate.get(date) ?? 0;
 
       let assetTotal = 0;
       for (const asset of allAssets) {
-        const holdings = getHoldingsAtDate(this.db, asset.id, date);
+        const holdings = holdingsPerAsset.get(asset.id)?.get(date) ?? 0;
         if (holdings <= 0) continue;
 
         const resolved = resolvePrice(this.db, asset, date);
@@ -351,8 +389,26 @@ export class PortfolioReportService {
     });
 
     const datePoints = generateDatePoints(dateRange.from, dateRange.to, "weekly");
+
+    // Batch holdings: fetch all lots up to last date point once,
+    // then compute running quantity per date point in a single pass.
+    const allLots = this.db
+      .select({ date: assetLots.date, quantity: assetLots.quantity })
+      .from(assetLots)
+      .where(
+        and(eq(assetLots.assetId, assetId), lte(assetLots.date, datePoints[datePoints.length - 1]))
+      )
+      .orderBy(asc(assetLots.date), asc(assetLots.id))
+      .all();
+
+    let lotIdx = 0;
+    let cumulativeQty = 0;
     const timeline: AssetHistoryPoint[] = datePoints.map((date) => {
-      const qty = getHoldingsAtDate(this.db, assetId, date);
+      while (lotIdx < allLots.length && allLots[lotIdx].date <= date) {
+        cumulativeQty += allLots[lotIdx].quantity;
+        lotIdx++;
+      }
+      const qty = parseFloat(cumulativeQty.toFixed(8));
       const resolved = resolvePrice(this.db, asset, date);
       const price = resolved?.price ?? null;
       const value = price !== null ? Math.round(qty * price) : null;

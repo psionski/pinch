@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SymbolMapSchema } from "./assets";
+import { AssetTypeSchema, SymbolMapSchema } from "./assets";
 import { ProviderNameSchema } from "@/lib/providers/types";
 import { PastOrTodayDateSchema } from "./common";
 
@@ -84,7 +84,7 @@ export type SetApiKeyInput = z.infer<typeof SetApiKeySchema>;
 
 export const ProviderStatusSchema = z.object({
   name: ProviderNameSchema,
-  type: z.enum(["exchange-rates", "market-prices"]),
+  assetTypes: z.array(AssetTypeSchema),
   apiKeyRequired: z.enum(["none", "optional", "required"]),
   apiKeySet: z.boolean(),
   healthy: z.boolean().nullable(),
@@ -101,3 +101,14 @@ export const SetApiKeyBodySchema = z.object({
 export const ProviderParamSchema = z.object({
   provider: ProviderNameSchema,
 });
+
+// ─── Symbol Search ───────────────────────────────────────────────────────────
+
+export const SearchSymbolQuerySchema = z.object({
+  query: z.string().min(1, "Search query is required"),
+  assetType: AssetTypeSchema.optional().describe(
+    "Filter providers by asset type. Omit to search all providers."
+  ),
+});
+
+export type SearchSymbolQuery = z.infer<typeof SearchSymbolQuerySchema>;

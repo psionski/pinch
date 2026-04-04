@@ -186,6 +186,7 @@ export class TransactionService {
         ...(input.merchant !== undefined ? { merchant: input.merchant } : {}),
         ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
         ...(input.date !== undefined ? { date: input.date } : {}),
+        ...(input.receiptId !== undefined ? { receiptId: input.receiptId } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         ...(input.tags !== undefined
           ? { tags: input.tags !== null ? JSON.stringify(input.tags) : null }

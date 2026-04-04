@@ -1,19 +1,23 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 test.describe.serial("Onboarding wizard", () => {
   test("redirects / to /settings when no timezone", async ({ page }) => {
     await page.goto("/");
     await page.waitForURL("**/settings");
+    await waitForPageReady(page);
   });
 
   test("settings page shows first-setup UI", async ({ page }) => {
     await page.goto("/settings");
+    await waitForPageReady(page);
     await expect(page.getByRole("heading", { name: "Timezone" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   test("set timezone, skip remaining steps, finish setup", async ({ page }) => {
     await page.goto("/settings");
+    await waitForPageReady(page);
 
     // Open the timezone picker popover (button shows auto-detected tz)
     await page.getByRole("button", { name: /Europe|America|Asia|Select timezone/ }).click();
@@ -50,6 +54,7 @@ test.describe.serial("Onboarding wizard", () => {
 
   test("dashboard loads empty after onboarding", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     // Should NOT have sample data bar
     await expect(page.getByRole("button", { name: "Clear sample data" })).not.toBeVisible();
     // Should NOT have tutorial overlay

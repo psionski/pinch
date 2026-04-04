@@ -1,14 +1,16 @@
 import { test, expect } from "@playwright/test";
-import { createCategoryViaUI } from "./helpers";
+import { createCategoryViaUI, waitForPageReady } from "./helpers";
 
 test.describe.serial("Transactions", () => {
   test("create a category as precondition", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     await createCategoryViaUI(page, { name: "Groceries" });
   });
 
   test("add expense transaction", async ({ page }) => {
     await page.goto("/transactions");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Transaction" }).click();
 
     await page.locator("#tx-amount").fill("12.50");
@@ -21,6 +23,7 @@ test.describe.serial("Transactions", () => {
 
   test("add income transaction", async ({ page }) => {
     await page.goto("/transactions");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Transaction" }).click();
 
     await page.getByRole("button", { name: "Income", exact: true }).click();
@@ -33,7 +36,8 @@ test.describe.serial("Transactions", () => {
   });
 
   test("edit a transaction", async ({ page }) => {
-    await page.goto("/transactions", { waitUntil: "networkidle" });
+    await page.goto("/transactions");
+    await waitForPageReady(page);
     const row = page.locator("tr").filter({ hasText: "Lunch at cafe" });
     await expect(row).toBeVisible();
     await row.getByLabel("Transaction actions").click();
@@ -46,7 +50,8 @@ test.describe.serial("Transactions", () => {
   });
 
   test("delete a transaction", async ({ page }) => {
-    await page.goto("/transactions", { waitUntil: "networkidle" });
+    await page.goto("/transactions");
+    await waitForPageReady(page);
     const row = page.locator("tr").filter({ hasText: "Monthly salary" });
     await row.getByRole("checkbox").click();
 
@@ -63,6 +68,7 @@ test.describe.serial("Transactions", () => {
 
   test("filter transactions by category", async ({ page }) => {
     await page.goto("/transactions");
+    await waitForPageReady(page);
 
     // Add a categorized transaction
     await page.getByRole("button", { name: "Add Transaction" }).click();

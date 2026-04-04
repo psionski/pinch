@@ -1,5 +1,6 @@
 import type { FinancialDataProvider, ProviderName } from "./types";
 import type { SettingsService } from "@/lib/services/settings";
+import type { AssetType } from "@/lib/validators/assets";
 import { FrankfurterProvider } from "./frankfurter";
 import { EcbProvider } from "./ecb";
 import { CoinGeckoProvider } from "./coingecko";
@@ -11,7 +12,7 @@ import { financialLogger } from "@/lib/logger";
 
 export interface ProviderMeta {
   readonly name: ProviderName;
-  readonly type: "exchange-rates" | "market-prices";
+  readonly assetTypes: readonly AssetType[];
   readonly apiKeyRequired: "none" | "optional" | "required";
   readonly create: (apiKey?: string) => FinancialDataProvider;
 }
@@ -20,31 +21,31 @@ export interface ProviderMeta {
 const PROVIDER_REGISTRY: readonly ProviderMeta[] = [
   {
     name: "frankfurter",
-    type: "exchange-rates",
+    assetTypes: ["deposit"],
     apiKeyRequired: "none",
     create: () => new FrankfurterProvider(),
   },
   {
     name: "ecb",
-    type: "exchange-rates",
+    assetTypes: ["deposit"],
     apiKeyRequired: "none",
     create: () => new EcbProvider(),
   },
   {
     name: "coingecko",
-    type: "market-prices",
+    assetTypes: ["crypto"],
     apiKeyRequired: "optional",
     create: (key) => new CoinGeckoProvider(key),
   },
   {
     name: "open-exchange-rates",
-    type: "exchange-rates",
+    assetTypes: ["deposit"],
     apiKeyRequired: "required",
     create: (key) => new OpenExchangeRatesProvider(key!),
   },
   {
     name: "alpha-vantage",
-    type: "market-prices",
+    assetTypes: ["investment", "crypto"],
     apiKeyRequired: "required",
     create: (key) => new AlphaVantageProvider(key!),
   },
@@ -64,9 +65,17 @@ export function getAllProviderNames(): ProviderName[] {
   return PROVIDER_REGISTRY.map((m) => m.name);
 }
 
-/** Get the data type for a provider. */
-export function getProviderType(name: ProviderName): ProviderMeta["type"] {
-  return getProviderMeta(name).type;
+/** Instantiate providers that serve a given asset type (or all if omitted). */
+export function getProvidersByAssetType(
+  settings: SettingsService,
+  assetType?: AssetType
+): FinancialDataProvider[] {
+  const metas = assetType
+    ? PROVIDER_REGISTRY.filter((m) => m.assetTypes.includes(assetType))
+    : PROVIDER_REGISTRY;
+  return metas
+    .map((meta) => getProvider(meta.name, settings))
+    .filter((p): p is FinancialDataProvider => p !== null);
 }
 
 // ─── Instantiation ───────────────────────────────────────────────────────────
@@ -104,7 +113,7 @@ export function getUnconfiguredProviders(settings: SettingsService): ProviderNam
 
 export interface ProviderStatus {
   name: ProviderName;
-  type: "exchange-rates" | "market-prices";
+  assetTypes: readonly AssetType[];
   apiKeyRequired: "none" | "optional" | "required";
   apiKeySet: boolean;
   healthy: boolean | null;
@@ -114,7 +123,7 @@ export interface ProviderStatus {
 export async function getProviderStatuses(settings: SettingsService): Promise<ProviderStatus[]> {
   const statuses: ProviderStatus[] = PROVIDER_REGISTRY.map((meta) => ({
     name: meta.name,
-    type: meta.type,
+    assetTypes: meta.assetTypes,
     apiKeyRequired: meta.apiKeyRequired,
     apiKeySet: meta.apiKeyRequired === "none" || !!settings.get(`provider.${meta.name}.key`),
     healthy: null,

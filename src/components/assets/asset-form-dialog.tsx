@@ -19,8 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SymbolSearch } from "./symbol-search";
-import type { AssetWithMetrics } from "@/lib/validators/assets";
-import type { SymbolMap } from "@/lib/validators/assets";
+import type { AssetType, AssetWithMetrics, SymbolMap } from "@/lib/validators/assets";
 
 interface AssetFormDialogProps {
   open: boolean;
@@ -137,12 +136,12 @@ export function AssetFormDialog({
                   ? "Exchange Rate Tracking (optional)"
                   : "Price Tracking (optional)"}
               </Label>
-              <SymbolSearch value={symbolMap} onChange={setSymbolMap} disabled={loading} />
-              <p className="text-muted-foreground text-xs">
-                {type === "deposit"
-                  ? "Search for your currency to enable automatic exchange rate updates."
-                  : "Search for symbols to enable automatic price tracking. You can select one per provider for redundancy."}
-              </p>
+              <SymbolSearch
+                value={symbolMap}
+                onChange={setSymbolMap}
+                disabled={loading}
+                assetType={type as AssetType}
+              />
             </div>
           )}
           <div className="space-y-1">

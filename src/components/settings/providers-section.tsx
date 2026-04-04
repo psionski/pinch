@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ProviderStatusResponse } from "@/lib/validators/financial";
-import { PROVIDER_LABELS } from "@/lib/providers/types";
+import { PROVIDER_LABELS } from "@/lib/providers/labels";
 import { Section } from "./settings-section";
 
 interface ProvidersSectionProps {

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 const navItems = [
   { name: "Dashboard", href: "/" },
@@ -14,15 +15,18 @@ const navItems = [
 
 test("all sidebar links navigate correctly", async ({ page }) => {
   await page.goto("/");
+  await waitForPageReady(page);
   for (const item of navItems) {
     const link = page.locator(`[data-tour="sidebar-nav"] a[href="${item.href}"]`);
     await link.click();
     await page.waitForURL(`**${item.href}`);
+    await waitForPageReady(page);
   }
 });
 
 test("sidebar collapse and expand", async ({ page }) => {
   await page.goto("/");
+  await waitForPageReady(page);
 
   // Click the sidebar trigger to collapse (desktop trigger)
   const trigger = page.locator("[data-testid='sidebar-trigger-desktop']");
@@ -44,6 +48,7 @@ test("sidebar collapse and expand", async ({ page }) => {
 test("mobile viewport hides sidebar", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
+  await waitForPageReady(page);
 
   // Sidebar should not be visible on mobile
   const sidebarNav = page.locator("[data-tour='sidebar-nav']");
@@ -53,6 +58,7 @@ test("mobile viewport hides sidebar", async ({ page }) => {
 test("mobile sidebar opens as overlay", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
+  await waitForPageReady(page);
 
   // Click the mobile trigger/hamburger to open sidebar
   const trigger = page.locator("[data-testid='sidebar-trigger-mobile']");
@@ -66,6 +72,7 @@ test("mobile sidebar opens as overlay", async ({ page }) => {
 test("mobile menu closes on nav item click", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
+  await waitForPageReady(page);
 
   // Open the sidebar via mobile trigger
   const trigger = page.locator("[data-testid='sidebar-trigger-mobile']");

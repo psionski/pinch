@@ -45,12 +45,12 @@ export function PriceTrackingDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
-          <SymbolSearch value={symbolMap} onChange={setSymbolMap} disabled={loading} />
-          <p className="text-muted-foreground text-xs">
-            {asset.type === "deposit"
-              ? "Search for your currency to enable automatic exchange rate updates."
-              : "Search for symbols to enable automatic price tracking. You can select one per provider for redundancy."}
-          </p>
+          <SymbolSearch
+            value={symbolMap}
+            onChange={setSymbolMap}
+            disabled={loading}
+            assetType={asset.type}
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

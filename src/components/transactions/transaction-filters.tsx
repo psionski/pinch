@@ -339,13 +339,14 @@ export function TransactionFilterBar({
           <Badge variant="secondary" className="gap-1 py-1">
             <Repeat className="size-3" />
             Recurring: {recurringName}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               className="text-muted-foreground hover:text-foreground ml-1"
               onClick={() => onFiltersChange({ ...filters, recurringId: "" })}
             >
               <X className="size-3" />
-            </button>
+            </Button>
           </Badge>
         </div>
       )}

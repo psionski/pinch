@@ -403,13 +403,21 @@ export class ReportService {
 
   trends(input: TrendsInput): TrendPoint[] {
     const currentMonth = getCurrentMonth();
-    // Build month series for the last N months using a recursive CTE
+    // Build month series with start/end dates so the LEFT JOIN uses
+    // range comparisons (t.date >= … AND t.date < …) instead of
+    // strftime('%Y-%m', t.date) = …, allowing SQLite to seek the date index.
     const rows = this.db.all<{ month: string; total: number; count: number }>(
       sql`
-        WITH RECURSIVE months(m) AS (
-          SELECT strftime('%Y-%m', ${currentMonth} || '-01', '-' || (${input.months} - 1) || ' months')
+        WITH RECURSIVE months(m, m_start, m_end) AS (
+          SELECT
+            strftime('%Y-%m', ${currentMonth} || '-01', '-' || (${input.months} - 1) || ' months'),
+            strftime('%Y-%m-%d', ${currentMonth} || '-01', '-' || (${input.months} - 1) || ' months'),
+            strftime('%Y-%m-%d', ${currentMonth} || '-01', '-' || (${input.months} - 1) || ' months', '+1 month')
           UNION ALL
-          SELECT strftime('%Y-%m', m || '-01', '+1 month')
+          SELECT
+            strftime('%Y-%m', m || '-01', '+1 month'),
+            strftime('%Y-%m-%d', m || '-01', '+1 month'),
+            strftime('%Y-%m-%d', m || '-01', '+2 months')
           FROM months
           WHERE m < ${currentMonth}
         )
@@ -419,7 +427,7 @@ export class ReportService {
           coalesce(count(t.id), 0) AS count
         FROM months
         LEFT JOIN transactions t
-          ON strftime('%Y-%m', t.date) = months.m
+          ON t.date >= months.m_start AND t.date < months.m_end
           ${input.categoryId !== undefined ? sql`AND t.category_id = ${input.categoryId}` : sql``}
           ${input.type === "all" ? sql`AND t.type != 'transfer'` : sql`AND t.type = ${input.type}`}
         GROUP BY months.m

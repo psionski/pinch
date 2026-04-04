@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { requireTimezone } from "@/lib/api/require-timezone";
-import { Suspense } from "react";
 import { getTransactionService, getCategoryService } from "@/lib/api/services";
 import { TransactionsClient } from "@/components/transactions/transactions-client";
 
-function TransactionsContent(): React.ReactElement {
+export default function TransactionsPage(): React.ReactElement {
+  requireTimezone();
   const transactionService = getTransactionService();
   const categoryService = getCategoryService();
 
@@ -19,13 +19,4 @@ function TransactionsContent(): React.ReactElement {
   const categories = categoryService.getAll();
 
   return <TransactionsClient initialData={initialData} categories={categories} />;
-}
-
-export default function TransactionsPage(): React.ReactElement {
-  requireTimezone();
-  return (
-    <Suspense>
-      <TransactionsContent />
-    </Suspense>
-  );
 }

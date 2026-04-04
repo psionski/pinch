@@ -1,20 +1,24 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 test.describe.serial("Seed data & interactive tour", () => {
   test("dashboard loads with sample data", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     // KPI cards should have content (seeded data)
     await expect(page.locator('[data-tour="kpi-cards"]')).toBeVisible();
   });
 
   test("tutorial auto-starts after page load", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     // Joyride overlay should appear within a reasonable time (500ms delay + render)
     await expect(page.getByText("Welcome to Pinch!")).toBeVisible({ timeout: 5000 });
   });
 
   test("tutorial can navigate and be skipped", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     // Wait for the tour to start
     await expect(page.getByText("Welcome to Pinch!")).toBeVisible({ timeout: 5000 });
 
@@ -38,6 +42,7 @@ test.describe.serial("Seed data & interactive tour", () => {
 
   test("sample data bar shows after tour completes", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     // Tour was completed in previous test (tutorial setting set to false),
     // so bar should be visible immediately (initiallyHidden=false)
     await expect(page.getByText("You're viewing")).toBeVisible();
@@ -47,6 +52,7 @@ test.describe.serial("Seed data & interactive tour", () => {
 
   test("clear sample data deletes DB and redirects to /settings", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
 
     // Dismiss the tutorial first (it may have restarted since this is a new page instance,
     // but tutorial setting was updated to false in previous test — check if it shows)

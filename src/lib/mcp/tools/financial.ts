@@ -1,6 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { GetPriceSchema, ConvertCurrencySchema, SetApiKeySchema } from "@/lib/validators/financial";
-import { z } from "zod";
+import {
+  GetPriceSchema,
+  ConvertCurrencySchema,
+  SetApiKeySchema,
+  SearchSymbolQuerySchema,
+} from "@/lib/validators/financial";
+
 import { getFinancialDataService, getSettingsService } from "@/lib/api/services";
 import { getProviderStatuses, getUnconfiguredProviders } from "@/lib/providers/registry";
 import { ok, err } from "@/lib/mcp/response";
@@ -79,13 +84,11 @@ export function registerFinancialTools(server: McpServer): void {
         "Pass the best match as symbolMap: { [result.provider]: result.symbol } to create_asset or update_asset " +
         "for automatic price tracking. For exchange rates, search the currency code (e.g. 'USD'). " +
         "If no results, you can still create the asset without symbolMap and use record_price manually.",
-      inputSchema: z.object({
-        query: z.string().min(1, "Search query is required"),
-      }),
+      inputSchema: SearchSymbolQuerySchema,
     },
     async (input) => {
       const svc = getFinancialDataService();
-      const results = await svc.searchSymbol(input.query);
+      const results = await svc.searchSymbol(input.query, input.assetType);
       if (results.length === 0) {
         const msg = `No symbols found for "${input.query}"`;
         const hint = unconfiguredProviderHint();

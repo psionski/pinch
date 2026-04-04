@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MoreHorizontal, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Pencil, Trash2, AlertTriangle, X } from "lucide-react";
 import { PnlDisplay } from "@/components/shared/pnl-display";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,14 +18,13 @@ import { AssetFormDialog } from "./asset-form-dialog";
 import { BuySellDialog } from "./buy-sell-dialog";
 import { DepositWithdrawDialog } from "./deposit-withdraw-dialog";
 import { RecordPriceDialog } from "./record-price-dialog";
-import { PriceTrackingDialog } from "./price-tracking-dialog";
+import { SymbolSearchDialog } from "./symbol-search";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { AssetDetailCharts } from "./asset-detail-charts";
 import { LotHistoryTable } from "./lot-history-table";
 import { formatCurrency } from "@/lib/format";
+import { PROVIDER_LABELS } from "@/lib/providers/labels";
 import type { AssetWithMetrics, AssetLotResponse, SymbolMap } from "@/lib/validators/assets";
-
-import { PROVIDER_LABELS } from "@/lib/providers/types";
 
 interface AssetDetailClientProps {
   initialAsset: AssetWithMetrics;
@@ -47,12 +46,12 @@ export function AssetDetailClient({
   // Dialog states
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
-  const [showTracking, setShowTracking] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
   const [showSell, setShowSell] = useState(false);
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showPrice, setShowPrice] = useState(false);
+  const [showTracking, setShowTracking] = useState(false);
 
   const unrealizedPnl =
     asset.pnl !== null && realizedPnl !== null ? asset.pnl - realizedPnl : asset.pnl;
@@ -106,15 +105,15 @@ export function AssetDetailClient({
     }
   }
 
-  async function handleUpdateTracking(symbolMap: SymbolMap | null): Promise<void> {
+  async function handleUpdateTracking(sm: SymbolMap): Promise<void> {
     setLoading(true);
     try {
+      const hasSymbols = Object.keys(sm).length > 0;
       await fetch(`/api/assets/${asset.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbolMap }),
+        body: JSON.stringify({ symbolMap: hasSymbols ? sm : null }),
       });
-      setShowTracking(false);
       await refresh();
     } finally {
       setLoading(false);
@@ -311,11 +310,24 @@ export function AssetDetailClient({
             {asset.symbolMap && Object.keys(asset.symbolMap).length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(asset.symbolMap).map(([provider, symbol]) => (
-                  <Badge key={provider} variant="secondary">
-                    <span className="text-muted-foreground mr-1">
+                  <Badge key={provider} variant="secondary" className="gap-1">
+                    <span className="text-muted-foreground">
                       {PROVIDER_LABELS[provider as keyof typeof PROVIDER_LABELS] ?? provider}:
                     </span>
                     {symbol}
+                    <button
+                      type="button"
+                      className="hover:text-destructive relative ml-0.5 after:absolute after:-inset-2"
+                      disabled={loading}
+                      onClick={() => {
+                        const next = { ...asset.symbolMap } as SymbolMap;
+                        delete next[provider as keyof SymbolMap];
+                        const hasSymbols = Object.keys(next).length > 0;
+                        void handleUpdateTracking(hasSymbols ? next : {});
+                      }}
+                    >
+                      <X className="size-3" />
+                    </button>
                   </Badge>
                 ))}
               </div>
@@ -384,15 +396,13 @@ export function AssetDetailClient({
         </ConfirmDeleteDialog>
       )}
 
-      {showTracking && (
-        <PriceTrackingDialog
-          open={showTracking}
-          onOpenChange={setShowTracking}
-          asset={asset}
-          onSubmit={(sm) => void handleUpdateTracking(sm)}
-          loading={loading}
-        />
-      )}
+      <SymbolSearchDialog
+        open={showTracking}
+        onOpenChange={setShowTracking}
+        value={asset.symbolMap ? { ...asset.symbolMap } : {}}
+        onDone={(sm) => void handleUpdateTracking(sm)}
+        assetType={asset.type}
+      />
 
       {showBuy && (
         <BuySellDialog

@@ -7,12 +7,22 @@ import {
   ConvertResultSchema,
   ProviderStatusSchema,
   SetApiKeyBodySchema,
+  SearchSymbolQuerySchema,
 } from "@/lib/validators/financial";
+import { ProviderNameSchema } from "@/lib/providers/types";
 import { op, ErrorSchema } from "./helpers";
 
 const PriceResult = PriceResultSchema.meta({ id: "PriceResult" });
 const ConvertResult = ConvertResultSchema.meta({ id: "ConvertResult" });
 const ProviderStatus = ProviderStatusSchema.meta({ id: "ProviderStatus" });
+const SymbolSearchResult = z
+  .object({
+    provider: ProviderNameSchema,
+    symbol: z.string(),
+    name: z.string(),
+    type: z.string().optional(),
+  })
+  .meta({ id: "SymbolSearchResult" });
 
 export const financialPaths = {
   "/api/financial/price": {
@@ -43,6 +53,34 @@ export const financialPaths = {
       response: z.array(ProviderStatus),
       errors: [500],
     }),
+  },
+  "/api/financial/search-symbol": {
+    get: {
+      operationId: "searchSymbol",
+      summary: "Search for market symbols across providers (SSE stream)",
+      tags: ["Financial"],
+      requestParams: {
+        query: SearchSymbolQuerySchema,
+      },
+      responses: {
+        "200": {
+          description:
+            "SSE stream. Events: 'results' (provider + results array per batch), 'done' (stream complete).",
+          content: {
+            "text/event-stream": {
+              schema: z.object({
+                provider: ProviderNameSchema,
+                results: z.array(SymbolSearchResult),
+              }),
+            },
+          },
+        },
+        "400": {
+          description: "Validation error",
+          content: { "application/json": { schema: ErrorSchema } },
+        },
+      },
+    } satisfies ZodOpenApiOperationObject,
   },
   "/api/financial/providers/{provider}/key": {
     post: {

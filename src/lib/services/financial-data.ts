@@ -9,9 +9,9 @@ import type {
   SymbolSearchResult,
   ProviderName,
 } from "@/lib/providers/types";
-import type { SymbolMap } from "@/lib/validators/assets";
+import type { AssetType, SymbolMap } from "@/lib/validators/assets";
 import type { SettingsService } from "./settings";
-import { getProvider, getAllProviders } from "@/lib/providers/registry";
+import { getProvider, getProvidersByAssetType } from "@/lib/providers/registry";
 import { financialLogger } from "@/lib/logger";
 import { isoToday, daysBetween, normalizeUtc, offsetDate } from "@/lib/date-ranges";
 
@@ -293,10 +293,10 @@ export class FinancialDataService {
   // ─── Symbol Search ────────────────────────────────────────────────────────
 
   /**
-   * Search for market symbols across all providers (discovery — broadcasts).
+   * Search for market symbols across providers, optionally filtered by asset type.
    */
-  async searchSymbol(query: string): Promise<SymbolSearchResult[]> {
-    const providers = getAllProviders(this.settings);
+  async searchSymbol(query: string, assetType?: AssetType): Promise<SymbolSearchResult[]> {
+    const providers = getProvidersByAssetType(this.settings, assetType);
     const results: SymbolSearchResult[] = [];
 
     const searches = providers
@@ -311,8 +311,44 @@ export class FinancialDataService {
       });
 
     await Promise.allSettled(searches);
-    financialLogger.info({ query, resultCount: results.length }, "Symbol search completed");
+    financialLogger.info(
+      { query, assetType, resultCount: results.length },
+      "Symbol search completed"
+    );
     return results;
+  }
+
+  /**
+   * Stream symbol search results, yielding per-provider batches in completion order.
+   */
+  async *searchSymbolStream(
+    query: string,
+    assetType?: AssetType
+  ): AsyncGenerator<{ provider: ProviderName; results: SymbolSearchResult[] }> {
+    const providers = getProvidersByAssetType(this.settings, assetType).filter(
+      (p) => p.searchSymbol
+    );
+
+    if (providers.length === 0) return;
+
+    const indexed = providers.map((p, i) =>
+      p.searchSymbol!(query)
+        .then((results) => ({ index: i, provider: p.name, results }))
+        .catch((err) => {
+          financialLogger.warn({ provider: p.name, query, err }, "Symbol search provider failed");
+          return { index: i, provider: p.name, results: [] as SymbolSearchResult[] };
+        })
+    );
+
+    const remaining = new Set(indexed.map((_, i) => i));
+
+    while (remaining.size > 0) {
+      const winner = await Promise.race([...remaining].map((i) => indexed[i]));
+      remaining.delete(winner.index);
+      if (winner.results.length > 0) {
+        yield { provider: winner.provider, results: winner.results };
+      }
+    }
   }
 
   // ─── Provider Management ───────────────────────────────────────────────────

@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 test.describe.serial("Assets & Portfolio", () => {
   test("create deposit asset", async ({ page }) => {
     await page.goto("/assets");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Asset" }).click();
 
     await page.locator("#asset-name").fill("Emergency Fund");
@@ -14,10 +16,12 @@ test.describe.serial("Assets & Portfolio", () => {
 
   test("deposit money into asset", async ({ page }) => {
     await page.goto("/assets");
+    await waitForPageReady(page);
 
     // Navigate to asset detail via data-testid link
     await page.locator("[data-testid^='asset-link-']").first().click();
     await page.waitForURL("**/assets/**");
+    await waitForPageReady(page);
 
     await page.getByRole("button", { name: "Deposit" }).click();
 
@@ -30,6 +34,7 @@ test.describe.serial("Assets & Portfolio", () => {
 
   test("create investment asset", async ({ page }) => {
     await page.goto("/assets");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Asset" }).click();
 
     await page.locator("#asset-name").fill("Tech ETF");
@@ -45,10 +50,12 @@ test.describe.serial("Assets & Portfolio", () => {
 
   test("record buy transaction for investment", async ({ page }) => {
     await page.goto("/assets");
+    await waitForPageReady(page);
 
     // Navigate to Tech ETF detail (the last asset link)
     await page.locator("[data-testid^='asset-link-']").last().click();
     await page.waitForURL("**/assets/**");
+    await waitForPageReady(page);
 
     await page.getByRole("button", { name: "Buy" }).click();
 

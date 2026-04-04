@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 test.describe.serial("Recurring transactions", () => {
   test("create monthly recurring", async ({ page }) => {
     await page.goto("/recurring");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Recurring" }).click();
 
     await page.locator("#recurring-description").fill("Netflix Subscription");
@@ -16,6 +18,7 @@ test.describe.serial("Recurring transactions", () => {
 
   test("toggle active/inactive", async ({ page }) => {
     await page.goto("/recurring");
+    await waitForPageReady(page);
 
     // Use data-testid to find the row, then its actions menu
     const row = page
@@ -34,6 +37,7 @@ test.describe.serial("Recurring transactions", () => {
 
   test("edit recurring details", async ({ page }) => {
     await page.goto("/recurring");
+    await waitForPageReady(page);
 
     const row = page
       .locator("[data-testid^='recurring-row-']")
@@ -49,6 +53,7 @@ test.describe.serial("Recurring transactions", () => {
 
   test("delete recurring", async ({ page }) => {
     await page.goto("/recurring");
+    await waitForPageReady(page);
 
     const row = page
       .locator("[data-testid^='recurring-row-']")

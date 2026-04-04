@@ -1,11 +1,20 @@
 import { expect, type Page } from "@playwright/test";
 
+// ── Page readiness ──
+
+/** Wait for loading skeletons to disappear and hydration to complete. */
+export async function waitForPageReady(page: Page): Promise<void> {
+  await expect(page.locator('[data-slot="skeleton"]').first()).not.toBeVisible({ timeout: 10_000 });
+  await page.waitForLoadState("networkidle");
+}
+
 // ── Navigation ──
 
 export async function navigateTo(page: Page, route: string): Promise<void> {
   const link = page.locator(`[data-tour="sidebar-nav"] a[href="${route}"]`);
   await link.click();
   await page.waitForURL(`**${route}`);
+  await waitForPageReady(page);
 }
 
 // ── Tour helpers ──

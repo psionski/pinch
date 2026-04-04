@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 test("cash flow report loads", async ({ page }) => {
   await page.goto("/reports/cash-flow");
+  await waitForPageReady(page);
   // Page should render without errors — look for the page heading or key content
   await expect(page.getByText(/Cash Flow|Income|Expenses/i).first()).toBeVisible();
   // Charts may or may not render depending on data — just verify page loaded
@@ -10,6 +12,7 @@ test("cash flow report loads", async ({ page }) => {
 
 test("date range selector updates content", async ({ page }) => {
   await page.goto("/reports/cash-flow");
+  await waitForPageReady(page);
   await expect(page.getByText(/Cash Flow|Income|Expenses/i).first()).toBeVisible();
 
   // Look for date preset buttons or range selector
@@ -25,6 +28,7 @@ test("date range selector updates content", async ({ page }) => {
 
 test("portfolio report loads", async ({ page }) => {
   await page.goto("/reports/portfolio");
+  await waitForPageReady(page);
   // Page should render
   await expect(page.getByText(/Portfolio|Net Worth|Allocation/i).first()).toBeVisible();
 });

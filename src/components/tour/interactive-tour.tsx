@@ -5,13 +5,27 @@ import { useRouter } from "next/navigation";
 import { useJoyride, ACTIONS, EVENTS, STATUS, type Status } from "react-joyride";
 import type { Step } from "react-joyride";
 
+function waitForPageReady(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const check = (): void => {
+      const skeleton = document.querySelector('[data-slot="skeleton"]');
+      if (!skeleton) {
+        resolve();
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  });
+}
+
 function navigateAndWait(router: ReturnType<typeof useRouter>, target: string): Promise<void> {
-  if (window.location.pathname === target) return Promise.resolve();
+  if (window.location.pathname === target) return waitForPageReady();
   router.push(target);
   return new Promise<void>((resolve) => {
     const check = (): void => {
       if (window.location.pathname === target) {
-        resolve();
+        void waitForPageReady().then(resolve);
       } else {
         setTimeout(check, 50);
       }
@@ -246,8 +260,10 @@ export function InteractiveTour({
 
   useEffect(() => {
     if (initialTutorial) {
-      const timer = setTimeout(() => setRun(true), 500);
-      return () => clearTimeout(timer);
+      // Wait for the page to finish loading (skeleton gone) before starting the tour
+      void waitForPageReady().then(() => {
+        setTimeout(() => setRun(true), 300);
+      });
     }
   }, [initialTutorial]);
 

@@ -485,8 +485,8 @@ describe("searchSymbol", () => {
     const db = makeTestDb();
     const settings = new SettingsService(db);
 
-    // Mock getAllProviders
-    vi.spyOn(await import("@/lib/providers/registry"), "getAllProviders").mockReturnValue([
+    // Mock getProvidersByAssetType
+    vi.spyOn(await import("@/lib/providers/registry"), "getProvidersByAssetType").mockReturnValue([
       {
         name: "coingecko",
         searchSymbol: vi.fn(async () => [
@@ -509,7 +509,7 @@ describe("searchSymbol", () => {
           },
         ]),
       },
-    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getAllProviders>);
+    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getProvidersByAssetType>);
 
     const svc = new FinancialDataService(db, settings);
     const results = await svc.searchSymbol("bitcoin");
@@ -523,7 +523,7 @@ describe("searchSymbol", () => {
     const db = makeTestDb();
     const settings = new SettingsService(db);
 
-    vi.spyOn(await import("@/lib/providers/registry"), "getAllProviders").mockReturnValue([
+    vi.spyOn(await import("@/lib/providers/registry"), "getProvidersByAssetType").mockReturnValue([
       {
         name: "coingecko",
         searchSymbol: vi.fn(async () => {
@@ -541,7 +541,7 @@ describe("searchSymbol", () => {
           },
         ]),
       },
-    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getAllProviders>);
+    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getProvidersByAssetType>);
 
     const svc = new FinancialDataService(db, settings);
     const results = await svc.searchSymbol("apple");
@@ -555,7 +555,7 @@ describe("searchSymbol", () => {
     const db = makeTestDb();
     const settings = new SettingsService(db);
 
-    vi.spyOn(await import("@/lib/providers/registry"), "getAllProviders").mockReturnValue([
+    vi.spyOn(await import("@/lib/providers/registry"), "getProvidersByAssetType").mockReturnValue([
       { name: "frankfurter" },
       {
         name: "coingecko",
@@ -563,12 +563,132 @@ describe("searchSymbol", () => {
           { provider: "coingecko" as ProviderName, symbol: "bitcoin", name: "Bitcoin" },
         ]),
       },
-    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getAllProviders>);
+    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getProvidersByAssetType>);
 
     const svc = new FinancialDataService(db, settings);
     const results = await svc.searchSymbol("bitcoin");
 
     expect(results).toHaveLength(1);
+  });
+});
+
+// ─── searchSymbolStream ──────────────────────────────────────────────────────
+
+describe("searchSymbolStream", () => {
+  it("yields results per-provider in completion order", async () => {
+    const db = makeTestDb();
+    const settings = new SettingsService(db);
+
+    vi.spyOn(await import("@/lib/providers/registry"), "getProvidersByAssetType").mockReturnValue([
+      {
+        name: "coingecko",
+        searchSymbol: vi.fn(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () =>
+                  resolve([
+                    {
+                      provider: "coingecko" as ProviderName,
+                      symbol: "bitcoin",
+                      name: "Bitcoin",
+                      type: "crypto",
+                    },
+                  ]),
+                50
+              )
+            )
+        ),
+      },
+      {
+        name: "alpha-vantage",
+        searchSymbol: vi.fn(async () => [
+          {
+            provider: "alpha-vantage" as ProviderName,
+            symbol: "BTC",
+            name: "BTC USD",
+            type: "crypto",
+          },
+        ]),
+      },
+    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getProvidersByAssetType>);
+
+    const svc = new FinancialDataService(db, settings);
+    const batches: Array<{ provider: string; results: unknown[] }> = [];
+    for await (const batch of svc.searchSymbolStream("bitcoin")) {
+      batches.push(batch);
+    }
+
+    expect(batches).toHaveLength(2);
+    // alpha-vantage resolves instantly, coingecko after 50ms
+    expect(batches[0].provider).toBe("alpha-vantage");
+    expect(batches[1].provider).toBe("coingecko");
+  });
+
+  it("skips providers that return empty results", async () => {
+    const db = makeTestDb();
+    const settings = new SettingsService(db);
+
+    vi.spyOn(await import("@/lib/providers/registry"), "getProvidersByAssetType").mockReturnValue([
+      {
+        name: "coingecko",
+        searchSymbol: vi.fn(async () => []),
+      },
+      {
+        name: "alpha-vantage",
+        searchSymbol: vi.fn(async () => [
+          {
+            provider: "alpha-vantage" as ProviderName,
+            symbol: "AAPL",
+            name: "Apple",
+            type: "stock",
+          },
+        ]),
+      },
+    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getProvidersByAssetType>);
+
+    const svc = new FinancialDataService(db, settings);
+    const batches: Array<{ provider: string; results: unknown[] }> = [];
+    for await (const batch of svc.searchSymbolStream("apple")) {
+      batches.push(batch);
+    }
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0].provider).toBe("alpha-vantage");
+  });
+
+  it("handles provider failure gracefully", async () => {
+    const db = makeTestDb();
+    const settings = new SettingsService(db);
+
+    vi.spyOn(await import("@/lib/providers/registry"), "getProvidersByAssetType").mockReturnValue([
+      {
+        name: "coingecko",
+        searchSymbol: vi.fn(async () => {
+          throw new Error("API error");
+        }),
+      },
+      {
+        name: "alpha-vantage",
+        searchSymbol: vi.fn(async () => [
+          {
+            provider: "alpha-vantage" as ProviderName,
+            symbol: "AAPL",
+            name: "Apple",
+            type: "stock",
+          },
+        ]),
+      },
+    ] as unknown as ReturnType<typeof import("@/lib/providers/registry").getProvidersByAssetType>);
+
+    const svc = new FinancialDataService(db, settings);
+    const batches: Array<{ provider: string; results: unknown[] }> = [];
+    for await (const batch of svc.searchSymbolStream("apple")) {
+      batches.push(batch);
+    }
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0].provider).toBe("alpha-vantage");
   });
 });
 

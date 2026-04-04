@@ -1,14 +1,21 @@
 import { test, expect } from "@playwright/test";
-import { createCategoryViaUI, createTransactionViaUI, navigateTo } from "./helpers";
+import {
+  createCategoryViaUI,
+  createTransactionViaUI,
+  navigateTo,
+  waitForPageReady,
+} from "./helpers";
 
 test.describe.serial("Budgets", () => {
   test("create category as precondition", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     await createCategoryViaUI(page, { name: "Food" });
   });
 
   test("create budget for a category", async ({ page }) => {
     await page.goto("/budgets");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Budget" }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
 
@@ -26,6 +33,7 @@ test.describe.serial("Budgets", () => {
 
   test("progress reflects spending", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     await createTransactionViaUI(page, {
       amount: "50",
       type: "expense",
@@ -40,6 +48,7 @@ test.describe.serial("Budgets", () => {
 
   test("over-budget warning styling", async ({ page }) => {
     await page.goto("/");
+    await waitForPageReady(page);
     await createTransactionViaUI(page, {
       amount: "180",
       type: "expense",
@@ -54,6 +63,7 @@ test.describe.serial("Budgets", () => {
 
   test("navigate between months", async ({ page }) => {
     await page.goto("/budgets");
+    await waitForPageReady(page);
 
     const monthLabel = page.getByTestId("budget-month-label");
     const currentMonth = await monthLabel.textContent();

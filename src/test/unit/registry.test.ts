@@ -12,7 +12,7 @@ vi.stubGlobal(
 import {
   getProviderMeta,
   getAllProviderNames,
-  getProviderType,
+  getProvidersByAssetType,
   getProvider,
   getAllProviders,
   getUnconfiguredProviders,
@@ -32,7 +32,8 @@ describe("Provider Registry", () => {
       for (const name of ProviderNameSchema.options) {
         const meta = getProviderMeta(name);
         expect(meta.name).toBe(name);
-        expect(["exchange-rates", "market-prices"]).toContain(meta.type);
+        expect(Array.isArray(meta.assetTypes)).toBe(true);
+        expect(meta.assetTypes.length).toBeGreaterThan(0);
         expect(["none", "optional", "required"]).toContain(meta.apiKeyRequired);
         expect(typeof meta.create).toBe("function");
       }
@@ -53,13 +54,45 @@ describe("Provider Registry", () => {
     });
   });
 
-  describe("getProviderType", () => {
-    it("returns correct types for known providers", () => {
-      expect(getProviderType("frankfurter")).toBe("exchange-rates");
-      expect(getProviderType("ecb")).toBe("exchange-rates");
-      expect(getProviderType("coingecko")).toBe("market-prices");
-      expect(getProviderType("open-exchange-rates")).toBe("exchange-rates");
-      expect(getProviderType("alpha-vantage")).toBe("market-prices");
+  describe("getProvidersByAssetType", () => {
+    it("returns crypto providers for crypto asset type", () => {
+      const providers = getProvidersByAssetType(settings, "crypto");
+      const names = providers.map((p) => p.name);
+      expect(names).toContain("coingecko");
+      // alpha-vantage requires a key — not returned without one
+      expect(names).not.toContain("frankfurter");
+      expect(names).not.toContain("ecb");
+    });
+
+    it("returns deposit providers for deposit asset type", () => {
+      const providers = getProvidersByAssetType(settings, "deposit");
+      const names = providers.map((p) => p.name);
+      expect(names).toContain("frankfurter");
+      expect(names).toContain("ecb");
+      expect(names).not.toContain("coingecko");
+    });
+
+    it("returns investment providers when key is set", () => {
+      settings.set("provider.alpha-vantage.key", "test-key");
+      const providers = getProvidersByAssetType(settings, "investment");
+      const names = providers.map((p) => p.name);
+      expect(names).toContain("alpha-vantage");
+      expect(names).not.toContain("frankfurter");
+      expect(names).not.toContain("coingecko");
+    });
+
+    it("includes alpha-vantage for crypto when key is set", () => {
+      settings.set("provider.alpha-vantage.key", "test-key");
+      const providers = getProvidersByAssetType(settings, "crypto");
+      const names = providers.map((p) => p.name);
+      expect(names).toContain("coingecko");
+      expect(names).toContain("alpha-vantage");
+    });
+
+    it("returns all providers when assetType is undefined", () => {
+      const all = getAllProviders(settings);
+      const filtered = getProvidersByAssetType(settings);
+      expect(filtered.map((p) => p.name)).toEqual(all.map((p) => p.name));
     });
   });
 
@@ -151,9 +184,10 @@ describe("Provider Registry", () => {
       const statuses = await getProviderStatuses(settings);
       const byName = Object.fromEntries(statuses.map((s) => [s.name, s]));
 
-      // Types
-      expect(byName["frankfurter"].type).toBe("exchange-rates");
-      expect(byName["coingecko"].type).toBe("market-prices");
+      // Asset types
+      expect(byName["frankfurter"].assetTypes).toEqual(["deposit"]);
+      expect(byName["coingecko"].assetTypes).toEqual(["crypto"]);
+      expect(byName["alpha-vantage"].assetTypes).toEqual(["investment", "crypto"]);
 
       // Key requirements
       expect(byName["frankfurter"].apiKeyRequired).toBe("none");

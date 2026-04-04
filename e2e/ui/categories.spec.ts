@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { waitForPageReady } from "./helpers";
 
 test.describe.serial("Categories", () => {
   test("create parent category", async ({ page }) => {
     await page.goto("/categories");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Category" }).click();
 
     await page.locator("#cat-name").fill("Transport");
@@ -14,6 +16,7 @@ test.describe.serial("Categories", () => {
 
   test("create child category", async ({ page }) => {
     await page.goto("/categories");
+    await waitForPageReady(page);
     await page.getByRole("button", { name: "Add Category" }).click();
 
     await page.locator("#cat-name").fill("Bus");
@@ -30,6 +33,7 @@ test.describe.serial("Categories", () => {
 
   test("edit category (rename)", async ({ page }) => {
     await page.goto("/categories");
+    await waitForPageReady(page);
 
     // Click actions menu on the "Bus" row via data-testid
     const busRow = page.locator("[data-testid^='category-row-']").filter({ hasText: "Bus" });
@@ -46,6 +50,7 @@ test.describe.serial("Categories", () => {
 
   test("delete category", async ({ page }) => {
     await page.goto("/categories");
+    await waitForPageReady(page);
 
     const row = page
       .locator("[data-testid^='category-row-']")
@@ -59,6 +64,7 @@ test.describe.serial("Categories", () => {
 
   test("merge two categories", async ({ page }) => {
     await page.goto("/categories");
+    await waitForPageReady(page);
 
     // Create a second category to merge
     await page.getByRole("button", { name: "Add Category" }).click();
