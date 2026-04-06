@@ -31,11 +31,11 @@ AI-powered personal finance tracker. Track spending, scan receipts, manage budge
 
 > **Prompt:** Using Pinch, what interesting things can you tell me about my spending habits?
 
-### You travel... a lot
+**You travel... a lot**
 
 The single most striking pattern: **19 intercity trips in 2.5 months** — 10 FlixBus rides (avg €19.47 each) and 9 Deutsche Bahn trips (avg **€52.87** each). That's nearly two trips a week. Deutsche Bahn alone cost **€475** — more than entertainment, health, and subscriptions combined.
 
-### You eat out more than you cook
+**You eat out more than you cook**
 
 | Month | Dining | Groceries | Ratio |
 |---|---|---|---|
@@ -45,15 +45,15 @@ The single most striking pattern: **19 intercity trips in 2.5 months** — 10 Fl
 
 January was notably bad — 32 dining transactions, basically one per day. Clear regulars: **Nando's** (5 visits), **La Piazza** (3 visits, avg €38/dinner), **Wagamama** (5 visits).
 
-### February was the most expensive month — by far
+**February was the most expensive month — by far**
 
 €2,173 vs €1,906 in January (+14%), driven by a **shopping spike**: €294 in Feb vs €108 in Jan. Two MediaMarkt visits averaged €83.51 each. One Primark run: €111.57.
 
-### The predictable stuff is fine
+**The predictable stuff is fine**
 
 Subscriptions are a rock-solid **€35.96/month** (Netflix + Prime + Spotify + iCloud). Utilities average ~€85/month. Nothing surprising there.
 
-### Bottom line
+**Bottom line**
 
 Your biggest controllable levers are **dining out** (€899 over 3 months, 73 transactions) and **transport** (you could save ~€150+/month by taking fewer DB trips). Groceries are actually quite reasonable — the issue is supplementing them heavily with restaurants.
 
