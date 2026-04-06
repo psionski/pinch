@@ -164,6 +164,10 @@ describe("Provider Registry", () => {
       settings.set("provider.alpha-vantage.key", "k");
       settings.set("provider.open-exchange-rates.key", "k");
       settings.set("provider.coingecko.key", "k");
+      settings.set("provider.exchangerate-api.key", "k");
+      settings.set("provider.twelve-data.key", "k");
+      settings.set("provider.finnhub.key", "k");
+      settings.set("provider.coinmarketcap.key", "k");
       expect(getUnconfiguredProviders(settings)).toHaveLength(0);
     });
   });

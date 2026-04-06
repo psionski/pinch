@@ -5,6 +5,10 @@ import { EcbProvider } from "@/lib/providers/ecb";
 import { CoinGeckoProvider } from "@/lib/providers/coingecko";
 import { AlphaVantageProvider } from "@/lib/providers/alpha-vantage";
 import { OpenExchangeRatesProvider } from "@/lib/providers/open-exchange-rates";
+import { ExchangeRateApiProvider } from "@/lib/providers/exchangerate-api";
+import { TwelveDataProvider } from "@/lib/providers/twelve-data";
+import { FinnhubProvider } from "@/lib/providers/finnhub";
+import { CoinMarketCapProvider } from "@/lib/providers/coinmarketcap";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -461,5 +465,443 @@ describe("OpenExchangeRatesProvider", () => {
     expect(results[0].price).toBeCloseTo(0.78 / 0.92, 3);
     // Should have made 3 fetch calls (one per day)
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+// ─── ExchangeRate-API ────────────────────────────────────────────────────────
+
+describe("ExchangeRateApiProvider", () => {
+  const provider = new ExchangeRateApiProvider("test-key");
+
+  it("parses pair conversion response correctly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          result: "success",
+          conversion_rate: 0.92,
+          time_last_update_utc: "Mon, 06 Jan 2026 00:00:01 +0000",
+        }),
+      })
+    );
+
+    const result = await provider.getPrice("USD", "EUR");
+    expect(result).not.toBeNull();
+    expect(result!.symbol).toBe("USD");
+    expect(result!.currency).toBe("EUR");
+    expect(result!.price).toBeCloseTo(0.92);
+    expect(result!.provider).toBe("exchangerate-api");
+  });
+
+  it("returns null on API error result", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ result: "error" }),
+      })
+    );
+    const result = await provider.getPrice("USD", "EUR");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on HTTP error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const result = await provider.getPrice("USD", "EUR");
+    expect(result).toBeNull();
+  });
+
+  it("getPrices returns all currency pairs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          result: "success",
+          conversion_rates: { USD: 1, EUR: 0.92, GBP: 0.78 },
+          time_last_update_utc: "Mon, 06 Jan 2026 00:00:01 +0000",
+        }),
+      })
+    );
+
+    const results = await provider.getPrices("USD");
+    expect(results).toHaveLength(2); // excludes USD itself
+    expect(results.find((r) => r.currency === "EUR")?.price).toBeCloseTo(0.92);
+    expect(results.find((r) => r.currency === "GBP")?.price).toBeCloseTo(0.78);
+  });
+
+  it("searchSymbol finds currencies by code and name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          result: "success",
+          supported_codes: [
+            ["EUR", "Euro"],
+            ["USD", "United States Dollar"],
+            ["GBP", "Pound Sterling"],
+          ],
+        }),
+      })
+    );
+
+    const results = await provider.searchSymbol("euro");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.find((r) => r.symbol === "EUR")).toBeTruthy();
+    expect(results[0].type).toBe("currency");
+  });
+});
+
+// ─── Twelve Data ─────────────────────────────────────────────────────────────
+
+describe("TwelveDataProvider", () => {
+  const provider = new TwelveDataProvider("test-key");
+
+  it("parses current price correctly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          symbol: "AAPL",
+          name: "Apple Inc",
+          currency: "USD",
+          datetime: "2026-01-15",
+          close: "150.25",
+        }),
+      })
+    );
+
+    const result = await provider.getPrice("AAPL", "USD");
+    expect(result).not.toBeNull();
+    expect(result!.symbol).toBe("AAPL");
+    expect(result!.price).toBeCloseTo(150.25);
+    expect(result!.currency).toBe("USD");
+    expect(result!.provider).toBe("twelve-data");
+  });
+
+  it("returns null on error status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "error",
+          message: "Invalid symbol",
+        }),
+      })
+    );
+    const result = await provider.getPrice("INVALID", "USD");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on HTTP error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const result = await provider.getPrice("AAPL", "USD");
+    expect(result).toBeNull();
+  });
+
+  it("getPriceRange returns daily prices in date range", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          meta: { symbol: "AAPL", currency: "USD" },
+          values: [
+            {
+              datetime: "2026-01-15",
+              open: "150.00",
+              high: "151.00",
+              low: "149.00",
+              close: "150.50",
+            },
+            {
+              datetime: "2026-01-14",
+              open: "149.00",
+              high: "150.50",
+              low: "148.50",
+              close: "149.75",
+            },
+            {
+              datetime: "2026-01-13",
+              open: "148.00",
+              high: "149.00",
+              low: "147.50",
+              close: "148.25",
+            },
+          ],
+          status: "ok",
+        }),
+      })
+    );
+
+    const results = await provider.getPriceRange("AAPL", "USD", "2026-01-13", "2026-01-15");
+    expect(results).toHaveLength(3);
+    expect(results[0].date).toBe("2026-01-13");
+    expect(results[2].date).toBe("2026-01-15");
+    expect(results[0].price).toBeCloseTo(148.25);
+    expect(results.every((r) => r.provider === "twelve-data")).toBe(true);
+  });
+
+  it("searchSymbol returns matching results", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              symbol: "AAPL",
+              instrument_name: "Apple Inc",
+              exchange: "NASDAQ",
+              instrument_type: "Common Stock",
+            },
+            {
+              symbol: "AMZN",
+              instrument_name: "Amazon.com Inc",
+              exchange: "NASDAQ",
+              instrument_type: "Common Stock",
+            },
+          ],
+          status: "ok",
+        }),
+      })
+    );
+
+    const results = await provider.searchSymbol("apple");
+    expect(results).toHaveLength(2);
+    expect(results[0].symbol).toBe("AAPL");
+    expect(results[0].type).toBe("stock");
+  });
+});
+
+// ─── Finnhub ─────────────────────────────────────────────────────────────────
+
+describe("FinnhubProvider", () => {
+  const provider = new FinnhubProvider("test-key");
+
+  it("parses current quote correctly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          c: 150.25,
+          d: 1.5,
+          dp: 1.01,
+          h: 151.0,
+          l: 149.0,
+          o: 149.5,
+          pc: 148.75,
+        }),
+      })
+    );
+
+    const result = await provider.getPrice("AAPL", "USD");
+    expect(result).not.toBeNull();
+    expect(result!.symbol).toBe("AAPL");
+    expect(result!.price).toBeCloseTo(150.25);
+    expect(result!.currency).toBe("USD");
+    expect(result!.provider).toBe("finnhub");
+  });
+
+  it("returns null when price is 0 (no data)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ c: 0, d: null, dp: null, h: 0, l: 0, o: 0, pc: 0 }),
+      })
+    );
+    const result = await provider.getPrice("INVALID", "USD");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on HTTP error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const result = await provider.getPrice("AAPL", "USD");
+    expect(result).toBeNull();
+  });
+
+  it("getPriceRange returns daily candle prices", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          c: [148.0, 149.5, 150.0],
+          h: [149.0, 150.5, 151.0],
+          l: [147.0, 148.5, 149.0],
+          o: [147.5, 149.0, 149.5],
+          t: [1736726400, 1736812800, 1736899200], // 2025-01-13, 14, 15
+          v: [1000000, 1100000, 1200000],
+          s: "ok",
+        }),
+      })
+    );
+
+    const results = await provider.getPriceRange("AAPL", "USD", "2025-01-13", "2025-01-15");
+    expect(results).toHaveLength(3);
+    expect(results[0].price).toBeCloseTo(148.0);
+    expect(results[2].price).toBeCloseTo(150.0);
+    expect(results.every((r) => r.provider === "finnhub")).toBe(true);
+  });
+
+  it("getPriceRange returns empty when status is no_data", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ s: "no_data" }),
+      })
+    );
+    const results = await provider.getPriceRange("AAPL", "USD", "2026-01-13", "2026-01-15");
+    expect(results).toEqual([]);
+  });
+
+  it("searchSymbol returns matching results", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          count: 2,
+          result: [
+            {
+              description: "Apple Inc",
+              displaySymbol: "AAPL",
+              symbol: "AAPL",
+              type: "Common Stock",
+            },
+            {
+              description: "Apple Hospitality REIT",
+              displaySymbol: "APLE",
+              symbol: "APLE",
+              type: "REIT",
+            },
+          ],
+        }),
+      })
+    );
+
+    const results = await provider.searchSymbol("apple");
+    expect(results).toHaveLength(2);
+    expect(results[0].symbol).toBe("AAPL");
+    expect(results[0].type).toBe("stock");
+    expect(results[1].type).toBe("reit");
+  });
+});
+
+// ─── CoinMarketCap ───────────────────────────────────────────────────────────
+
+describe("CoinMarketCapProvider", () => {
+  const provider = new CoinMarketCapProvider("test-key");
+
+  it("parses current price correctly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: { error_code: 0 },
+          data: {
+            "1": {
+              id: 1,
+              name: "Bitcoin",
+              symbol: "BTC",
+              slug: "bitcoin",
+              quote: {
+                EUR: { price: 85432.5, last_updated: "2026-01-15T12:00:00.000Z" },
+              },
+            },
+          },
+        }),
+      })
+    );
+
+    const result = await provider.getPrice("bitcoin", "EUR");
+    expect(result).not.toBeNull();
+    expect(result!.symbol).toBe("bitcoin");
+    expect(result!.price).toBeCloseTo(85432.5);
+    expect(result!.currency).toBe("EUR");
+    expect(result!.provider).toBe("coinmarketcap");
+  });
+
+  it("returns null on API error code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: { error_code: 400, error_message: "Invalid slug" },
+          data: {},
+        }),
+      })
+    );
+    const result = await provider.getPrice("invalid-coin", "EUR");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on HTTP error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const result = await provider.getPrice("bitcoin", "EUR");
+    expect(result).toBeNull();
+  });
+
+  it("getPrices returns multiple currency quotes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: { error_code: 0 },
+          data: {
+            "1": {
+              id: 1,
+              name: "Bitcoin",
+              symbol: "BTC",
+              slug: "bitcoin",
+              quote: {
+                EUR: { price: 85000, last_updated: "2026-01-15T12:00:00.000Z" },
+                USD: { price: 92000, last_updated: "2026-01-15T12:00:00.000Z" },
+                GBP: { price: 73000, last_updated: "2026-01-15T12:00:00.000Z" },
+              },
+            },
+          },
+        }),
+      })
+    );
+
+    const results = await provider.getPrices("bitcoin");
+    expect(results.length).toBeGreaterThanOrEqual(3);
+    expect(results.find((r) => r.currency === "EUR")?.price).toBeCloseTo(85000);
+    expect(results.find((r) => r.currency === "USD")?.price).toBeCloseTo(92000);
+    expect(results.every((r) => r.symbol === "bitcoin")).toBe(true);
+  });
+
+  it("searchSymbol finds coins by name and symbol", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: { error_code: 0 },
+          data: [
+            { id: 1, name: "Bitcoin", symbol: "BTC", slug: "bitcoin" },
+            { id: 4023, name: "Bitcoin Cash", symbol: "BCH", slug: "bitcoin-cash" },
+            { id: 2, name: "Litecoin", symbol: "LTC", slug: "litecoin" },
+          ],
+        }),
+      })
+    );
+
+    const results = await provider.searchSymbol("bitcoin");
+    expect(results).toHaveLength(2);
+    expect(results[0].symbol).toBe("bitcoin");
+    expect(results[1].symbol).toBe("bitcoin-cash");
+    expect(results[0].type).toBe("crypto");
   });
 });

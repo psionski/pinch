@@ -309,7 +309,7 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 - [ ] CSV export for any filtered view
 - [x] Error boundaries and loading states across all pages
 - [x] Symbol search - limit by type, stream results
-- [ ] Add more financial data providers - ExchangeRate-API, Twelve Data, Finnhub, CoinMarketCap
+- [x] Add more financial data providers - ExchangeRate-API, Twelve Data, Finnhub, CoinMarketCap
 - [x] E2E tests (Playwright — browser UI flows, async server component rendering)
 - [x] Performance: check query efficiency, add missing indices if needed
 - [x] Floating "Clear sample data" bar (shows only when populated with seed/sample data) + MCP tool to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting (probably best by dropping the entire DB - maybe check backup.ts for potentially related code).

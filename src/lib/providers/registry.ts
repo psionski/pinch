@@ -6,6 +6,10 @@ import { EcbProvider } from "./ecb";
 import { CoinGeckoProvider } from "./coingecko";
 import { OpenExchangeRatesProvider } from "./open-exchange-rates";
 import { AlphaVantageProvider } from "./alpha-vantage";
+import { ExchangeRateApiProvider } from "./exchangerate-api";
+import { TwelveDataProvider } from "./twelve-data";
+import { FinnhubProvider } from "./finnhub";
+import { CoinMarketCapProvider } from "./coinmarketcap";
 import { financialLogger } from "@/lib/logger";
 
 // ─── Provider Metadata ───────────────────────────────────────────────────────
@@ -48,6 +52,30 @@ const PROVIDER_REGISTRY: readonly ProviderMeta[] = [
     assetTypes: ["investment", "crypto"],
     apiKeyRequired: "required",
     create: (key) => new AlphaVantageProvider(key!),
+  },
+  {
+    name: "exchangerate-api",
+    assetTypes: ["deposit"],
+    apiKeyRequired: "required",
+    create: (key) => new ExchangeRateApiProvider(key!),
+  },
+  {
+    name: "twelve-data",
+    assetTypes: ["investment", "crypto"],
+    apiKeyRequired: "required",
+    create: (key) => new TwelveDataProvider(key!),
+  },
+  {
+    name: "finnhub",
+    assetTypes: ["investment"],
+    apiKeyRequired: "required",
+    create: (key) => new FinnhubProvider(key!),
+  },
+  {
+    name: "coinmarketcap",
+    assetTypes: ["crypto"],
+    apiKeyRequired: "required",
+    create: (key) => new CoinMarketCapProvider(key!),
   },
 ];
 

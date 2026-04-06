@@ -8,6 +8,10 @@ export const ProviderNameSchema = z.enum([
   "coingecko",
   "open-exchange-rates",
   "alpha-vantage",
+  "exchangerate-api",
+  "twelve-data",
+  "finnhub",
+  "coinmarketcap",
 ]);
 export type ProviderName = z.infer<typeof ProviderNameSchema>;
 

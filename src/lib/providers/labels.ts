@@ -7,4 +7,8 @@ export const PROVIDER_LABELS: Record<ProviderName, string> = {
   coingecko: "CoinGecko",
   "open-exchange-rates": "Open Exchange Rates",
   "alpha-vantage": "Alpha Vantage",
+  "exchangerate-api": "ExchangeRate-API",
+  "twelve-data": "Twelve Data",
+  finnhub: "Finnhub",
+  coinmarketcap: "CoinMarketCap",
 };
