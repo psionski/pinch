@@ -25,7 +25,7 @@ export function getEffectiveBudgetMonth(db: Db, month: string): string | null {
  * Soft-deleted rows (deleted=1) are excluded from the returned map.
  *
  * Returns:
- * - `budgets`: Map<categoryId, amountCents> for active (non-deleted) budgets
+ * - `budgets`: Map<categoryId, amount> for active (non-deleted) budgets
  * - `inheritedFrom`: null if month has its own rows, otherwise the source month string
  */
 export function getEffectiveBudgets(

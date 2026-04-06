@@ -30,6 +30,8 @@ test.describe.serial("Assets & Portfolio", () => {
     await dialog.getByRole("button", { name: /Confirm|Submit|Deposit/i }).click();
 
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
+    // Verify deposit value shows on detail page (de-DE format: 5.000,00 €)
+    await expect(page.getByText("5.000,00").first()).toBeVisible();
   });
 
   test("create investment asset", async ({ page }) => {
@@ -68,5 +70,7 @@ test.describe.serial("Assets & Portfolio", () => {
 
     await dialog.getByRole("button", { name: /Confirm|Submit|Buy/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
+    // Verify cost basis shows on detail page (10 × €100 = de-DE format: 1.000,00 €)
+    await expect(page.getByText("1.000,00").first()).toBeVisible();
   });
 });

@@ -8,7 +8,7 @@ export const BudgetResponseSchema = z.object({
   id: z.number().int(),
   categoryId: z.number().int(),
   month: z.string(),
-  amount: z.number().int(),
+  amount: z.number(),
 });
 
 export type BudgetResponse = z.infer<typeof BudgetResponseSchema>;
@@ -24,9 +24,8 @@ export const SetBudgetSchema = z.object({
   month: YearMonthSchema.describe("Month in YYYY-MM format"),
   amount: z
     .number()
-    .int()
-    .positive("Amount must be a positive integer (cents)")
-    .describe("Monthly budget amount in cents (e.g. 50000 = €500.00)"),
+    .positive("Amount must be positive")
+    .describe("Monthly budget amount in EUR (e.g. 500)"),
 });
 
 export type SetBudgetInput = z.infer<typeof SetBudgetSchema>;

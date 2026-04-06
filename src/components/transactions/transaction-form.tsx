@@ -34,7 +34,7 @@ interface TransactionFormProps {
 }
 
 export interface TransactionFormData {
-  amount: number; // cents
+  amount: number;
   type: "income" | "expense";
   description: string;
   merchant: string;
@@ -56,9 +56,7 @@ export function TransactionFormDialog({
 
   const initialType: "income" | "expense" = initialData?.type === "income" ? "income" : "expense";
   const [type, setType] = useState<"income" | "expense">(initialType);
-  const [amountStr, setAmountStr] = useState(
-    initialData ? (initialData.amount / 100).toFixed(2) : ""
-  );
+  const [amountStr, setAmountStr] = useState(initialData ? String(initialData.amount) : "");
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [merchant, setMerchant] = useState(initialData?.merchant ?? "");
   const [categoryId, setCategoryId] = useState<string>(
@@ -87,14 +85,13 @@ export function TransactionFormDialog({
       return;
     }
 
-    const cents = Math.round(amountNum * 100);
     const tags = tagsStr
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
 
     onSubmit({
-      amount: cents,
+      amount: amountNum,
       type,
       description: description.trim(),
       merchant: merchant.trim(),

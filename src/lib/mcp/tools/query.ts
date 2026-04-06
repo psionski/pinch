@@ -12,12 +12,10 @@ function isReadOnly(sqlStr: string): boolean {
 
 const DB_CONVENTIONS = [
   "Conventions:",
-  "- All monetary amounts are INTEGER in cents (e.g. 1210 = €12.10)",
   "- Dates are TEXT in ISO 8601 format (YYYY-MM-DD or datetime)",
   "- 'tags' columns store JSON arrays as TEXT — query with json_each(tags)",
   "- Transaction type 'transfer' = asset/savings movement with signed amount (negative = cash out/purchase, positive = cash in/sale), excluded from spending/income reports but included in balance calculations",
   "- transactions_fts is an FTS5 virtual table mirroring transactions (description, merchant, notes) for full-text search",
-  "- Budget amounts and transaction amounts follow the same cents convention",
   "- category parent_id enables hierarchical categories (NULL = top-level)",
   "- recurring_transactions are templates; generated transactions link back via recurring_id",
 ].join("\n");

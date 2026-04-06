@@ -34,7 +34,7 @@ export function SavingsSection({
     try {
       const today = new Date().toISOString().slice(0, 10);
       for (const entry of valid) {
-        const balance = Math.round(parseFloat(entry.balance) * 100);
+        const balance = parseFloat(entry.balance);
         const assetRes = await fetch("/api/assets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -45,7 +45,7 @@ export function SavingsSection({
         await fetch(`/api/assets/${asset.id}/lots`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity: balance / 100, pricePerUnit: 100, date: today }),
+          body: JSON.stringify({ quantity: balance, pricePerUnit: 1, date: today }),
         });
       }
       setSaved(true);

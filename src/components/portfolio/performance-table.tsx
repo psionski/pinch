@@ -24,9 +24,9 @@ function formatPct(value: number): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
-function formatPnlCurrency(cents: number): string {
-  const sign = cents >= 0 ? "+" : "";
-  return `${sign}${formatCurrency(cents)}`;
+function formatPnlCurrency(amount: number): string {
+  const sign = amount >= 0 ? "+" : "";
+  return `${sign}${formatCurrency(amount)}`;
 }
 
 function pnlColor(value: number): string {

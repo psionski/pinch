@@ -49,7 +49,7 @@ export const receiptPaths = {
                 .meta({ description: "Receipt image file (jpg, png, gif, webp, heic, pdf)" }),
               merchant: z.string().optional().meta({ description: "Merchant name" }),
               date: z.string().optional().meta({ description: "Receipt date (YYYY-MM-DD)" }),
-              total: z.string().optional().meta({ description: "Receipt total in cents" }),
+              total: z.string().optional().meta({ description: "Receipt total amount" }),
               raw_text: z.string().optional().meta({ description: "OCR or vision-extracted text" }),
             }),
           },

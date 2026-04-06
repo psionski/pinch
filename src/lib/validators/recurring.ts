@@ -5,7 +5,7 @@ import { IsoDateSchema, TransactionTypeSchema, FrequencySchema } from "./common"
 
 export const RecurringResponseSchema = z.object({
   id: z.number().int(),
-  amount: z.number().int(),
+  amount: z.number(),
   type: z.enum(["income", "expense"]),
   description: z.string(),
   merchant: z.string().nullable(),
@@ -29,11 +29,7 @@ export type RecurringResponse = z.infer<typeof RecurringResponseSchema>;
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export const CreateRecurringSchema = z.object({
-  amount: z
-    .number()
-    .int()
-    .positive("Amount must be a positive integer (cents)")
-    .describe("Amount in cents (e.g. 1210 = €12.10)"),
+  amount: z.number().positive("Amount must be positive").describe("Amount in EUR (e.g. 12.10)"),
   type: TransactionTypeSchema.default("expense").describe("Defaults to 'expense'"),
   description: z
     .string()
@@ -79,7 +75,7 @@ export type CreateRecurringInput = z.infer<typeof CreateRecurringSchema>;
 // ─── Update ───────────────────────────────────────────────────────────────────
 
 export const UpdateRecurringSchema = z.object({
-  amount: z.number().int().positive().optional().describe("Amount in cents (e.g. 1210 = €12.10)"),
+  amount: z.number().positive().optional().describe("Amount in EUR (e.g. 12.10)"),
   type: TransactionTypeSchema.optional(),
   description: z.string().min(1).max(500).optional(),
   merchant: z.string().max(255).nullable().optional(),

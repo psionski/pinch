@@ -70,7 +70,10 @@ export function SavingsRateChart({
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value) => `${value as number}%`}
+                    formatter={(value, name) => {
+                      const label = chartConfig[name as keyof typeof chartConfig]?.label ?? name;
+                      return `${label}: ${value as number}%`;
+                    }}
                     labelFormatter={formatMonth}
                   />
                 }

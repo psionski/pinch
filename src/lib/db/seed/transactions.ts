@@ -55,7 +55,7 @@ export function generateMonth(
 
     if (day === 1) {
       tryAdd({
-        amount: 75000,
+        amount: 750,
         type: "expense",
         description: "Monthly rent",
         merchant: "Landlord",
@@ -65,7 +65,7 @@ export function generateMonth(
         recurringId: recId("Monthly rent"),
       });
       tryAdd({
-        amount: 1599,
+        amount: 15.99,
         type: "expense",
         description: "Netflix Standard",
         merchant: "Netflix",
@@ -75,7 +75,7 @@ export function generateMonth(
         recurringId: recId("Netflix Standard"),
       });
       tryAdd({
-        amount: 899,
+        amount: 8.99,
         type: "expense",
         description: "Amazon Prime",
         merchant: "Amazon",
@@ -88,7 +88,7 @@ export function generateMonth(
 
     if (day === 5) {
       tryAdd({
-        amount: 999,
+        amount: 9.99,
         type: "expense",
         description: "Spotify Premium",
         merchant: "Spotify",
@@ -101,7 +101,7 @@ export function generateMonth(
 
     if (day === 10) {
       tryAdd({
-        amount: 99,
+        amount: 0.99,
         type: "expense",
         description: "iCloud+ 50GB",
         merchant: "Apple",
@@ -114,7 +114,7 @@ export function generateMonth(
 
     if (day === 15) {
       tryAdd({
-        amount: 2999,
+        amount: 29.99,
         type: "expense",
         description: "Internet bill",
         merchant: "Telekom",
@@ -127,7 +127,7 @@ export function generateMonth(
 
     if (day === 20) {
       tryAdd({
-        amount: rand(4500, 5800),
+        amount: rand(4500, 5800) / 100,
         type: "expense",
         description: "Electricity bill",
         merchant: "Vattenfall",
@@ -139,7 +139,7 @@ export function generateMonth(
 
     if (day === 25) {
       tryAdd({
-        amount: 280000,
+        amount: 2800,
         type: "income",
         description: "Monthly salary",
         merchant: "Employer",
@@ -154,7 +154,7 @@ export function generateMonth(
 
     if (day - lastGroceryDay >= rand(5, 8)) {
       tryAdd({
-        amount: rand(3500, 9500),
+        amount: rand(3500, 9500) / 100,
         type: "expense",
         description: "Grocery run",
         merchant: pick(GROCERY_STORES),
@@ -170,7 +170,7 @@ export function generateMonth(
     // Coffee
     if (chance(weekend ? 0.4 : 0.55)) {
       tryAdd({
-        amount: rand(280, 450),
+        amount: rand(280, 450) / 100,
         type: "expense",
         description: pick(COFFEE_ORDERS),
         merchant: pick(COFFEE_SHOPS),
@@ -183,7 +183,7 @@ export function generateMonth(
     // Lunch
     if (chance(weekend ? 0.2 : 0.35)) {
       tryAdd({
-        amount: rand(900, 1800),
+        amount: rand(900, 1800) / 100,
         type: "expense",
         description: "Lunch",
         merchant: pick(LUNCH_SPOTS),
@@ -196,7 +196,7 @@ export function generateMonth(
     // Dinner out
     if (chance(weekend ? 0.3 : 0.15)) {
       tryAdd({
-        amount: rand(1800, 5500),
+        amount: rand(1800, 5500) / 100,
         type: "expense",
         description: "Dinner",
         merchant: pick(DINNER_SPOTS),
@@ -211,12 +211,12 @@ export function generateMonth(
       const merchant = pick(TRANSPORT_MERCHANTS);
       const amount =
         merchant === "BVG"
-          ? 290
+          ? 2.9
           : merchant === "Uber"
-            ? rand(800, 2500)
+            ? rand(800, 2500) / 100
             : merchant === "Deutsche Bahn"
-              ? rand(1500, 8500)
-              : rand(1200, 3500); // FlixBus
+              ? rand(1500, 8500) / 100
+              : rand(1200, 3500) / 100; // FlixBus
       tryAdd({
         amount,
         type: "expense",
@@ -231,7 +231,7 @@ export function generateMonth(
     // Entertainment
     if (chance(weekend ? 0.18 : 0.06)) {
       tryAdd({
-        amount: rand(1200, 4500),
+        amount: rand(1200, 4500) / 100,
         type: "expense",
         description: pick(ENTERTAINMENT_DESCS),
         merchant: pick(ENTERTAINMENT_MERCHANTS),
@@ -244,7 +244,7 @@ export function generateMonth(
     // Shopping
     if (chance(0.09)) {
       tryAdd({
-        amount: rand(1500, 14000),
+        amount: rand(1500, 14000) / 100,
         type: "expense",
         description: pick(SHOPPING_DESCS),
         merchant: pick(SHOPPING_MERCHANTS),
@@ -257,7 +257,7 @@ export function generateMonth(
     // Health / pharmacy
     if (chance(0.04)) {
       tryAdd({
-        amount: rand(500, 3500),
+        amount: rand(500, 3500) / 100,
         type: "expense",
         description: pick(HEALTH_DESCS),
         merchant: pick(HEALTH_MERCHANTS),

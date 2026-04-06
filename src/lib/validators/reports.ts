@@ -89,9 +89,9 @@ export const NetIncomeSchema = z.object({
 export type NetIncomeInput = z.infer<typeof NetIncomeSchema>;
 
 export const NetIncomeResultSchema = z.object({
-  totalIncome: z.number().int(),
-  totalExpenses: z.number().int(),
-  netIncome: z.number().int(),
+  totalIncome: z.number(),
+  totalExpenses: z.number(),
+  netIncome: z.number(),
   transactionCount: z.number().int(),
 });
 
@@ -102,13 +102,11 @@ export type NetIncomeResult = z.infer<typeof NetIncomeResultSchema>;
 export const CashBalanceResultSchema = z.object({
   cashBalance: z
     .number()
-    .int()
-    .describe("Current checking account balance in cents (income − expenses + asset transfers)"),
-  totalIncome: z.number().int(),
-  totalExpenses: z.number().int(),
+    .describe("Current checking account balance (income − expenses + asset transfers)"),
+  totalIncome: z.number(),
+  totalExpenses: z.number(),
   totalTransfers: z
     .number()
-    .int()
     .describe("Net cash effect of asset purchases/sales (negative = net outflow to assets)"),
 });
 
@@ -119,9 +117,9 @@ export type CashBalanceResult = z.infer<typeof CashBalanceResultSchema>;
 export const SpendingGroupSchema = z.object({
   key: z.string(), // category name, YYYY-MM, or merchant name
   categoryId: z.number().int().nullable().optional(),
-  total: z.number().int(), // cents
+  total: z.number(),
   count: z.number().int(),
-  compareTotal: z.number().int().optional(), // only present when compareDateFrom/To is set
+  compareTotal: z.number().optional(),
 });
 
 export type SpendingGroup = z.infer<typeof SpendingGroupSchema>;
@@ -132,9 +130,9 @@ export const CategorySpendingItemSchema = z.object({
   color: z.string().nullable(),
   icon: z.string().nullable(),
   parentId: z.number().int().nullable(),
-  total: z.number().int(), // cents, direct spend
+  total: z.number(), // direct spend
   count: z.number().int(), // direct transaction count
-  rollupTotal: z.number().int(), // this + descendants
+  rollupTotal: z.number(), // this + descendants
   rollupCount: z.number().int(), // this + descendants
   percentage: z.number(), // 0–100, share of grand total
 });
@@ -142,14 +140,14 @@ export const CategorySpendingItemSchema = z.object({
 export type CategorySpendingItem = z.infer<typeof CategorySpendingItemSchema>;
 
 export const BudgetStatsItemSchema = CategorySpendingItemSchema.extend({
-  budgetAmount: z.number().int().nullable(), // cents, null if no budget
+  budgetAmount: z.number().nullable(),
 });
 
 export type BudgetStatsItem = z.infer<typeof BudgetStatsItemSchema>;
 
 export const TrendPointSchema = z.object({
   month: z.string(), // YYYY-MM
-  total: z.number().int(), // cents
+  total: z.number(),
   count: z.number().int(),
 });
 
@@ -157,9 +155,9 @@ export type TrendPoint = z.infer<typeof TrendPointSchema>;
 
 export const TopMerchantSchema = z.object({
   merchant: z.string(),
-  total: z.number().int(), // cents
+  total: z.number(),
   count: z.number().int(),
-  avgAmount: z.number().int(), // cents
+  avgAmount: z.number(),
 });
 
 export type TopMerchant = z.infer<typeof TopMerchantSchema>;
@@ -167,9 +165,9 @@ export type TopMerchant = z.infer<typeof TopMerchantSchema>;
 export const BudgetStatusItemSchema = z.object({
   categoryId: z.number().int(),
   categoryName: z.string(),
-  budgetAmount: z.number().int(), // cents
-  spentAmount: z.number().int(), // cents
-  remainingAmount: z.number().int(), // cents — can be negative
+  budgetAmount: z.number(),
+  spentAmount: z.number(),
+  remainingAmount: z.number(), // can be negative
   percentUsed: z.number(), // 0+, can exceed 100
   isOver: z.boolean(),
 });
@@ -179,7 +177,7 @@ export type BudgetStatusItem = z.infer<typeof BudgetStatusItemSchema>;
 const PeriodSchema = z.object({
   dateFrom: z.string(),
   dateTo: z.string(),
-  total: z.number().int(),
+  total: z.number(),
   count: z.number().int(),
 });
 
@@ -187,9 +185,9 @@ export const TransferGroupSchema = z.object({
   assetId: z.number().int(),
   assetName: z.string(),
   assetType: z.string(),
-  purchases: z.number().int(),
-  sales: z.number().int(),
-  net: z.number().int(),
+  purchases: z.number(),
+  sales: z.number(),
+  net: z.number(),
 });
 
 export type TransferGroup = z.infer<typeof TransferGroupSchema>;

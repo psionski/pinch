@@ -33,7 +33,7 @@ describe("Transaction API Routes", () => {
   it("POST creates a transaction and returns 201", async () => {
     const res = await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 1500,
+        amount: 15,
         description: "Coffee",
         date: "2025-01-15",
         type: "expense",
@@ -41,7 +41,7 @@ describe("Transaction API Routes", () => {
     );
     expect(res.status).toBe(201);
     const body = await json(res);
-    expect(body).toMatchObject({ amount: 1500, description: "Coffee" });
+    expect(body).toMatchObject({ amount: 15, description: "Coffee" });
   });
 
   it("POST returns 400 on invalid body", async () => {
@@ -55,14 +55,14 @@ describe("Transaction API Routes", () => {
     // Seed two transactions
     await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 1000,
+        amount: 10,
         description: "A",
         date: "2025-01-01",
       })
     );
     await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 2000,
+        amount: 20,
         description: "B",
         date: "2025-01-02",
       })
@@ -79,14 +79,14 @@ describe("Transaction API Routes", () => {
   it("GET filters by date range", async () => {
     await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 1000,
+        amount: 10,
         description: "Jan",
         date: "2025-01-15",
       })
     );
     await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 2000,
+        amount: 20,
         description: "Feb",
         date: "2025-02-15",
       })
@@ -108,7 +108,7 @@ describe("Transaction API Routes", () => {
   it("PATCH updates a transaction", async () => {
     const createRes = await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 1000,
+        amount: 10,
         description: "Old",
         date: "2025-01-01",
       })
@@ -127,7 +127,7 @@ describe("Transaction API Routes", () => {
   it("DELETE removes a transaction", async () => {
     const createRes = await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 1000,
+        amount: 10,
         description: "Delete me",
         date: "2025-01-01",
       })
@@ -148,7 +148,7 @@ describe("Transaction API Routes", () => {
     const r1 = await json<{ id: number }>(
       await POST(
         makeJson("POST", "/api/transactions", {
-          amount: 100,
+          amount: 1,
           description: "A",
           date: "2025-01-01",
         })
@@ -157,7 +157,7 @@ describe("Transaction API Routes", () => {
     const r2 = await json<{ id: number }>(
       await POST(
         makeJson("POST", "/api/transactions", {
-          amount: 200,
+          amount: 2,
           description: "B",
           date: "2025-01-02",
         })
@@ -176,8 +176,8 @@ describe("Transaction API Routes", () => {
     const res = await BATCH_POST(
       makeJson("POST", "/api/transactions/batch", {
         transactions: [
-          { amount: 100, description: "A", date: "2025-01-01" },
-          { amount: 200, description: "B", date: "2025-01-02" },
+          { amount: 1, description: "A", date: "2025-01-01" },
+          { amount: 2, description: "B", date: "2025-01-02" },
         ],
       })
     );
@@ -196,7 +196,7 @@ describe("Transaction API Routes", () => {
   it("GET /tags returns distinct tags", async () => {
     await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 100,
+        amount: 1,
         description: "A",
         date: "2025-01-01",
         tags: ["groceries", "weekly"],
@@ -204,7 +204,7 @@ describe("Transaction API Routes", () => {
     );
     await POST(
       makeJson("POST", "/api/transactions", {
-        amount: 200,
+        amount: 2,
         description: "B",
         date: "2025-01-02",
         tags: ["groceries", "monthly"],

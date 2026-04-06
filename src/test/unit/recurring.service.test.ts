@@ -31,7 +31,7 @@ afterEach(() => {
  *  auto-generation aren't polluted with phantom transactions. */
 function rec(overrides: Record<string, unknown> = {}) {
   return CreateRecurringSchema.parse({
-    amount: 1000,
+    amount: 10,
     description: "Test recurring",
     frequency: "monthly",
     startDate: "2099-01-01",
@@ -45,7 +45,7 @@ describe("computeNextOccurrence", () => {
   function makeRow(overrides: Partial<(typeof recurringTransactions)["$inferInsert"]> = {}) {
     return {
       id: 1,
-      amount: 1000,
+      amount: 10,
       type: "expense" as const,
       description: "Test",
       merchant: null,
@@ -137,7 +137,7 @@ describe("create", () => {
   it("creates a recurring template and returns it", () => {
     const result = service.create(rec());
     expect(result.id).toBeGreaterThan(0);
-    expect(result.amount).toBe(1000);
+    expect(result.amount).toBe(10);
     expect(result.frequency).toBe("monthly");
     expect(result.isActive).toBe(1);
   });
@@ -204,7 +204,7 @@ describe("create", () => {
     service.create(
       rec({
         startDate: "2026-04-01",
-        amount: 1299,
+        amount: 12.99,
         type: "expense",
         description: "Netflix",
         merchant: "Netflix Inc",
@@ -222,7 +222,7 @@ describe("create", () => {
     });
     expect(txs.total).toBe(1);
     const tx = txs.data[0];
-    expect(tx.amount).toBe(1299);
+    expect(tx.amount).toBe(12.99);
     expect(tx.type).toBe("expense");
     expect(tx.description).toBe("Netflix");
     expect(tx.merchant).toBe("Netflix Inc");
@@ -311,13 +311,13 @@ describe("list", () => {
 
 describe("update", () => {
   it("updates specified fields", () => {
-    const created = service.create(rec({ amount: 1000 }));
+    const created = service.create(rec({ amount: 10 }));
     const updated = service.update(created.id, {
-      amount: 2000,
+      amount: 20,
       description: "Updated",
     });
     expect(updated).not.toBeNull();
-    expect(updated!.amount).toBe(2000);
+    expect(updated!.amount).toBe(20);
     expect(updated!.description).toBe("Updated");
   });
 
@@ -329,7 +329,7 @@ describe("update", () => {
   });
 
   it("returns null for non-existent id", () => {
-    expect(service.update(9999, { amount: 100 })).toBeNull();
+    expect(service.update(9999, { amount: 1 })).toBeNull();
   });
 });
 

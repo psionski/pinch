@@ -59,23 +59,23 @@ export class AssetLotService {
       const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
       if (!asset) throw new Error(`Asset ${assetId} not found`);
 
-      if (asset.type === "deposit" && asset.currency === "EUR" && input.pricePerUnit !== 100) {
+      if (asset.type === "deposit" && asset.currency === "EUR" && input.pricePerUnit !== 1) {
         throw new Error(
-          `EUR deposit: pricePerUnit must be 100 (€1.00 per unit). ` +
+          `EUR deposit: pricePerUnit must be 1 (€1 per unit). ` +
             `Use quantity to represent the EUR amount (e.g. quantity: 5000 for a €5,000 deposit).`
         );
       }
 
-      const totalCents = Math.round(input.quantity * input.pricePerUnit);
+      const total = Math.round(input.quantity * input.pricePerUnit * 100) / 100;
       const verb = asset.type === "deposit" ? "Deposit" : "Buy";
       const description =
         input.description ??
-        `${verb} ${input.quantity} ${asset.name} @ ${(input.pricePerUnit / 100).toFixed(2)} ${asset.currency}`;
+        `${verb} ${input.quantity} ${asset.name} @ ${input.pricePerUnit.toFixed(2)} ${asset.currency}`;
 
       const [txRow] = this.db
         .insert(transactions)
         .values({
-          amount: -totalCents,
+          amount: -total,
           type: "transfer",
           description,
           date: input.date,
@@ -124,16 +124,16 @@ export class AssetLotService {
         );
       }
 
-      const totalCents = Math.round(input.quantity * input.pricePerUnit);
+      const total = Math.round(input.quantity * input.pricePerUnit * 100) / 100;
       const verb = asset.type === "deposit" ? "Withdraw" : "Sell";
       const description =
         input.description ??
-        `${verb} ${input.quantity} ${asset.name} @ ${(input.pricePerUnit / 100).toFixed(2)} ${asset.currency}`;
+        `${verb} ${input.quantity} ${asset.name} @ ${input.pricePerUnit.toFixed(2)} ${asset.currency}`;
 
       const [txRow] = this.db
         .insert(transactions)
         .values({
-          amount: totalCents,
+          amount: total,
           type: "transfer",
           description,
           date: input.date,

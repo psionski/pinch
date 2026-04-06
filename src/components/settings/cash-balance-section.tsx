@@ -21,8 +21,8 @@ export function CashBalanceSection({
   const [saved, setSaved] = useState(false);
 
   async function handleSave(): Promise<void> {
-    const cents = Math.round(parseFloat(amount) * 100);
-    if (!cents || cents <= 0) {
+    const value = parseFloat(amount);
+    if (!value || value <= 0) {
       onContinue();
       return;
     }
@@ -32,7 +32,7 @@ export function CashBalanceSection({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: cents,
+          amount: value,
           type: "transfer",
           description: "Opening balance",
         }),

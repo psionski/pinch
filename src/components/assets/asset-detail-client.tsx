@@ -22,7 +22,7 @@ import { SymbolSearchDialog } from "./symbol-search";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { AssetDetailCharts } from "./asset-detail-charts";
 import { LotHistoryTable } from "./lot-history-table";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatPrice } from "@/lib/format";
 import { PROVIDER_LABELS } from "@/lib/providers/labels";
 import type { AssetWithMetrics, AssetLotResponse, SymbolMap } from "@/lib/validators/assets";
 
@@ -262,7 +262,7 @@ export function AssetDetailClient({
             </p>
             {asset.latestPrice !== null && (
               <p className="text-muted-foreground mt-0.5 text-xs">
-                @ {(asset.latestPrice / 100).toFixed(2)} {asset.currency}
+                @ {formatPrice(asset.latestPrice)} {asset.currency}
               </p>
             )}
           </CardContent>

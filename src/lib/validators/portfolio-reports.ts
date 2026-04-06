@@ -25,9 +25,9 @@ export type NetWorthQuery = z.infer<typeof NetWorthQuerySchema>;
 
 export const NetWorthPointSchema = z.object({
   date: z.string(),
-  cash: z.number().int(),
-  assets: z.number().int(),
-  total: z.number().int(),
+  cash: z.number(),
+  assets: z.number(),
+  total: z.number(),
 });
 export type NetWorthPoint = z.infer<typeof NetWorthPointSchema>;
 
@@ -44,9 +44,9 @@ export const AssetPerformanceItemSchema = z.object({
   name: z.string(),
   type: z.string(),
   currency: z.string(),
-  costBasis: z.number().int(),
-  currentValue: z.number().int(),
-  pnl: z.number().int(),
+  costBasis: z.number(),
+  currentValue: z.number(),
+  pnl: z.number(),
   pnlPct: z.number(),
   annualizedReturn: z.number().nullable(),
   daysHeld: z.number().int(),
@@ -65,14 +65,14 @@ export const AllocationItemSchema = z.object({
   assetId: z.number().int(),
   name: z.string(),
   type: z.string(),
-  currentValue: z.number().int(),
+  currentValue: z.number(),
   pct: z.number(),
 });
 export type AllocationItem = z.infer<typeof AllocationItemSchema>;
 
 export const AllocationByTypeSchema = z.object({
   type: z.string(),
-  currentValue: z.number().int(),
+  currentValue: z.number(),
   pct: z.number(),
 });
 export type AllocationByType = z.infer<typeof AllocationByTypeSchema>;
@@ -87,7 +87,7 @@ export type AllocationResult = z.infer<typeof AllocationResultSchema>;
 
 export const CurrencyExposureItemSchema = z.object({
   currency: z.string(),
-  value: z.number().int(),
+  value: z.number(),
   pct: z.number(),
 });
 export type CurrencyExposureItem = z.infer<typeof CurrencyExposureItemSchema>;
@@ -104,17 +104,17 @@ export const RealizedPnlItemSchema = z.object({
   assetId: z.number().int(),
   name: z.string(),
   totalSold: z.number(),
-  proceeds: z.number().int(),
-  costBasis: z.number().int(),
-  realizedPnl: z.number().int(),
+  proceeds: z.number(),
+  costBasis: z.number(),
+  realizedPnl: z.number(),
 });
 export type RealizedPnlItem = z.infer<typeof RealizedPnlItemSchema>;
 
 export const RealizedPnlResultSchema = z.object({
   items: z.array(RealizedPnlItemSchema),
-  totalProceeds: z.number().int(),
-  totalCostBasis: z.number().int(),
-  totalRealizedPnl: z.number().int(),
+  totalProceeds: z.number(),
+  totalCostBasis: z.number(),
+  totalRealizedPnl: z.number(),
 });
 export type RealizedPnlResult = z.infer<typeof RealizedPnlResultSchema>;
 
@@ -128,7 +128,7 @@ export type AssetHistoryQuery = z.infer<typeof AssetHistoryQuerySchema>;
 export const AssetHistoryLotSchema = z.object({
   date: z.string(),
   quantity: z.number(),
-  pricePerUnit: z.number().int(),
+  pricePerUnit: z.number(),
   type: z.enum(["buy", "sell"]),
   runningQuantity: z.number(),
 });
@@ -136,9 +136,9 @@ export type AssetHistoryLot = z.infer<typeof AssetHistoryLotSchema>;
 
 export const AssetHistoryPointSchema = z.object({
   date: z.string(),
-  price: z.number().int().nullable(),
+  price: z.number().nullable(),
   quantity: z.number(),
-  value: z.number().int().nullable(),
+  value: z.number().nullable(),
 });
 export type AssetHistoryPoint = z.infer<typeof AssetHistoryPointSchema>;
 
@@ -154,8 +154,8 @@ export const TransferSummaryItemSchema = z.object({
   assetId: z.number().int(),
   assetName: z.string(),
   assetType: z.string(),
-  purchases: z.number().int(),
-  sales: z.number().int(),
-  net: z.number().int(),
+  purchases: z.number(),
+  sales: z.number(),
+  net: z.number(),
 });
 export type TransferSummaryItem = z.infer<typeof TransferSummaryItemSchema>;

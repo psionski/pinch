@@ -66,10 +66,10 @@ export type AssetResponse = z.infer<typeof AssetResponseSchema>;
 
 export const AssetWithMetricsSchema = AssetResponseSchema.extend({
   currentHoldings: z.number(),
-  costBasis: z.number().int(),
-  currentValue: z.number().int().nullable(),
-  pnl: z.number().int().nullable(),
-  latestPrice: z.number().int().nullable(),
+  costBasis: z.number(),
+  currentValue: z.number().nullable(),
+  pnl: z.number().nullable(),
+  latestPrice: z.number().nullable(),
 });
 export type AssetWithMetrics = z.infer<typeof AssetWithMetricsSchema>;
 
@@ -82,9 +82,8 @@ export const BuyAssetSchema = z.object({
     .describe("Number of units to buy (can be fractional, e.g. 0.5 BTC)"),
   pricePerUnit: z
     .number()
-    .int()
-    .positive("Price must be a positive integer (cents)")
-    .describe("Price per unit in cents (e.g. 34563 = €345.63). For EUR deposits use 100"),
+    .positive("Price must be positive")
+    .describe("Price per unit in EUR (e.g. 345.63). For EUR deposits use 1"),
   date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
@@ -95,9 +94,8 @@ export const SellAssetSchema = z.object({
   quantity: z.number().positive("Quantity must be positive").describe("Number of units to sell"),
   pricePerUnit: z
     .number()
-    .int()
-    .positive("Price must be a positive integer (cents)")
-    .describe("Sale price per unit in cents. For EUR withdrawals use 100"),
+    .positive("Price must be positive")
+    .describe("Sale price per unit in EUR. For EUR withdrawals use 1"),
   date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
@@ -108,7 +106,7 @@ export type SellAssetInput = z.infer<typeof SellAssetSchema>;
 
 export const CreateOpeningLotSchema = z.object({
   quantity: z.number().positive("Quantity must be positive"),
-  pricePerUnit: z.number().int().nonnegative("Price must be a non-negative integer (cents)"),
+  pricePerUnit: z.number().nonnegative("Price must be non-negative"),
   date: PastOrTodayDateSchema,
   notes: z.string().max(2000).optional(),
 });
@@ -117,9 +115,8 @@ export type CreateOpeningLotInput = z.infer<typeof CreateOpeningLotSchema>;
 export const SetOpeningCashBalanceSchema = z.object({
   amount: z
     .number()
-    .int()
-    .positive("Amount must be a positive integer (cents)")
-    .describe("Opening balance in cents (e.g. 500000 = €5,000.00)"),
+    .positive("Amount must be positive")
+    .describe("Opening balance in EUR (e.g. 5000)"),
   date: PastOrTodayDateSchema.optional().describe("Balance date (YYYY-MM-DD). Defaults to today"),
 });
 export type SetOpeningCashBalanceInput = z.infer<typeof SetOpeningCashBalanceSchema>;
@@ -141,17 +138,15 @@ export const AddOpeningAssetSchema = z.object({
     .describe("Number of units currently held"),
   costBasisTotal: z
     .number()
-    .int()
-    .positive("Cost basis must be a positive integer (cents)")
+    .positive("Cost basis must be positive")
     .optional()
-    .describe("Total cost basis in cents. If omitted, calculated from pricePerUnit × quantity"),
+    .describe("Total cost basis in EUR. If omitted, calculated from pricePerUnit × quantity"),
   pricePerUnit: z
     .number()
-    .int()
-    .positive("Price per unit must be a positive integer (cents)")
+    .positive("Price per unit must be positive")
     .optional()
     .describe(
-      "Cost per unit in cents. Used if costBasisTotal omitted. If neither provided, P&L starts from zero"
+      "Cost per unit in EUR. Used if costBasisTotal omitted. If neither provided, P&L starts from zero"
     ),
   symbolMap: SymbolMapSchema.optional().describe(
     "Provider→symbol mapping for price tracking. Use search_symbol to discover symbols"
@@ -167,7 +162,7 @@ export const AssetLotResponseSchema = z.object({
   id: z.number().int(),
   assetId: z.number().int(),
   quantity: z.number(),
-  pricePerUnit: z.number().int(),
+  pricePerUnit: z.number(),
   date: z.string(),
   transactionId: z.number().int().nullable(),
   notes: z.string().nullable(),
@@ -180,9 +175,8 @@ export type AssetLotResponse = z.infer<typeof AssetLotResponseSchema>;
 export const RecordPriceSchema = z.object({
   pricePerUnit: z
     .number()
-    .int()
-    .positive("Price must be a positive integer (cents)")
-    .describe("Current price per unit in cents"),
+    .positive("Price must be positive")
+    .describe("Current price per unit in EUR"),
   recordedAt: z.string().optional().describe("ISO 8601 datetime. Defaults to now"),
 });
 export type RecordPriceInput = z.infer<typeof RecordPriceSchema>;
@@ -190,7 +184,7 @@ export type RecordPriceInput = z.infer<typeof RecordPriceSchema>;
 export const AssetPriceResponseSchema = z.object({
   id: z.number().int(),
   assetId: z.number().int(),
-  pricePerUnit: z.number().int(),
+  pricePerUnit: z.number(),
   recordedAt: z.string(),
 });
 export type AssetPriceResponse = z.infer<typeof AssetPriceResponseSchema>;
@@ -200,16 +194,16 @@ export type AssetPriceResponse = z.infer<typeof AssetPriceResponseSchema>;
 export const PortfolioAllocationSchema = z.object({
   assetId: z.number().int(),
   name: z.string(),
-  currentValue: z.number().int(),
+  currentValue: z.number(),
   pct: z.number(),
 });
 
 export const PortfolioResponseSchema = z.object({
   assets: z.array(AssetWithMetricsSchema),
-  cashBalance: z.number().int(),
-  totalAssetValue: z.number().int(),
-  netWorth: z.number().int(),
-  pnl: z.number().int().nullable(),
+  cashBalance: z.number(),
+  totalAssetValue: z.number(),
+  netWorth: z.number(),
+  pnl: z.number().nullable(),
   allocation: z.array(PortfolioAllocationSchema),
 });
 export type PortfolioResponse = z.infer<typeof PortfolioResponseSchema>;

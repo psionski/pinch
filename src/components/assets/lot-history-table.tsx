@@ -1,4 +1,4 @@
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatPrice } from "@/lib/format";
 import type { AssetLotResponse } from "@/lib/validators/assets";
 
 interface LotHistoryTableProps {
@@ -57,7 +57,7 @@ export function LotHistoryTable({
                   {Math.abs(lot.quantity)}
                 </td>
                 <td className="hidden py-2 pr-4 text-right font-mono md:table-cell">
-                  {(lot.pricePerUnit / 100).toFixed(2)} {currency}
+                  {formatPrice(lot.pricePerUnit)} {currency}
                 </td>
                 <td className="py-2 text-right font-mono">{formatCurrency(Math.round(total))}</td>
               </tr>

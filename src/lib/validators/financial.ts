@@ -51,7 +51,7 @@ export type PriceResultResponse = z.infer<typeof PriceResultSchema>;
 // ─── Convert Currency ─────────────────────────────────────────────────────────
 
 export const ConvertCurrencySchema = z.object({
-  amount: z.number().int().describe("Amount in cents to convert (e.g. 1599 = €15.99)"),
+  amount: z.number().describe("Amount to convert (e.g. 15.99)"),
   from: CurrencyCodeSchema.describe("Source currency code"),
   to: CurrencyCodeSchema.describe("Target currency code"),
   symbolMap: QuerySymbolMapSchema.describe(
@@ -64,7 +64,7 @@ export const ConvertCurrencySchema = z.object({
 export type ConvertCurrencyInput = z.infer<typeof ConvertCurrencySchema>;
 
 export const ConvertResultSchema = z.object({
-  converted: z.number().int().describe("Converted amount in cents"),
+  converted: z.number().describe("Converted amount"),
   rate: z.number(),
   date: z.string(),
   provider: ProviderNameSchema,

@@ -112,13 +112,14 @@ export class AssetService {
     }
 
     const currentHoldings = parseFloat(queue.reduce((sum, e) => sum + e.qty, 0).toFixed(8));
-    const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0));
+    const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0) * 100) / 100;
 
     // Unified price resolution: user override → market → lot → deposit
     const resolved = resolvePrice(this.db, asset);
     const pricePerUnit = resolved?.price ?? null;
 
-    const currentValue = pricePerUnit !== null ? Math.round(currentHoldings * pricePerUnit) : null;
+    const currentValue =
+      pricePerUnit !== null ? Math.round(currentHoldings * pricePerUnit * 100) / 100 : null;
     const pnl = currentValue !== null ? currentValue - costBasis : null;
 
     return { ...asset, currentHoldings, costBasis, currentValue, pnl, latestPrice: pricePerUnit };

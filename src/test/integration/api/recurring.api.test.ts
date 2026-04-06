@@ -28,7 +28,7 @@ describe("Recurring API Routes", () => {
   it("POST creates a recurring template", async () => {
     const res = await POST_REC(
       makeJson("POST", "/api/recurring", {
-        amount: 999,
+        amount: 9.99,
         description: "Netflix",
         frequency: "monthly",
         startDate: "2025-01-01",
@@ -44,7 +44,7 @@ describe("Recurring API Routes", () => {
   it("GET lists all recurring templates", async () => {
     await POST_REC(
       makeJson("POST", "/api/recurring", {
-        amount: 999,
+        amount: 9.99,
         description: "Netflix",
         frequency: "monthly",
         startDate: "2025-01-01",
@@ -59,7 +59,7 @@ describe("Recurring API Routes", () => {
   it("PATCH updates a recurring template", async () => {
     const createRes = await POST_REC(
       makeJson("POST", "/api/recurring", {
-        amount: 999,
+        amount: 9.99,
         description: "Netflix",
         frequency: "monthly",
         startDate: "2025-01-01",
@@ -68,18 +68,18 @@ describe("Recurring API Routes", () => {
     const created = await json<{ id: number }>(createRes);
 
     const res = await PATCH(
-      makeJson("PATCH", `/api/recurring/${created.id}`, { amount: 1299 }),
+      makeJson("PATCH", `/api/recurring/${created.id}`, { amount: 12.99 }),
       ctx(created.id)
     );
     expect(res.status).toBe(200);
     const body = await json<{ amount: number }>(res);
-    expect(body.amount).toBe(1299);
+    expect(body.amount).toBe(12.99);
   });
 
   it("POST /generate creates pending transactions", async () => {
     await POST_REC(
       makeJson("POST", "/api/recurring", {
-        amount: 999,
+        amount: 9.99,
         description: "Daily coffee",
         frequency: "daily",
         startDate: "2025-01-01",
@@ -96,7 +96,7 @@ describe("Recurring API Routes", () => {
   it("DELETE removes a recurring template", async () => {
     const createRes = await POST_REC(
       makeJson("POST", "/api/recurring", {
-        amount: 999,
+        amount: 9.99,
         description: "Netflix",
         frequency: "monthly",
         startDate: "2025-01-01",

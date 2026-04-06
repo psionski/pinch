@@ -19,7 +19,7 @@ async function openAssetDialogWithType(
 
 /** Helper: open the symbol search dialog from within the asset form. */
 async function openSymbolSearchDialog(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: /Set up .* tracking/ }).click();
+  await page.getByRole("button", { name: "Add" }).click();
   await expect(page.getByRole("heading", { name: "Search Symbols" })).toBeVisible();
 }
 
@@ -51,9 +51,10 @@ test.describe.serial("Symbol Search — provider filtering", () => {
     await page.getByPlaceholder("Search by name or symbol").fill("USD");
 
     const results = page.locator("[data-testid='symbol-search-results']");
-    await expect(results.getByText("Frankfurter")).toBeVisible({ timeout: 10_000 });
+    // Wait for at least one currency result (either Frankfurter or ECB may respond first)
+    await expect(results.getByText("currency").first()).toBeVisible({ timeout: 10_000 });
+    // Crypto providers must be filtered out for deposit assets
     await expect(results.getByText("CoinGecko")).not.toBeVisible();
-    await expect(results.getByText("currency").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Cancel" }).click();
   });

@@ -46,7 +46,7 @@ export function RecurringFormDialog({
 
   const [type, setType] = useState<string>(initialData?.type ?? "expense");
   const [description, setDescription] = useState(initialData?.description ?? "");
-  const [amount, setAmount] = useState(initialData ? (initialData.amount / 100).toFixed(2) : "");
+  const [amount, setAmount] = useState(initialData ? String(initialData.amount) : "");
   const [merchant, setMerchant] = useState(initialData?.merchant ?? "");
   const [categoryId, setCategoryId] = useState<string>(
     initialData?.categoryId ? String(initialData.categoryId) : ""
@@ -92,7 +92,7 @@ export function RecurringFormDialog({
     const data: Record<string, unknown> = {
       type,
       description: description.trim(),
-      amount: Math.round(parsedAmount * 100),
+      amount: parsedAmount,
       frequency,
       startDate,
     };

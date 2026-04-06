@@ -101,7 +101,7 @@ async function seed(): Promise<void> {
   // ── Transactions ──────────────────────────────────────────────────────
   seedLogger.info(`Generating 12 months of transactions (${rangeLabel})...`);
 
-  let balance = 200000; // €2 000 — previous month's salary leftovers
+  let balance = 2000; // €2 000 — previous month's salary leftovers
   const allTxs: TxInput[] = [];
 
   // Opening balance — the day before the first generated month
@@ -158,11 +158,11 @@ async function seed(): Promise<void> {
     const [assetRow] = await db.insert(assets).values(seed.asset).returning({ id: assets.id });
 
     for (const lot of seed.lots) {
-      const totalCents = Math.round(Math.abs(lot.quantity) * lot.pricePerUnit);
+      const totalValue = Math.round(Math.abs(lot.quantity) * lot.pricePerUnit * 100) / 100;
       const [txRow] = await db
         .insert(transactions)
         .values({
-          amount: lot.quantity >= 0 ? -totalCents : totalCents,
+          amount: lot.quantity >= 0 ? -totalValue : totalValue,
           type: "transfer",
           description: lot.description,
           date: lot.date,
@@ -208,9 +208,9 @@ async function seed(): Promise<void> {
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const expenses = allTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   seedLogger.info(`Done.`);
-  seedLogger.info(`  Total income:   €${(income / 100).toFixed(2)}`);
-  seedLogger.info(`  Total expenses: €${(expenses / 100).toFixed(2)}`);
-  seedLogger.info(`  Final balance:  €${(balance / 100).toFixed(2)}`);
+  seedLogger.info(`  Total income:   €${income.toFixed(2)}`);
+  seedLogger.info(`  Total expenses: €${expenses.toFixed(2)}`);
+  seedLogger.info(`  Final balance:  €${balance.toFixed(2)}`);
 }
 
 seed().catch((err) => {

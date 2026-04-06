@@ -216,7 +216,7 @@ MCP tool schemas have two documentation surfaces — use each for the right kind
 - What the tool returns at a high level (only if non-obvious).
 
 **Zod `.describe()` on schema fields** — field-level documentation for both inputs and outputs:
-- What the value means: `"Amount in cents (e.g. 1210 = €12.10)"`.
+- What the value means: `"Amount in EUR (e.g. 12.10)"`.
 - Format hints: `"YYYY-MM-DD"`, `"ISO 8601 datetime"`.
 - Defaults (inputs only): `"Defaults to today"`, `"Defaults to 'expense'"`.
 - Valid values when not obvious from the enum/type: `"0=Sun, 6=Sat"`.
@@ -225,7 +225,7 @@ MCP tool schemas have two documentation surfaces — use each for the right kind
 - Skip describes on output fields whose meaning is obvious (e.g. `name`, `id`, `createdAt`).
 
 **Do NOT put in the tool description:**
-- Parameter names, types, or formats that the schema already communicates (no `"Params: amount (cents), date (YYYY-MM-DD)"` blocks).
+- Parameter names, types, or formats that the schema already communicates (no `"Params: amount (number), date (YYYY-MM-DD)"` blocks).
 - Internal implementation details hidden from the public API (transaction types used internally, how lots are stored, DB column names).
 - Return type field listings — the response schema speaks for itself.
 

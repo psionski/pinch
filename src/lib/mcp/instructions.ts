@@ -1,6 +1,5 @@
 export const INSTRUCTIONS = [
   "Pinch — personal finance tracker. Manage transactions, categories, budgets, recurring templates, and portfolio assets.",
-  "All monetary amounts are integers in cents (e.g. 1210 = €12.10).",
   "All dates and timestamps are in the user's configured timezone (not UTC). Use get_timezone to check.",
   // Onboarding flow
   "On first interaction, call get_timezone. If it returns null, then this is a new user. If it returns a timezone, compare it against the user's local timezone and prompt if there's a mismatch.",

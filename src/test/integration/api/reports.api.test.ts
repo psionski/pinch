@@ -35,7 +35,7 @@ describe("Report API Routes", () => {
     );
     await POST_TX(
       makeJson("POST", "/api/transactions", {
-        amount: 2000,
+        amount: 20,
         description: "Lunch",
         date: "2025-01-15",
         categoryId: cat.id,
@@ -44,7 +44,7 @@ describe("Report API Routes", () => {
     );
     await POST_TX(
       makeJson("POST", "/api/transactions", {
-        amount: 3000,
+        amount: 30,
         description: "Dinner",
         date: "2025-01-20",
         categoryId: cat.id,
@@ -64,7 +64,7 @@ describe("Report API Routes", () => {
     );
     expect(res.status).toBe(200);
     const body = await json<{ period: { total: number }; groups: unknown[] }>(res);
-    expect(body.period.total).toBe(5000);
+    expect(body.period.total).toBe(50);
     expect(body.groups).toHaveLength(1);
   });
 
@@ -108,13 +108,13 @@ describe("Report API Routes", () => {
 
   it("GET /income returns net income for all time", async () => {
     await seedData();
-    // seedData creates two expense transactions: 2000 + 3000 = 5000
+    // seedData creates two expense transactions: 20 + 30 = 50
     const res = await GET_INCOME(makeGet("/api/reports/income"));
     expect(res.status).toBe(200);
     const body = await json<{ totalIncome: number; totalExpenses: number; netIncome: number }>(res);
-    expect(body.totalExpenses).toBe(5000);
+    expect(body.totalExpenses).toBe(50);
     expect(body.totalIncome).toBe(0);
-    expect(body.netIncome).toBe(-5000);
+    expect(body.netIncome).toBe(-50);
   });
 
   it("GET /income filters by date range", async () => {
@@ -122,7 +122,7 @@ describe("Report API Routes", () => {
     // Add income in a different month
     await POST_TX(
       makeJson("POST", "/api/transactions", {
-        amount: 10000,
+        amount: 100,
         type: "income",
         description: "Salary",
         date: "2025-02-01",
@@ -134,8 +134,8 @@ describe("Report API Routes", () => {
     );
     expect(res.status).toBe(200);
     const body = await json<{ totalIncome: number; totalExpenses: number; netIncome: number }>(res);
-    expect(body.totalExpenses).toBe(5000);
+    expect(body.totalExpenses).toBe(50);
     expect(body.totalIncome).toBe(0);
-    expect(body.netIncome).toBe(-5000);
+    expect(body.netIncome).toBe(-50);
   });
 });

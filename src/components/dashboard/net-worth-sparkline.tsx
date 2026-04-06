@@ -29,13 +29,13 @@ interface ChartDatum {
 function toEuros(data: NetWorthPoint[]): ChartDatum[] {
   return data.map((p) => ({
     date: p.date,
-    total: p.total / 100,
+    total: p.total,
   }));
 }
 
 function tooltipFormatter(value: string | number | (string | number)[]): string {
   const num = typeof value === "number" ? value : Number(value);
-  return formatCurrency(num * 100);
+  return formatCurrency(num);
 }
 
 export function NetWorthSparkline({ data }: NetWorthSparklineProps): React.ReactElement {

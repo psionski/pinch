@@ -26,7 +26,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Create a new asset to track in your portfolio. " +
         "To enable automatic price tracking, call search_symbol first, then pass the result as symbolMap. " +
-        "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 100.",
+        "For EUR deposits, each unit represents €1 — use buy_asset with quantity = EUR amount and pricePerUnit = 1.",
       inputSchema: CreateAssetSchema,
     },
     (input) => {
@@ -103,8 +103,8 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Record an asset purchase or deposit. Creates a negative-amount transfer transaction (cash out) and adds to holdings. " +
-        "For EUR deposits: pricePerUnit = 100, quantity = EUR amount. " +
-        "For foreign currency deposits: pricePerUnit = EUR exchange rate in cents " +
+        "For EUR deposits: pricePerUnit = 1, quantity = EUR amount. " +
+        "For foreign currency deposits: pricePerUnit = EUR exchange rate " +
         "(use get_price with symbol='USD', currency='EUR' to find the rate).",
       inputSchema: IdSchema.merge(BuyAssetSchema),
     },
@@ -125,7 +125,7 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Record an asset sale or withdrawal. Creates a positive-amount transfer transaction (cash in) and reduces holdings. " +
         "Returns error if quantity exceeds current holdings. " +
-        "For EUR withdrawals: pricePerUnit = 100. For foreign currency: use EUR exchange rate in cents.",
+        "For EUR withdrawals: pricePerUnit = 1. For foreign currency: use EUR exchange rate.",
       inputSchema: IdSchema.merge(SellAssetSchema),
     },
     (input) => {

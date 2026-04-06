@@ -46,8 +46,8 @@ function formatXAxisDate(dates: string[]): (date: string) => string {
 export function NetWorthChart({ data }: NetWorthChartProps): React.ReactElement {
   const chartData = data.map((point) => ({
     date: point.date,
-    cash: point.cash / 100,
-    assets: point.assets / 100,
+    cash: point.cash,
+    assets: point.assets,
   }));
 
   const dateFormatter = formatXAxisDate(data.map((p) => p.date));
@@ -77,9 +77,11 @@ export function NetWorthChart({ data }: NetWorthChartProps): React.ReactElement 
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value) =>
-                      `\u20AC${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
-                    }
+                    formatter={(value, name) => {
+                      const label = chartConfig[name as keyof typeof chartConfig]?.label ?? name;
+                      const formatted = `\u20AC${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
+                      return `${label}: ${formatted}`;
+                    }}
                   />
                 }
               />

@@ -26,9 +26,9 @@ test.describe.serial("Budgets", () => {
     await page.getByRole("button", { name: "Set Budget" }).click();
 
     await expect(page.locator("#budget-amount")).not.toBeVisible({ timeout: 5000 });
-    await expect(
-      page.locator("[data-testid^='budget-row-']").filter({ hasText: "Food" })
-    ).toBeVisible();
+    const budgetRow = page.locator("[data-testid^='budget-row-']").filter({ hasText: "Food" });
+    await expect(budgetRow).toBeVisible();
+    await expect(budgetRow).toContainText("200,00");
   });
 
   test("progress reflects spending", async ({ page }) => {
@@ -44,6 +44,7 @@ test.describe.serial("Budgets", () => {
     await navigateTo(page, "/budgets");
     const foodRow = page.locator("[data-testid^='budget-row-']").filter({ hasText: "Food" });
     await expect(foodRow).toBeVisible();
+    await expect(foodRow).toContainText("50,00");
   });
 
   test("over-budget warning styling", async ({ page }) => {

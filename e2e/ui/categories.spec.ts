@@ -59,7 +59,7 @@ test.describe.serial("Categories", () => {
     await page.getByRole("menuitem", { name: "Delete" }).click();
 
     await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByText("Public Transit")).not.toBeVisible({ timeout: 5000 });
+    await expect(row).not.toBeVisible({ timeout: 5000 });
   });
 
   test("merge two categories", async ({ page }) => {

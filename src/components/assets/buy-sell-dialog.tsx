@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { isoToday } from "@/lib/date-ranges";
+import { formatPrice } from "@/lib/format";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,7 @@ export function BuySellDialog({
         const res = await fetch(`/api/financial/price?${params}`);
         if (!cancelled && res.ok) {
           const data = (await res.json()) as { price: number };
-          setPrice(data.price.toFixed(2));
+          setPrice(formatPrice(data.price));
         }
       } finally {
         if (!cancelled) setFetchingPrice(false);
@@ -88,11 +89,9 @@ export function BuySellDialog({
       return;
     }
 
-    const pricePerUnit = Math.round(priceNum * 100);
-
     onSubmit({
       quantity: qty,
-      pricePerUnit,
+      pricePerUnit: priceNum,
       date,
       description: description.trim() || undefined,
     });
@@ -131,7 +130,7 @@ export function BuySellDialog({
               <Input
                 id="lot-price"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}

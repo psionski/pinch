@@ -18,7 +18,9 @@ test.describe.serial("Transactions", () => {
 
     await page.getByRole("button", { name: "Add Transaction" }).click();
     await expect(page.locator("#tx-amount")).not.toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Lunch at cafe")).toBeVisible();
+    const expenseRow = page.locator("tr").filter({ hasText: "Lunch at cafe" });
+    await expect(expenseRow).toBeVisible();
+    await expect(expenseRow).toContainText("12,50");
   });
 
   test("add income transaction", async ({ page }) => {
@@ -32,7 +34,9 @@ test.describe.serial("Transactions", () => {
 
     await page.getByRole("button", { name: "Add Transaction" }).click();
     await expect(page.locator("#tx-amount")).not.toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Monthly salary")).toBeVisible();
+    const incomeRow = page.locator("tr").filter({ hasText: "Monthly salary" });
+    await expect(incomeRow).toBeVisible();
+    await expect(incomeRow).toContainText("3.000,00");
   });
 
   test("edit a transaction", async ({ page }) => {
@@ -47,6 +51,8 @@ test.describe.serial("Transactions", () => {
     await page.locator("#tx-amount").fill("15.00");
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 5000 });
+    const editedRow = page.locator("tr").filter({ hasText: "Lunch at cafe" });
+    await expect(editedRow).toContainText("15,00");
   });
 
   test("delete a transaction", async ({ page }) => {

@@ -21,8 +21,8 @@ interface ReceiptDialogProps {
   onDeleted?: () => void;
 }
 
-function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount);
 }
 
 function formatDate(iso: string): string {

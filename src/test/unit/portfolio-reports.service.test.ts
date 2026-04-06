@@ -39,29 +39,29 @@ describe("getAssetPerformance", () => {
 
   it("computes performance for a single asset with buy and price snapshot", () => {
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 30000, date: "2026-01-15" });
-    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: `${isoToday()}T10:00:00Z` });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 300, date: "2026-01-15" });
+    priceService.record(asset.id, { pricePerUnit: 350, recordedAt: `${isoToday()}T10:00:00Z` });
 
     const result = reportService.getAssetPerformance();
     expect(result).toHaveLength(1);
 
     const item = result[0];
     expect(item.assetId).toBe(asset.id);
-    expect(item.costBasis).toBe(300000); // 10 * 30000
-    expect(item.currentValue).toBe(350000); // 10 * 35000
-    expect(item.pnl).toBe(50000);
+    expect(item.costBasis).toBe(3000); // 10 * 300
+    expect(item.currentValue).toBe(3500); // 10 * 350
+    expect(item.pnl).toBe(500);
     expect(item.pnlPct).toBeGreaterThan(0);
     expect(item.daysHeld).toBeGreaterThan(0);
   });
 
   it("sorts by P&L descending", () => {
     const a1 = assetService.create({ name: "Winner", type: "crypto", currency: "EUR" });
-    lotService.buy(a1.id, { quantity: 1, pricePerUnit: 10000, date: "2026-01-01" });
-    priceService.record(a1.id, { pricePerUnit: 20000, recordedAt: `${isoToday()}T00:00:00Z` });
+    lotService.buy(a1.id, { quantity: 1, pricePerUnit: 100, date: "2026-01-01" });
+    priceService.record(a1.id, { pricePerUnit: 200, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const a2 = assetService.create({ name: "Loser", type: "crypto", currency: "EUR" });
-    lotService.buy(a2.id, { quantity: 1, pricePerUnit: 20000, date: "2026-01-01" });
-    priceService.record(a2.id, { pricePerUnit: 15000, recordedAt: `${isoToday()}T00:00:00Z` });
+    lotService.buy(a2.id, { quantity: 1, pricePerUnit: 200, date: "2026-01-01" });
+    priceService.record(a2.id, { pricePerUnit: 150, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAssetPerformance();
     expect(result[0].name).toBe("Winner");
@@ -80,16 +80,16 @@ describe("getAllocation", () => {
 
   it("computes allocation percentages for multiple assets", () => {
     const a1 = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    lotService.buy(a1.id, { quantity: 1000, pricePerUnit: 100, date: "2026-01-01" });
+    lotService.buy(a1.id, { quantity: 1000, pricePerUnit: 1, date: "2026-01-01" });
 
     const a2 = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    lotService.buy(a2.id, { quantity: 1, pricePerUnit: 10000, date: "2026-01-01" });
-    priceService.record(a2.id, { pricePerUnit: 10000, recordedAt: `${isoToday()}T00:00:00Z` });
+    lotService.buy(a2.id, { quantity: 1, pricePerUnit: 100, date: "2026-01-01" });
+    priceService.record(a2.id, { pricePerUnit: 100, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAllocation();
     expect(result.byAsset).toHaveLength(2);
 
-    // Total should be 100000 (savings) + 10000 (BTC) = 110000
+    // Total should be 1000 (savings) + 100 (BTC) = 1100
     const totalPct = result.byAsset.reduce((s, a) => s + a.pct, 0);
     // Percentages should sum roughly to 100
     expect(totalPct).toBeCloseTo(100, 0);
@@ -97,10 +97,10 @@ describe("getAllocation", () => {
 
   it("groups by type", () => {
     const a1 = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    lotService.buy(a1.id, { quantity: 1000, pricePerUnit: 100, date: "2026-01-01" });
+    lotService.buy(a1.id, { quantity: 1000, pricePerUnit: 1, date: "2026-01-01" });
 
     const a2 = assetService.create({ name: "Emergency", type: "deposit", currency: "EUR" });
-    lotService.buy(a2.id, { quantity: 500, pricePerUnit: 100, date: "2026-01-01" });
+    lotService.buy(a2.id, { quantity: 500, pricePerUnit: 1, date: "2026-01-01" });
 
     const result = reportService.getAllocation();
     expect(result.byType).toHaveLength(1);
@@ -118,10 +118,10 @@ describe("getCurrencyExposure", () => {
 
   it("groups assets by currency", () => {
     const a1 = assetService.create({ name: "EUR Savings", type: "deposit", currency: "EUR" });
-    lotService.buy(a1.id, { quantity: 1000, pricePerUnit: 100, date: "2026-01-01" });
+    lotService.buy(a1.id, { quantity: 1000, pricePerUnit: 1, date: "2026-01-01" });
 
     const a2 = assetService.create({ name: "USD Account", type: "deposit", currency: "USD" });
-    lotService.buy(a2.id, { quantity: 500, pricePerUnit: 100, date: "2026-01-01" });
+    lotService.buy(a2.id, { quantity: 500, pricePerUnit: 1, date: "2026-01-01" });
 
     const result = reportService.getCurrencyExposure();
     expect(result).toHaveLength(2);
@@ -130,7 +130,7 @@ describe("getCurrencyExposure", () => {
     const usd = result.find((r) => r.currency === "USD");
     expect(eur).toBeDefined();
     expect(usd).toBeDefined();
-    // EUR: 1000*100=100000 / USD: 500*100=50000 — EUR should have higher pct
+    // EUR: 1000*1=1000 / USD: 500*1=500 — EUR should have higher pct
     expect(eur!.value).toBeGreaterThan(usd!.value);
   });
 });
@@ -140,7 +140,7 @@ describe("getCurrencyExposure", () => {
 describe("getRealizedPnL", () => {
   it("returns empty when no sells", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2026-01-01" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 100, date: "2026-01-01" });
 
     const result = reportService.getRealizedPnL();
     expect(result.items).toHaveLength(0);
@@ -149,25 +149,25 @@ describe("getRealizedPnL", () => {
 
   it("computes FIFO realized P&L from sells", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    // Buy 2 at €100
-    lotService.buy(asset.id, { quantity: 2, pricePerUnit: 10000, date: "2026-01-01" });
-    // Sell 1 at €150
-    lotService.sell(asset.id, { quantity: 1, pricePerUnit: 15000, date: "2026-02-01" });
+    // Buy 2 at 100
+    lotService.buy(asset.id, { quantity: 2, pricePerUnit: 100, date: "2026-01-01" });
+    // Sell 1 at 150
+    lotService.sell(asset.id, { quantity: 1, pricePerUnit: 150, date: "2026-02-01" });
 
     const result = reportService.getRealizedPnL();
     expect(result.items).toHaveLength(1);
     expect(result.items[0].totalSold).toBe(1);
-    expect(result.items[0].proceeds).toBe(15000); // 1 * 15000
-    expect(result.items[0].costBasis).toBe(10000); // FIFO: first lot @ 10000
-    expect(result.items[0].realizedPnl).toBe(5000);
-    expect(result.totalRealizedPnl).toBe(5000);
+    expect(result.items[0].proceeds).toBe(150); // 1 * 150
+    expect(result.items[0].costBasis).toBe(100); // FIFO: first lot @ 100
+    expect(result.items[0].realizedPnl).toBe(50);
+    expect(result.totalRealizedPnl).toBe(50);
   });
 
   it("filters by date range", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2026-01-01" });
-    lotService.sell(asset.id, { quantity: 5, pricePerUnit: 12000, date: "2026-02-15" });
-    lotService.sell(asset.id, { quantity: 3, pricePerUnit: 13000, date: "2026-03-15" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 100, date: "2026-01-01" });
+    lotService.sell(asset.id, { quantity: 5, pricePerUnit: 120, date: "2026-02-15" });
+    lotService.sell(asset.id, { quantity: 3, pricePerUnit: 130, date: "2026-03-15" });
 
     // Only March sells
     const result = reportService.getRealizedPnL("2026-03-01", "2026-03-31");
@@ -185,9 +185,9 @@ describe("getAssetHistory", () => {
 
   it("returns lot timeline and value points", () => {
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 30000, date: "2026-01-15" });
-    lotService.buy(asset.id, { quantity: 3, pricePerUnit: 31000, date: "2026-02-15" });
-    priceService.record(asset.id, { pricePerUnit: 32000, recordedAt: `${isoToday()}T00:00:00Z` });
+    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 300, date: "2026-01-15" });
+    lotService.buy(asset.id, { quantity: 3, pricePerUnit: 310, date: "2026-02-15" });
+    priceService.record(asset.id, { pricePerUnit: 320, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAssetHistory(asset.id, "all");
     expect(result).not.toBeNull();
@@ -200,7 +200,7 @@ describe("getAssetHistory", () => {
 
   it("'all' window starts from earliest lot, not year 2000", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2025-06-15" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 100, date: "2025-06-15" });
 
     const result = reportService.getAssetHistory(asset.id, "all");
     expect(result).not.toBeNull();
@@ -211,9 +211,9 @@ describe("getAssetHistory", () => {
 
   it("tracks buys and sells in lot timeline with correct running quantity", () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 50000, date: "2026-01-10" });
-    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 55000, date: "2026-01-20" });
-    lotService.sell(asset.id, { quantity: 3, pricePerUnit: 60000, date: "2026-02-15" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 500, date: "2026-01-10" });
+    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 550, date: "2026-01-20" });
+    lotService.sell(asset.id, { quantity: 3, pricePerUnit: 600, date: "2026-02-15" });
 
     const result = reportService.getAssetHistory(asset.id, "all");
     expect(result).not.toBeNull();
@@ -232,9 +232,9 @@ describe("getAssetHistory", () => {
 
   it("timeline value reflects holdings * price at each point", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2026-01-15" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 100, date: "2026-01-15" });
     // Record a price so resolvePrice has data
-    priceService.record(asset.id, { pricePerUnit: 12000, recordedAt: `${isoToday()}T00:00:00Z` });
+    priceService.record(asset.id, { pricePerUnit: 120, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getAssetHistory(asset.id, "all");
     expect(result).not.toBeNull();
@@ -242,8 +242,8 @@ describe("getAssetHistory", () => {
     // The last timeline point should reflect current holdings * current price
     const last = result!.timeline[result!.timeline.length - 1];
     expect(last.quantity).toBe(10);
-    expect(last.price).toBe(12000);
-    expect(last.value).toBe(120000); // 10 * 12000
+    expect(last.price).toBe(120);
+    expect(last.value).toBe(1200); // 10 * 120
   });
 });
 
@@ -257,13 +257,13 @@ describe("getTransferSummary", () => {
 
   it("groups purchases and sales by asset for a month", () => {
     const a1 = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(a1.id, { quantity: 5, pricePerUnit: 10000, date: "2026-03-01" });
-    lotService.buy(a1.id, { quantity: 3, pricePerUnit: 10500, date: "2026-03-15" });
+    lotService.buy(a1.id, { quantity: 5, pricePerUnit: 100, date: "2026-03-01" });
+    lotService.buy(a1.id, { quantity: 3, pricePerUnit: 105, date: "2026-03-15" });
 
     const result = reportService.getTransferSummary("2026-03");
     expect(result).toHaveLength(1);
     expect(result[0].assetId).toBe(a1.id);
-    expect(result[0].purchases).toBe(50000 + 31500); // 5*10000 + 3*10500
+    expect(result[0].purchases).toBe(500 + 315); // 5*100 + 3*105
     expect(result[0].sales).toBe(0);
   });
 });
@@ -272,10 +272,10 @@ describe("getTransferSummary", () => {
 
 describe("getNetWorthTimeSeries", () => {
   it("returns time series with cash and asset values", () => {
-    txService.create({ amount: 500000, type: "income", description: "Salary", date: "2026-01-01" });
+    txService.create({ amount: 5000, type: "income", description: "Salary", date: "2026-01-01" });
 
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 2000, pricePerUnit: 100, date: "2026-01-15" });
+    lotService.buy(asset.id, { quantity: 2000, pricePerUnit: 1, date: "2026-01-15" });
 
     const result = reportService.getNetWorthTimeSeries("all", "monthly");
     expect(result.length).toBeGreaterThan(0);
@@ -299,13 +299,13 @@ describe("getNetWorthTimeSeries", () => {
   it("computes cumulative cash correctly across date points", () => {
     // Income in Jan, expense in Feb — cash should accumulate
     txService.create({
-      amount: 100000,
+      amount: 1000,
       type: "income",
       description: "Jan salary",
       date: "2026-01-15",
     });
     txService.create({
-      amount: 20000,
+      amount: 200,
       type: "expense",
       description: "Feb rent",
       date: "2026-02-15",
@@ -317,58 +317,58 @@ describe("getNetWorthTimeSeries", () => {
     const afterFeb = result.find((p) => p.date >= "2026-02-15");
     expect(afterJan).toBeDefined();
     expect(afterFeb).toBeDefined();
-    // After Jan income: cash = 100000
-    expect(afterJan!.cash).toBe(100000);
-    // After Feb expense: cash = 100000 - 20000 = 80000
-    expect(afterFeb!.cash).toBe(80000);
+    // After Jan income: cash = 1000
+    expect(afterJan!.cash).toBe(1000);
+    // After Feb expense: cash = 1000 - 200 = 800
+    expect(afterFeb!.cash).toBe(800);
   });
 
   it("tracks multiple assets with different prices", () => {
     const etf = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
     const btc = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
 
-    lotService.buy(etf.id, { quantity: 10, pricePerUnit: 10000, date: "2026-01-15" });
-    lotService.buy(btc.id, { quantity: 2, pricePerUnit: 50000, date: "2026-01-20" });
+    lotService.buy(etf.id, { quantity: 10, pricePerUnit: 100, date: "2026-01-15" });
+    lotService.buy(btc.id, { quantity: 2, pricePerUnit: 500, date: "2026-01-20" });
 
     // Record prices for today
-    priceService.record(etf.id, { pricePerUnit: 12000, recordedAt: `${isoToday()}T00:00:00Z` });
-    priceService.record(btc.id, { pricePerUnit: 60000, recordedAt: `${isoToday()}T00:00:00Z` });
+    priceService.record(etf.id, { pricePerUnit: 120, recordedAt: `${isoToday()}T00:00:00Z` });
+    priceService.record(btc.id, { pricePerUnit: 600, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getNetWorthTimeSeries("all", "monthly");
     const last = result[result.length - 1];
 
-    // ETF: 10 * 12000 = 120000, BTC: 2 * 60000 = 120000
-    expect(last.assets).toBe(240000);
+    // ETF: 10 * 120 = 1200, BTC: 2 * 600 = 1200
+    expect(last.assets).toBe(2400);
   });
 
   it("handles sells reducing holdings in time series", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 10000, date: "2026-01-15" });
-    lotService.sell(asset.id, { quantity: 5, pricePerUnit: 12000, date: "2026-02-15" });
+    lotService.buy(asset.id, { quantity: 10, pricePerUnit: 100, date: "2026-01-15" });
+    lotService.sell(asset.id, { quantity: 5, pricePerUnit: 120, date: "2026-02-15" });
 
-    priceService.record(asset.id, { pricePerUnit: 12000, recordedAt: `${isoToday()}T00:00:00Z` });
+    priceService.record(asset.id, { pricePerUnit: 120, recordedAt: `${isoToday()}T00:00:00Z` });
 
     const result = reportService.getNetWorthTimeSeries("all", "monthly");
     const last = result[result.length - 1];
 
-    // After sell: 5 remaining * 12000 = 60000
-    expect(last.assets).toBe(60000);
+    // After sell: 5 remaining * 120 = 600
+    expect(last.assets).toBe(600);
   });
 
   it("cash-only scenario excludes asset component", () => {
-    txService.create({ amount: 300000, type: "income", description: "Salary", date: "2026-01-15" });
-    txService.create({ amount: 50000, type: "expense", description: "Rent", date: "2026-02-01" });
+    txService.create({ amount: 3000, type: "income", description: "Salary", date: "2026-01-15" });
+    txService.create({ amount: 500, type: "expense", description: "Rent", date: "2026-02-01" });
 
     const result = reportService.getNetWorthTimeSeries("all", "monthly");
     const last = result[result.length - 1];
 
     expect(last.assets).toBe(0);
-    expect(last.cash).toBe(250000);
-    expect(last.total).toBe(250000);
+    expect(last.cash).toBe(2500);
+    expect(last.total).toBe(2500);
   });
 
   it("date points are returned in ascending order", () => {
-    txService.create({ amount: 100000, type: "income", description: "Salary", date: "2026-01-01" });
+    txService.create({ amount: 1000, type: "income", description: "Salary", date: "2026-01-01" });
     const result = reportService.getNetWorthTimeSeries("6m", "monthly");
     const dates = result.map((p) => p.date);
     expect(dates).toEqual([...dates].sort());
@@ -379,11 +379,11 @@ describe("getNetWorthTimeSeries", () => {
 
 describe("spendingSummary includeTransfers", () => {
   it("includes transfers section when flag is true", () => {
-    txService.create({ amount: 500000, type: "income", description: "Salary", date: "2026-03-01" });
-    txService.create({ amount: 30000, type: "expense", description: "Rent", date: "2026-03-05" });
+    txService.create({ amount: 5000, type: "income", description: "Salary", date: "2026-03-01" });
+    txService.create({ amount: 300, type: "expense", description: "Rent", date: "2026-03-05" });
 
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 10000, date: "2026-03-10" });
+    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 100, date: "2026-03-10" });
 
     const result = spendingReportService.spendingSummary({
       dateFrom: "2026-03-01",
@@ -396,7 +396,7 @@ describe("spendingSummary includeTransfers", () => {
     expect(result.transfers).toBeDefined();
     expect(result.transfers!).toHaveLength(1);
     expect(result.transfers![0].assetName).toBe("ETF");
-    expect(result.transfers![0].purchases).toBe(50000);
+    expect(result.transfers![0].purchases).toBe(500);
   });
 
   it("omits transfers when flag is false", () => {

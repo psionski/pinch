@@ -5,9 +5,28 @@ const currencyFormatter = new Intl.NumberFormat("de-DE", {
   currency: "EUR",
 });
 
-/** Format cents as EUR display string, e.g. 12345 → "123,45 €" */
-export function formatCurrency(cents: number): string {
-  return currencyFormatter.format(cents / 100);
+/** Format EUR amount as display string, e.g. 123.45 → "123,45 €" */
+export function formatCurrency(amount: number): string {
+  return currencyFormatter.format(amount);
+}
+
+/**
+ * Format a unit price with appropriate precision.
+ * Shows at least 2 decimals, but extends to show significant digits for small values.
+ * e.g. 345.63 → "345.63", 0.86768 → "0.86768", 0.00000514 → "0.00000514"
+ */
+export function formatPrice(price: number): string {
+  if (price === 0) return "0.00";
+  if (price >= 0.01) return price.toFixed(Math.max(2, countDecimals(price)));
+  // For very small prices, show all significant digits
+  const s = price.toPrecision(3);
+  return parseFloat(s).toString();
+}
+
+function countDecimals(n: number): number {
+  const s = n.toString();
+  const dot = s.indexOf(".");
+  return dot === -1 ? 0 : s.length - dot - 1;
 }
 
 /** Format a percentage with 1 decimal, e.g. 75.5 → "75.5%" */

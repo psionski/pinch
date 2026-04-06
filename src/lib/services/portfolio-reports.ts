@@ -130,7 +130,7 @@ export class PortfolioReportService {
 
         const resolved = resolvePrice(this.db, asset, date);
         if (resolved) {
-          assetTotal += Math.round(holdings * resolved.price);
+          assetTotal += Math.round(holdings * resolved.price * 100) / 100;
         }
       }
 
@@ -159,8 +159,8 @@ export class PortfolioReportService {
 
         const resolved = resolvePrice(this.db, asset, evalDate);
         if (!resolved) return null;
-        const currentValue = Math.round(holdings * resolved.price);
-        const pnl = currentValue - costBasis;
+        const currentValue = Math.round(holdings * resolved.price * 100) / 100;
+        const pnl = Math.round((currentValue - costBasis) * 100) / 100;
         const pnlPct = costBasis > 0 ? Math.round((pnl / costBasis) * 10000) / 100 : 0;
 
         const daysHeld = earliestDate ? Math.max(1, daysBetween(earliestDate, evalDate)) : 0;
@@ -204,7 +204,7 @@ export class PortfolioReportService {
       const resolved = resolvePrice(this.db, asset, today);
       if (!resolved) continue;
 
-      const currentValue = Math.round(holdings * resolved.price);
+      const currentValue = Math.round(holdings * resolved.price * 100) / 100;
       if (currentValue <= 0) continue;
 
       totalValue += currentValue;
@@ -253,7 +253,7 @@ export class PortfolioReportService {
       const resolved = resolvePrice(this.db, asset, today);
       if (!resolved) continue;
 
-      const currentValue = Math.round(holdings * resolved.price);
+      const currentValue = Math.round(holdings * resolved.price * 100) / 100;
       if (currentValue <= 0) continue;
 
       currencyMap.set(asset.currency, (currencyMap.get(asset.currency) ?? 0) + currentValue);
@@ -308,7 +308,7 @@ export class PortfolioReportService {
           buyQueue.push({ qty: lot.quantity, price: lot.pricePerUnit });
         } else {
           const toConsume = -lot.quantity;
-          proceeds += Math.round(toConsume * lot.pricePerUnit);
+          proceeds += Math.round(toConsume * lot.pricePerUnit * 100) / 100;
           totalSold += toConsume;
           costOfSold += consumeFifo(buyQueue, toConsume);
         }
@@ -411,7 +411,7 @@ export class PortfolioReportService {
       const qty = parseFloat(cumulativeQty.toFixed(8));
       const resolved = resolvePrice(this.db, asset, date);
       const price = resolved?.price ?? null;
-      const value = price !== null ? Math.round(qty * price) : null;
+      const value = price !== null ? Math.round(qty * price * 100) / 100 : null;
       return { date, price, quantity: qty, value };
     });
 

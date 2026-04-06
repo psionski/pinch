@@ -34,7 +34,7 @@ export const receipts = sqliteTable("receipts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   merchant: text("merchant"),
   date: text("date").notNull(),
-  total: integer("total"), // cents
+  total: real("total"),
   imagePath: text("image_path"),
   rawText: text("raw_text"),
   createdAt: text("created_at")
@@ -48,7 +48,7 @@ export const recurringTransactions = sqliteTable(
   "recurring_transactions",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    amount: integer("amount").notNull(), // cents
+    amount: real("amount").notNull(),
     type: text("type").notNull().default("expense"),
     description: text("description").notNull(),
     merchant: text("merchant"),
@@ -88,7 +88,7 @@ export const transactions = sqliteTable(
   "transactions",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    amount: integer("amount").notNull(), // cents; positive for income/expense, signed for transfers (negative = cash out, positive = cash in)
+    amount: real("amount").notNull(), // positive for income/expense, signed for transfers (negative = cash out, positive = cash in)
     type: text("type").notNull().default("expense"), // 'income' | 'expense' | 'transfer'
     description: text("description").notNull(),
     merchant: text("merchant"),
@@ -134,7 +134,7 @@ export const budgets = sqliteTable(
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
     month: text("month").notNull(), // YYYY-MM
-    amount: integer("amount").notNull(), // cents
+    amount: real("amount").notNull(),
     deleted: integer("deleted").notNull().default(0), // soft-delete: 1 = deleted
   },
   (table) => [
@@ -158,7 +158,7 @@ export const marketPrices = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     symbol: text("symbol").notNull(), // ticker/id: 'AAPL', 'bitcoin', 'SPX'
-    price: text("price").notNull(), // stored as string to avoid float imprecision
+    price: real("price").notNull(),
     currency: text("currency").notNull(), // what currency the price is in
     date: text("date").notNull(), // YYYY-MM-DD
     provider: text("provider").notNull(),
@@ -211,7 +211,7 @@ export const assetLots = sqliteTable(
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
     quantity: real("quantity").notNull(), // positive = buy/deposit, negative = sell/withdraw
-    pricePerUnit: integer("price_per_unit").notNull(), // EUR cents (cost per unit in base currency)
+    pricePerUnit: real("price_per_unit").notNull(),
     date: text("date").notNull(), // ISO 8601 date
     transactionId: integer("transaction_id").references(() => transactions.id, {
       onDelete: "set null",
@@ -237,7 +237,7 @@ export const assetPrices = sqliteTable(
     assetId: integer("asset_id")
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
-    pricePerUnit: integer("price_per_unit").notNull(), // EUR cents (cost per unit in base currency)
+    pricePerUnit: real("price_per_unit").notNull(),
     recordedAt: text("recorded_at").notNull(), // ISO 8601 datetime
   },
   (table) => [

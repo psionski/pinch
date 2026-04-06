@@ -191,11 +191,11 @@ export class FinancialDataService {
   }
 
   /**
-   * Convert an amount (in cents) from one currency to another.
+   * Convert an amount from one currency to another.
    * The symbolMap maps providers to the symbol for the source currency.
    */
   async convert(
-    amountCents: number,
+    amount: number,
     from: string,
     to: string,
     symbolMap: SymbolMap,
@@ -203,7 +203,7 @@ export class FinancialDataService {
   ): Promise<ConvertResult | null> {
     if (from === to) {
       return {
-        converted: amountCents,
+        converted: amount,
         rate: 1,
         date: date ?? isoToday(),
         provider: "frankfurter" as ProviderName,
@@ -215,7 +215,7 @@ export class FinancialDataService {
     if (!rateResult) return null;
 
     return {
-      converted: Math.round(amountCents * rateResult.price),
+      converted: Math.round(amount * rateResult.price * 100) / 100,
       rate: rateResult.price,
       date: rateResult.date,
       provider: rateResult.provider,
@@ -368,7 +368,7 @@ export class FinancialDataService {
       .insert(marketPrices)
       .values({
         symbol: result.symbol,
-        price: String(result.price),
+        price: result.price,
         currency: result.currency,
         date: result.date,
         provider: result.provider,
@@ -376,7 +376,7 @@ export class FinancialDataService {
       .onConflictDoUpdate({
         target: [marketPrices.symbol, marketPrices.currency, marketPrices.date],
         set: {
-          price: String(result.price),
+          price: result.price,
           provider: result.provider,
           fetchedAt: Temporal.Now.instant().toString(),
         },
@@ -390,7 +390,7 @@ export class FinancialDataService {
 function toPriceResult(row: MarketPriceRow): PriceResult {
   return {
     symbol: row.symbol,
-    price: parseFloat(row.price),
+    price: row.price,
     currency: row.currency,
     date: row.date,
     provider: row.provider as ProviderName,

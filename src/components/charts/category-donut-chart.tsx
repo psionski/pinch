@@ -96,7 +96,7 @@ export function CategoryDonutChart({
       .sort((a, b) => b.rawValue - a.rawValue)
       .map((entry) => ({
         name: entry.name,
-        value: entry.rawValue / 100,
+        value: entry.rawValue,
         percentage: grandTotal > 0 ? Math.round((entry.rawValue / grandTotal) * 10000) / 100 : 0,
         color: entry.color ?? FALLBACK_COLORS[fallbackIndex++ % FALLBACK_COLORS.length],
         categoryId: entry.categoryId,

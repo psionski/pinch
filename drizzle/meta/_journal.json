@@ -50,6 +50,13 @@
       "when": 1774487000000,
       "tag": "0006_fts_category",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1775600000000,
+      "tag": "0007_decimal_amounts",
+      "breakpoints": true
     }
   ]
 }

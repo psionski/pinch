@@ -19,7 +19,7 @@ beforeEach(() => {
 
 function tx(overrides: Record<string, unknown> = {}) {
   return CreateTransactionSchema.parse({
-    amount: 1000,
+    amount: 10,
     description: "Test transaction",
     date: "2026-03-17",
     ...overrides,
@@ -36,7 +36,7 @@ describe("create", () => {
   it("creates a transaction and returns it with an id", () => {
     const result = service.create(tx());
     expect(result.id).toBeGreaterThan(0);
-    expect(result.amount).toBe(1000);
+    expect(result.amount).toBe(10);
     expect(result.description).toBe("Test transaction");
     expect(result.type).toBe("expense");
   });
@@ -52,7 +52,7 @@ describe("create", () => {
   });
 
   it("creates an income transaction", () => {
-    const result = service.create(tx({ type: "income", amount: 200000 }));
+    const result = service.create(tx({ type: "income", amount: 2000 }));
     expect(result.type).toBe("income");
   });
 });
@@ -63,20 +63,20 @@ describe("createBatch", () => {
   it("inserts all transactions in the batch", () => {
     const result = service.createBatch({
       transactions: [
-        tx({ amount: 100, description: "A" }),
-        tx({ amount: 200, description: "B" }),
-        tx({ amount: 300, description: "C" }),
+        tx({ amount: 1, description: "A" }),
+        tx({ amount: 2, description: "B" }),
+        tx({ amount: 3, description: "C" }),
       ],
     });
     expect(result).toHaveLength(3);
-    expect(result.map((r) => r.amount)).toEqual([100, 200, 300]);
+    expect(result.map((r) => r.amount)).toEqual([1, 2, 3]);
   });
 
   it("applies receiptId from batch-level to all items", () => {
     // Insert a real receipt to satisfy the FK constraint
     const [receipt] = db.insert(receipts).values({ date: "2026-03-17" }).returning().all();
     const result = service.createBatch({
-      transactions: [tx({ amount: 500 }), tx({ amount: 600 })],
+      transactions: [tx({ amount: 5 }), tx({ amount: 6 })],
       receiptId: receipt.id,
     });
     expect(result.every((r) => r.receiptId === receipt.id)).toBe(true);
@@ -86,7 +86,7 @@ describe("createBatch", () => {
     const [r1] = db.insert(receipts).values({ date: "2026-03-17" }).returning().all();
     const [r2] = db.insert(receipts).values({ date: "2026-03-17" }).returning().all();
     const result = service.createBatch({
-      transactions: [tx({ amount: 500, receiptId: r1.id })],
+      transactions: [tx({ amount: 5, receiptId: r1.id })],
       receiptId: r2.id,
     });
     expect(result[0].receiptId).toBe(r1.id);
@@ -113,13 +113,13 @@ describe("getById", () => {
 describe("list", () => {
   beforeEach(() => {
     service.create(
-      tx({ amount: 100, description: "Groceries", merchant: "ALDI", date: "2026-01-10" })
+      tx({ amount: 1, description: "Groceries", merchant: "ALDI", date: "2026-01-10" })
     );
     service.create(
-      tx({ amount: 200, description: "Coffee", merchant: "Starbucks", date: "2026-02-15" })
+      tx({ amount: 2, description: "Coffee", merchant: "Starbucks", date: "2026-02-15" })
     );
-    service.create(tx({ amount: 300, description: "Rent", date: "2026-03-01", type: "expense" }));
-    service.create(tx({ amount: 500, description: "Salary", type: "income", date: "2026-03-01" }));
+    service.create(tx({ amount: 3, description: "Rent", date: "2026-03-01", type: "expense" }));
+    service.create(tx({ amount: 5, description: "Salary", type: "income", date: "2026-03-01" }));
   });
 
   it("returns all transactions with correct total", () => {
@@ -166,12 +166,12 @@ describe("list", () => {
   });
 
   it("filters by amountMin", () => {
-    const result = service.list(listInput({ amountMin: 300 }));
+    const result = service.list(listInput({ amountMin: 3 }));
     expect(result.total).toBe(2);
   });
 
   it("filters by amountMax", () => {
-    const result = service.list(listInput({ amountMax: 200 }));
+    const result = service.list(listInput({ amountMax: 2 }));
     expect(result.total).toBe(2);
   });
 
@@ -366,22 +366,22 @@ describe("list — tag filtering", () => {
 
 describe("update", () => {
   it("updates specified fields", () => {
-    const created = service.create(tx({ amount: 100, description: "Original" }));
-    const updated = service.update(created.id, { amount: 999, description: "Updated" });
+    const created = service.create(tx({ amount: 1, description: "Original" }));
+    const updated = service.update(created.id, { amount: 9.99, description: "Updated" });
     expect(updated).not.toBeNull();
-    expect(updated!.amount).toBe(999);
+    expect(updated!.amount).toBe(9.99);
     expect(updated!.description).toBe("Updated");
   });
 
   it("does not change fields not included in the update", () => {
-    const created = service.create(tx({ amount: 100, merchant: "ALDI" }));
-    const updated = service.update(created.id, { amount: 200 });
+    const created = service.create(tx({ amount: 1, merchant: "ALDI" }));
+    const updated = service.update(created.id, { amount: 2 });
     expect(updated!.merchant).toBe("ALDI");
   });
 
   it("sets updatedAt on update", () => {
     const created = service.create(tx());
-    const updated = service.update(created.id, { amount: 500 });
+    const updated = service.update(created.id, { amount: 5 });
     expect(updated!.updatedAt).toBeDefined();
     expect(updated!.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}/);
   });
@@ -405,7 +405,7 @@ describe("update", () => {
   });
 
   it("returns null for non-existent id", () => {
-    expect(service.update(9999, { amount: 100 })).toBeNull();
+    expect(service.update(9999, { amount: 1 })).toBeNull();
   });
 });
 
@@ -521,9 +521,9 @@ describe("listTags", () => {
 
 describe("transfer type", () => {
   it("creates a transfer transaction successfully", () => {
-    const result = service.create(tx({ amount: 50000, type: "transfer", description: "Buy SPX" }));
+    const result = service.create(tx({ amount: 500, type: "transfer", description: "Buy SPX" }));
     expect(result.type).toBe("transfer");
-    expect(result.amount).toBe(50000);
+    expect(result.amount).toBe(500);
   });
 
   it("excludes transfers by default, includes with explicit type filter", () => {

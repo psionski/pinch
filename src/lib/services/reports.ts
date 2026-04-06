@@ -533,7 +533,7 @@ export class ReportService {
       merchant: r.merchant!,
       total: r.total,
       count: r.count,
-      avgAmount: Math.round(r.avgAmount),
+      avgAmount: Math.round(r.avgAmount * 100) / 100,
     }));
   }
 }

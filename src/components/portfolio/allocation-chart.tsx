@@ -28,11 +28,11 @@ interface AllocationChartProps {
   data: AllocationResult;
 }
 
-function formatEuros(cents: number): string {
+function formatEuros(amount: number): string {
   return new Intl.NumberFormat("en-IE", {
     style: "currency",
     currency: "EUR",
-  }).format(cents / 100);
+  }).format(amount);
 }
 
 function CustomTooltip({

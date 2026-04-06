@@ -25,7 +25,7 @@ interface SpendingTrendChartProps {
 export function SpendingTrendChart({ data }: SpendingTrendChartProps): React.ReactElement {
   const chartData = data.map((point) => ({
     month: formatMonth(point.month),
-    total: point.total / 100,
+    total: point.total,
   }));
 
   return (
@@ -47,9 +47,10 @@ export function SpendingTrendChart({ data }: SpendingTrendChartProps): React.Rea
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value) =>
-                      `€${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
-                    }
+                    formatter={(value, name) => {
+                      const label = chartConfig[name as keyof typeof chartConfig]?.label ?? name;
+                      return `${label}: €${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
+                    }}
                   />
                 }
               />

@@ -30,8 +30,8 @@ interface TransferFlowProps {
 export function TransferFlow({ data }: TransferFlowProps): React.ReactElement {
   const chartData = data.map((item) => ({
     name: item.assetName,
-    purchases: item.purchases / 100,
-    sales: item.sales / 100,
+    purchases: item.purchases,
+    sales: item.sales,
   }));
 
   return (

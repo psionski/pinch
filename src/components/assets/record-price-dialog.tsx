@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { isoToday } from "@/lib/date-ranges";
+import { formatPrice } from "@/lib/format";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
 
 interface RecordPriceDialogProps {
@@ -32,7 +33,7 @@ export function RecordPriceDialog({
 }: RecordPriceDialogProps): React.ReactElement {
   const currentDisplay =
     asset.latestPrice !== null
-      ? `Current price: ${(asset.latestPrice / 100).toFixed(2)} ${asset.currency} per unit`
+      ? `Current price: ${formatPrice(asset.latestPrice)} ${asset.currency} per unit`
       : "No price recorded yet";
 
   const today = isoToday();
@@ -51,7 +52,7 @@ export function RecordPriceDialog({
     }
 
     const recordedAt = date && date !== today ? date + "T00:00:00" : undefined;
-    onSubmit({ pricePerUnit: Math.round(priceNum * 100), recordedAt });
+    onSubmit({ pricePerUnit: priceNum, recordedAt });
   }
 
   return (
@@ -75,7 +76,7 @@ export function RecordPriceDialog({
             <Input
               id="new-price"
               type="number"
-              step="0.01"
+              step="any"
               min="0"
               value={price}
               onChange={(e) => setPrice(e.target.value)}

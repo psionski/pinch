@@ -32,7 +32,13 @@ test.describe.serial("Seed data & interactive tour", () => {
     await expect(page.getByText("Spending Charts")).toBeVisible({ timeout: 5000 });
 
     // Close the tour via the close button (X) — ends the tour completely
+    // Wait for the PUT that persists tutorial=false to complete before this test ends,
+    // otherwise the next test may load the page before the setting is saved.
+    const settingsSaved = page.waitForResponse(
+      (resp) => resp.url().includes("/api/settings/tutorial") && resp.request().method() === "PUT"
+    );
     await page.getByTestId("button-close").click();
+    await settingsSaved;
 
     // Tour should disappear — the overlay/tooltip should be gone
     await expect(page.getByText("Welcome to Pinch!")).not.toBeVisible({ timeout: 5000 });

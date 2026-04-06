@@ -7,7 +7,7 @@ export const ReceiptResponseSchema = z.object({
   id: z.number().int(),
   merchant: z.string().nullable(),
   date: z.string(),
-  total: z.number().int().nullable(),
+  total: z.number().nullable(),
   imageUrl: z.string().url().nullable(), // absolute URL, e.g. http://localhost:4000/api/receipts/{id}/image — null if no image uploaded
   rawText: z.string().nullable(),
   createdAt: z.string(),
@@ -20,7 +20,7 @@ export type ReceiptResponse = z.infer<typeof ReceiptResponseSchema>;
 export const CreateReceiptSchema = z.object({
   merchant: z.string().max(255).optional(),
   date: IsoDateSchema.optional(),
-  total: z.number().int().min(0).optional(),
+  total: z.number().min(0).optional(),
   rawText: z.string().max(10000).optional(),
 });
 

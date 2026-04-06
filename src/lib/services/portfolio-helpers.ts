@@ -49,7 +49,7 @@ export function consumeFifo(queue: FifoEntry[], quantity: number): number {
   while (toConsume > 0 && queue.length > 0) {
     const front = queue[0];
     const consumed = Math.min(front.qty, toConsume);
-    cost += Math.round(consumed * front.price);
+    cost += Math.round(consumed * front.price * 100) / 100;
     front.qty -= consumed;
     toConsume -= consumed;
     if (front.qty <= 0) queue.shift();
@@ -87,6 +87,6 @@ export function getCostBasisAtDate(
     }
   }
 
-  const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0));
+  const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0) * 100) / 100;
   return { costBasis, earliestDate: lots[0].date };
 }

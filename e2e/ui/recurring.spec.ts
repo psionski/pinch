@@ -13,7 +13,11 @@ test.describe.serial("Recurring transactions", () => {
 
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator("#recurring-description")).not.toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Netflix Subscription")).toBeVisible();
+    const row = page
+      .locator("[data-testid^='recurring-row-']")
+      .filter({ hasText: "Netflix Subscription" });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("15,99");
   });
 
   test("toggle active/inactive", async ({ page }) => {
@@ -49,6 +53,10 @@ test.describe.serial("Recurring transactions", () => {
     await page.locator("#recurring-amount").fill("17.99");
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.locator("#recurring-amount")).not.toBeVisible({ timeout: 5000 });
+    const updatedRow = page
+      .locator("[data-testid^='recurring-row-']")
+      .filter({ hasText: "Netflix Subscription" });
+    await expect(updatedRow).toContainText("17,99");
   });
 
   test("delete recurring", async ({ page }) => {

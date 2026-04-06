@@ -39,8 +39,8 @@ function formatShortMonth(date: string): string {
   return Temporal.PlainDate.from(date.slice(0, 10)).toLocaleString("en-US", { month: "short" });
 }
 
-function formatCurrency(cents: number, currency: string): string {
-  return (cents / 100).toLocaleString("de-DE", {
+function formatCurrency(amount: number, currency: string): string {
+  return amount.toLocaleString("de-DE", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
@@ -52,8 +52,8 @@ export function ValueChart({ data, currency }: ValueChartProps): React.ReactElem
     .filter((p) => p.value !== null)
     .map((p) => ({
       date: p.date,
-      value: p.value! / 100,
-      price: p.price !== null ? p.price / 100 : null,
+      value: p.value!,
+      price: p.price,
     }));
 
   // Build a date->value lookup for placing lot markers on the value axis
@@ -96,7 +96,7 @@ export function ValueChart({ data, currency }: ValueChartProps): React.ReactElem
                   <ChartTooltipContent
                     formatter={(value, name) => {
                       const label = name === "value" ? "Value" : "Price / Unit";
-                      return `${label}: ${formatCurrency((value as number) * 100, currency)}`;
+                      return `${label}: ${formatCurrency(value as number, currency)}`;
                     }}
                     labelFormatter={(label) => {
                       return Temporal.PlainDate.from((label as string).slice(0, 10)).toLocaleString(

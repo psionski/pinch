@@ -24,7 +24,7 @@ export interface AssetSeed {
 
 export interface MarketPriceSeed {
   symbol: string;
-  price: string;
+  price: number;
   currency: string;
   date: string;
   provider: string;
@@ -138,7 +138,7 @@ export function generateAssets(months: MonthSpec[]): {
       monthIdx: i,
       day: 26,
       quantity: 300,
-      pricePerUnit: 100,
+      pricePerUnit: 1,
       description: "Monthly savings",
     });
   }
@@ -148,7 +148,7 @@ export function generateAssets(months: MonthSpec[]): {
       monthIdx: Math.floor(n / 3),
       day: 10,
       quantity: -300,
-      pricePerUnit: 100,
+      pricePerUnit: 1,
       description: "Withdrawal for holiday booking",
       notes: "Booked spring trip",
     });
@@ -156,7 +156,7 @@ export function generateAssets(months: MonthSpec[]): {
       monthIdx: Math.floor((2 * n) / 3),
       day: 15,
       quantity: -500,
-      pricePerUnit: 100,
+      pricePerUnit: 1,
       description: "Withdrawal for new laptop",
       notes: "Emergency purchase",
     });
@@ -199,7 +199,7 @@ export function generateAssets(months: MonthSpec[]): {
 
   const btcMarket: MarketPriceSeed[] = priceDates.map((date) => ({
     symbol: "bitcoin",
-    price: String(Math.round(lerp(btcAnchors, date))),
+    price: Math.round(lerp(btcAnchors, date)),
     currency: "EUR",
     date,
     provider: "coingecko",
@@ -228,7 +228,7 @@ export function generateAssets(months: MonthSpec[]): {
           monthIdx: btcBuy1,
           day: 28,
           quantity: 0.005,
-          pricePerUnit: 6300000, // ~€63,000
+          pricePerUnit: 63000, // ~€63,000
           description: "Buy 0.005 BTC",
           notes: "Initial position",
         },
@@ -236,7 +236,7 @@ export function generateAssets(months: MonthSpec[]): {
           monthIdx: btcBuy2,
           day: 15,
           quantity: 0.008,
-          pricePerUnit: 5500000, // ~€55,000 — buying the dip
+          pricePerUnit: 55000, // ~€55,000 — buying the dip
           description: "Buy 0.008 BTC (buying the dip)",
           notes: "DCA on first dip",
         },
@@ -244,7 +244,7 @@ export function generateAssets(months: MonthSpec[]): {
           monthIdx: btcSell1,
           day: 18,
           quantity: -0.005,
-          pricePerUnit: 7800000, // ~€78,000
+          pricePerUnit: 78000, // ~€78,000
           description: "Sell 0.005 BTC (take profit)",
           notes: "Partial profit at first peak",
         },
@@ -252,7 +252,7 @@ export function generateAssets(months: MonthSpec[]): {
           monthIdx: btcBuy3,
           day: 20,
           quantity: 0.006,
-          pricePerUnit: 6800000, // ~€68,000 — buying second dip
+          pricePerUnit: 68000, // ~€68,000 — buying second dip
           description: "Buy 0.006 BTC",
           notes: "DCA on second dip",
         },
@@ -260,7 +260,7 @@ export function generateAssets(months: MonthSpec[]): {
           monthIdx: btcSell2,
           day: 12,
           quantity: -0.004,
-          pricePerUnit: 8900000, // ~€89,000
+          pricePerUnit: 89000, // ~€89,000
           description: "Sell 0.004 BTC (take profit)",
           notes: "Partial profit at second peak",
         },
@@ -290,7 +290,7 @@ export function generateAssets(months: MonthSpec[]): {
 
   const etfMarket: MarketPriceSeed[] = priceDates.map((date) => ({
     symbol: "IWDA.AS",
-    price: lerp(etfAnchors, date).toFixed(2),
+    price: Math.round(lerp(etfAnchors, date) * 100) / 100,
     currency: "EUR",
     date,
     provider: "alpha-vantage",
@@ -304,7 +304,7 @@ export function generateAssets(months: MonthSpec[]): {
       monthIdx: i,
       day: 28,
       quantity: 1,
-      pricePerUnit: Math.round(price * 100),
+      pricePerUnit: Math.round(price * 100) / 100,
       description: "Buy 1 IWDA share",
     });
   }

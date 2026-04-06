@@ -102,8 +102,8 @@ export function ReceiptUploadDialog({
       if (merchant) form.append("merchant", merchant);
       if (date) form.append("date", date);
       if (total) {
-        const cents = Math.round(parseFloat(total) * 100);
-        if (!Number.isNaN(cents)) form.append("total", String(cents));
+        const parsed = parseFloat(total);
+        if (!Number.isNaN(parsed)) form.append("total", String(parsed));
       }
 
       const res = await fetch("/api/receipts/upload", { method: "POST", body: form });

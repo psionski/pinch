@@ -46,10 +46,10 @@ describe("upload", () => {
     const result = service.upload(Buffer.from("img"), ".png", {
       date: "2026-03-01",
       merchant: "Lidl",
-      total: 4320,
+      total: 43.2,
     });
     expect(result.merchant).toBe("Lidl");
-    expect(result.total).toBe(4320);
+    expect(result.total).toBe(43.2);
   });
 
   it("uses today's date when none is provided", () => {
@@ -98,7 +98,7 @@ describe("listUnprocessed", () => {
     // Link a transaction to r1
     db.insert(transactions)
       .values({
-        amount: 1000,
+        amount: 10,
         type: "expense",
         description: "Linked tx",
         date: "2026-03-01",
@@ -115,7 +115,7 @@ describe("listUnprocessed", () => {
     const r = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
     db.insert(transactions)
       .values({
-        amount: 500,
+        amount: 5,
         type: "expense",
         description: "Linked tx",
         date: "2026-03-01",
@@ -215,12 +215,12 @@ describe("createMetadataOnly", () => {
     const result = service.createMetadataOnly({
       date: "2026-03-01",
       merchant: "Lidl",
-      total: 2500,
+      total: 25,
     });
     expect(result.id).toBeGreaterThan(0);
     expect(result.date).toBe("2026-03-01");
     expect(result.merchant).toBe("Lidl");
-    expect(result.total).toBe(2500);
+    expect(result.total).toBe(25);
     expect(result.imageUrl).toBeNull();
   });
 
@@ -295,7 +295,7 @@ describe("delete", () => {
     const r = service.upload(Buffer.from("img"), ".jpg", { date: "2026-03-01" });
     db.insert(transactions)
       .values({
-        amount: 1000,
+        amount: 10,
         type: "expense",
         description: "Linked tx",
         date: "2026-03-01",

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Temporal } from "@js-temporal/polyfill";
+import { formatPrice } from "@/lib/format";
 
 interface PricePoint {
   pricePerUnit: number;
@@ -50,7 +51,7 @@ export function PriceChart({ data, currency }: PriceChartProps): React.ReactElem
 
   const chartData = data.map((point) => ({
     date: point.recordedAt,
-    price: point.pricePerUnit / 100,
+    price: point.pricePerUnit,
   }));
 
   return (
@@ -78,7 +79,7 @@ export function PriceChart({ data, currency }: PriceChartProps): React.ReactElem
               content={
                 <ChartTooltipContent
                   labelFormatter={(label) => formatDate(label as string)}
-                  formatter={(value) => `${currency} ${(value as number).toFixed(2)}`}
+                  formatter={(value) => `${currency} ${formatPrice(value as number)}`}
                 />
               }
             />

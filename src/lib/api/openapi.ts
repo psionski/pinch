@@ -20,7 +20,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
       title: "Pinch API",
       version: "1.0.0",
       description:
-        "Personal finance tracker API. All monetary amounts are integers in cents (e.g. 1210 = €12.10). " +
+        "Personal finance tracker API. " +
         "Transfer transaction amounts are signed: negative = cash out (asset purchase), positive = cash in (asset sale).",
     },
     tags: [

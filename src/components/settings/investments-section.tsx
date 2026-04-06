@@ -38,9 +38,7 @@ export function InvestmentsSection({
       const today = new Date().toISOString().slice(0, 10);
       for (const entry of valid) {
         const quantity = parseFloat(entry.quantity);
-        const costBasis = entry.costBasis.trim()
-          ? Math.round(parseFloat(entry.costBasis) * 100)
-          : 0;
+        const costBasis = entry.costBasis.trim() ? parseFloat(entry.costBasis) : 0;
         const pricePerUnit = costBasis > 0 ? Math.round(costBasis / quantity) : 0;
 
         const assetRes = await fetch("/api/assets", {

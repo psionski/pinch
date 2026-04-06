@@ -36,12 +36,12 @@ describe("Budget API Routes", () => {
       makeJson("POST", "/api/budgets", {
         categoryId: cat.id,
         month: "2025-01",
-        amount: 50000,
+        amount: 500,
       })
     );
     expect(res.status).toBe(201);
     const body = await json<{ amount: number }>(res);
-    expect(body.amount).toBe(50000);
+    expect(body.amount).toBe(500);
   });
 
   it("GET returns budget status for a month", async () => {
@@ -52,12 +52,12 @@ describe("Budget API Routes", () => {
       makeJson("POST", "/api/budgets", {
         categoryId: cat.id,
         month: "2025-01",
-        amount: 50000,
+        amount: 500,
       })
     );
     await POST_TX(
       makeJson("POST", "/api/transactions", {
-        amount: 15000,
+        amount: 150,
         description: "Groceries",
         date: "2025-01-15",
         categoryId: cat.id,
@@ -69,8 +69,8 @@ describe("Budget API Routes", () => {
     expect(res.status).toBe(200);
     const body = await json<BudgetStatusResponse>(res);
     expect(body.items).toHaveLength(1);
-    expect(body.items[0].budgetAmount).toBe(50000);
-    expect(body.items[0].spentAmount).toBe(15000);
+    expect(body.items[0].budgetAmount).toBe(500);
+    expect(body.items[0].spentAmount).toBe(150);
     expect(body.inheritedFrom).toBeNull();
   });
 
@@ -79,7 +79,7 @@ describe("Budget API Routes", () => {
       await POST_CATEGORY(makeJson("POST", "/api/categories", { name: "Food" }))
     );
     await POST_BUDGET(
-      makeJson("POST", "/api/budgets", { categoryId: cat.id, month: "2025-01", amount: 50000 })
+      makeJson("POST", "/api/budgets", { categoryId: cat.id, month: "2025-01", amount: 500 })
     );
 
     const res = await GET_BUDGET(makeGet("/api/budgets", { month: "2025-02" }));
@@ -87,7 +87,7 @@ describe("Budget API Routes", () => {
     const body = await json<BudgetStatusResponse>(res);
     expect(body.inheritedFrom).toBe("2025-01");
     expect(body.items).toHaveLength(1);
-    expect(body.items[0].budgetAmount).toBe(50000);
+    expect(body.items[0].budgetAmount).toBe(500);
   });
 
   it("DELETE soft-deletes a budget and returns success", async () => {
@@ -98,7 +98,7 @@ describe("Budget API Routes", () => {
       makeJson("POST", "/api/budgets", {
         categoryId: cat.id,
         month: "2025-01",
-        amount: 50000,
+        amount: 500,
       })
     );
 
@@ -132,14 +132,14 @@ describe("Budget API Routes", () => {
     );
     // Jan has budgets
     await POST_BUDGET(
-      makeJson("POST", "/api/budgets", { categoryId: cat1.id, month: "2025-01", amount: 50000 })
+      makeJson("POST", "/api/budgets", { categoryId: cat1.id, month: "2025-01", amount: 500 })
     );
     await POST_BUDGET(
-      makeJson("POST", "/api/budgets", { categoryId: cat2.id, month: "2025-01", amount: 30000 })
+      makeJson("POST", "/api/budgets", { categoryId: cat2.id, month: "2025-01", amount: 300 })
     );
     // Materialize Feb with its own budget
     await POST_BUDGET(
-      makeJson("POST", "/api/budgets", { categoryId: cat1.id, month: "2025-02", amount: 60000 })
+      makeJson("POST", "/api/budgets", { categoryId: cat1.id, month: "2025-02", amount: 600 })
     );
 
     // Reset Feb — should fall back to inheriting from Jan
@@ -161,11 +161,11 @@ describe("Budget API Routes", () => {
       await POST_CATEGORY(makeJson("POST", "/api/categories", { name: "Food" }))
     );
     await POST_BUDGET(
-      makeJson("POST", "/api/budgets", { categoryId: cat.id, month: "2025-01", amount: 50000 })
+      makeJson("POST", "/api/budgets", { categoryId: cat.id, month: "2025-01", amount: 500 })
     );
     await POST_TX(
       makeJson("POST", "/api/transactions", {
-        amount: 20000,
+        amount: 200,
         description: "Groceries",
         date: "2025-01-15",
         categoryId: cat.id,

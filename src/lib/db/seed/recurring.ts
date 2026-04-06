@@ -21,7 +21,7 @@ export function generateRecurringTemplates(
 ): RecurringTemplate[] {
   return [
     {
-      amount: 75000,
+      amount: 750,
       type: "expense",
       description: "Monthly rent",
       merchant: "Landlord",
@@ -32,7 +32,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 1599,
+      amount: 15.99,
       type: "expense",
       description: "Netflix Standard",
       merchant: "Netflix",
@@ -43,7 +43,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 899,
+      amount: 8.99,
       type: "expense",
       description: "Amazon Prime",
       merchant: "Amazon",
@@ -54,7 +54,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 999,
+      amount: 9.99,
       type: "expense",
       description: "Spotify Premium",
       merchant: "Spotify",
@@ -65,7 +65,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 99,
+      amount: 0.99,
       type: "expense",
       description: "iCloud+ 50GB",
       merchant: "Apple",
@@ -76,7 +76,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 2999,
+      amount: 29.99,
       type: "expense",
       description: "Internet bill",
       merchant: "Telekom",
@@ -87,7 +87,7 @@ export function generateRecurringTemplates(
       lastGenerated,
     },
     {
-      amount: 280000,
+      amount: 2800,
       type: "income",
       description: "Monthly salary",
       merchant: "Employer",

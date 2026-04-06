@@ -112,7 +112,7 @@ export function DepositWithdrawDialog({
     if (isEur) {
       onSubmit({
         quantity: amt,
-        pricePerUnit: 100,
+        pricePerUnit: 1,
         date,
         description: description.trim() || undefined,
       });
@@ -122,10 +122,9 @@ export function DepositWithdrawDialog({
         setError("Exchange rate must be a positive number.");
         return;
       }
-      const pricePerUnit = Math.round(rate * 100);
       onSubmit({
         quantity: amt,
-        pricePerUnit,
+        pricePerUnit: rate,
         date,
         description: description.trim() || undefined,
       });
@@ -186,7 +185,7 @@ export function DepositWithdrawDialog({
               </div>
               {computedEurCost !== null && !Number.isNaN(computedEurCost) && (
                 <p className="text-muted-foreground text-sm">
-                  Cost: {formatCurrency(Math.round(computedEurCost * 100))}
+                  Cost: {formatCurrency(computedEurCost)}
                 </p>
               )}
             </>

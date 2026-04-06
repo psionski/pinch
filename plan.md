@@ -88,7 +88,7 @@ Schema defined in `src/lib/db/schema.ts` (Drizzle ORM). Migrations in `drizzle/`
 
 ### Key design decisions
 
-- **Money as integers in cents** (e.g., €12.10 → `1210`). Avoids floating-point precision errors. Format to decimal only on display/output.
+- **Money as plain decimals** (`real` columns, JS `number`). IEEE 754 doubles give ~15 significant digits — sufficient for any currency or exchange rate. `Math.round(x * 100) / 100` at service boundaries handles sub-cent float noise.
 - **Hierarchical categories** via `parent_id` self-reference.
 - **Soft-delete on budgets** (`deleted` flag) for inheritance — a deleted budget means "revert to default" for that month, not "no budget."
 - **Receipts** group transactions from a single purchase. A receipt can span multiple categories.
@@ -295,27 +295,7 @@ drizzle/                         # Generated migrations
 
 Each sprint is a self-contained chunk of work. Sprints are organized into two phases: **MVP** and **Full App**.
 
-**Completed sprints (1-21):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio), portfolio reports backend (asset–market price linking via symbolMap, unified price resolver, portfolio report services — net worth history, asset performance, allocation, currency exposure, realized P&L, asset history), portfolio reports UI (reports sidebar with Cash Flow / Portfolio sub-pages, portfolio reports page, enhanced assets page with summary cards and charts, asset detail enhancements, dashboard net worth sparkline / top movers / allocation donut, onboarding tools and interactive tutorial).
-
----
-
-### Sprint 22: Polish & Hardening
-**Goal:** Production readiness.
-
-- [x] Dark mode (Tailwind dark variant) - just change the existing design, no need for multi-theme support. Make it fancy. Consider color schemes, design language, etc.
-- [x] Mobile-responsive audit and fixes
-   - transactions table is too wide
-   - better positioning for the menu button on mobile
-- [ ] CSV export for any filtered view
-- [x] Error boundaries and loading states across all pages
-- [x] Symbol search - limit by type, stream results
-- [x] Add more financial data providers - ExchangeRate-API, Twelve Data, Finnhub, CoinMarketCap
-- [x] E2E tests (Playwright — browser UI flows, async server component rendering)
-- [x] Performance: check query efficiency, add missing indices if needed
-- [x] Floating "Clear sample data" bar (shows only when populated with seed/sample data) + MCP tool to let users easily reset and start using the app. Detect sample data by a setting value (e.g. `sample_data = "true"`) that the seed script writes to the `settings` table on insert. The clear action deletes all seeded data and removes the setting (probably best by dropping the entire DB - maybe check backup.ts for potentially related code).
-- [ ] **MCP amount format:** Convert all `amount` fields in MCP input/output from cents to decimals (e.g. `13.28` instead of `1328`). Conversion happens in the MCP presentation layer only — service layer stays in cents. Same as what the UI already does. Improves AI usability significantly. We also have to delete "all amounts are in cents" from the MCP instructions.
-
-**Done when:** App is polished, responsive, handles errors gracefully, ready for daily use.
+**Completed sprints (1-22):** Project scaffolding, database schema, validators, service layer (transactions, categories, reports, budgets, recurring), API routes, MCP server, scheduled tasks, app shell + dashboard, transactions page, common MCP read operations, categories page, budgets page, recurring page, reports page, receipts flow, financial data service (exchange rates + market prices), assets & net worth tracking (transfer type, asset lots, price snapshots, portfolio), portfolio reports backend (asset–market price linking via symbolMap, unified price resolver, portfolio report services — net worth history, asset performance, allocation, currency exposure, realized P&L, asset history), portfolio reports UI (reports sidebar with Cash Flow / Portfolio sub-pages, portfolio reports page, enhanced assets page with summary cards and charts, asset detail enhancements, dashboard net worth sparkline / top movers / allocation donut, onboarding tools and interactive tutorial), polish & hardening (dark mode, mobile-responsive fixes, error boundaries, streaming symbol search, more financial data providers, E2E Playwright tests, performance tuning, sample data clear flow, decimal amounts refactor — integer cents → real columns end-to-end).
 
 ---
 
@@ -401,6 +381,7 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 
 ## Future Considerations (not in scope now, but design should accommodate)
 
+- **CSV export:** Export any filtered transaction view as CSV.
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
 - **Multi-currency transactions:** Assets already support per-asset currencies (Sprint 17). For full multi-currency, add a `currency` field to transactions and an exchange rate table. All reporting converts to EUR base.
 - **Attachments:** Beyond receipts — invoices, contracts. Generalize receipt storage to a generic attachments table.

@@ -136,7 +136,7 @@ describe("query tool", () => {
 
   it("executes read-only SQL and returns rows", async () => {
     const svc = new TransactionService(db);
-    svc.create({ amount: 300, description: "Test", date: "2025-06-01", type: "expense" });
+    svc.create({ amount: 3, description: "Test", date: "2025-06-01", type: "expense" });
 
     const res = await POST(
       toolCallRequest("query", { sql: "SELECT count(*) AS n FROM transactions" })
@@ -191,7 +191,7 @@ describe("get_db_schema tool", () => {
     expect(names).toContain("transactions");
     expect(names).toContain("categories");
     expect(names).toContain("budgets");
-    expect(data.conventions).toContain("cents");
+    expect(data.conventions).toContain("ISO 8601");
   });
 
   it("excludes internal sqlite tables and FTS tables", async () => {
@@ -218,7 +218,7 @@ describe("delete_transaction tool", () => {
   it("deletes a single transaction by ID", async () => {
     const svc = new TransactionService(db);
     const tx = svc.create({
-      amount: 100,
+      amount: 1,
       description: "Single",
       date: "2025-06-01",
       type: "expense",
@@ -233,8 +233,8 @@ describe("delete_transaction tool", () => {
 
   it("deletes multiple transactions when given an array", async () => {
     const svc = new TransactionService(db);
-    const tx1 = svc.create({ amount: 100, description: "A", date: "2025-06-01", type: "expense" });
-    const tx2 = svc.create({ amount: 200, description: "B", date: "2025-06-01", type: "expense" });
+    const tx1 = svc.create({ amount: 1, description: "A", date: "2025-06-01", type: "expense" });
+    const tx2 = svc.create({ amount: 2, description: "B", date: "2025-06-01", type: "expense" });
 
     const res = await POST(toolCallRequest("delete_transaction", { id: [tx1.id, tx2.id] }));
     expect(res.status).toBe(200);

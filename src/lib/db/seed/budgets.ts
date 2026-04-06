@@ -7,10 +7,9 @@ export interface BudgetRow {
   amount: number;
 }
 
-/** Round cents up to the nearest €25. */
-function roundTo25(cents: number): number {
-  const euros = cents / 100;
-  return Math.ceil(euros / 25) * 25 * 100;
+/** Round EUR amount up to the nearest €25. */
+function roundTo25(amount: number): number {
+  return Math.ceil(amount / 25) * 25;
 }
 
 /**

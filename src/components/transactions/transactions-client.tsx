@@ -57,10 +57,10 @@ function buildQueryString(
   }
 
   if (filters.amountMin) {
-    params.set("amountMin", String(Math.round(parseFloat(filters.amountMin) * 100)));
+    params.set("amountMin", String(parseFloat(filters.amountMin)));
   }
   if (filters.amountMax) {
-    params.set("amountMax", String(Math.round(parseFloat(filters.amountMax) * 100)));
+    params.set("amountMax", String(parseFloat(filters.amountMax)));
   }
 
   if (filters.recurringId) params.set("recurringId", filters.recurringId);

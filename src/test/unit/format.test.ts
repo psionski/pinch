@@ -11,8 +11,8 @@ import {
 // ─── formatCurrency ──────────────────────────────────────────────────────────
 
 describe("formatCurrency", () => {
-  it("formats cents as EUR", () => {
-    const result = formatCurrency(12345);
+  it("formats EUR amounts", () => {
+    const result = formatCurrency(123.45);
     // de-DE EUR locale: "123,45 €" (may include non-breaking space)
     expect(result).toContain("123,45");
     expect(result).toContain("€");
@@ -25,13 +25,13 @@ describe("formatCurrency", () => {
   });
 
   it("formats negative amounts", () => {
-    const result = formatCurrency(-5000);
+    const result = formatCurrency(-50);
     expect(result).toContain("50,00");
     expect(result).toContain("€");
   });
 
   it("formats large amounts with thousands separator", () => {
-    const result = formatCurrency(1234567);
+    const result = formatCurrency(12345.67);
     expect(result).toContain("12.345,67");
   });
 });

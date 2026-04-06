@@ -40,9 +40,7 @@ export function BudgetFormDialog({
   const [categoryId, setCategoryId] = useState<string>(
     initialData ? String(initialData.categoryId) : ""
   );
-  const [amount, setAmount] = useState(
-    initialData ? (initialData.budgetAmount / 100).toFixed(2) : ""
-  );
+  const [amount, setAmount] = useState(initialData ? String(initialData.budgetAmount) : "");
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent): void {
@@ -60,11 +58,10 @@ export function BudgetFormDialog({
       return;
     }
 
-    const cents = Math.round(parsed * 100);
     onSubmit({
       categoryId: Number(categoryId),
       month: currentMonth,
-      amount: cents,
+      amount: parsed,
     });
   }
 

@@ -71,14 +71,14 @@ describe("ErrorResponseSchema", () => {
 
 describe("CreateTransactionSchema", () => {
   const valid = {
-    amount: 1210,
+    amount: 12.1,
     description: "Coffee",
     date: "2026-03-17",
   };
 
   it("parses a minimal valid transaction", () => {
     const result = CreateTransactionSchema.parse(valid);
-    expect(result.amount).toBe(1210);
+    expect(result.amount).toBe(12.1);
     expect(result.type).toBe("expense"); // default
   });
 
@@ -104,12 +104,13 @@ describe("CreateTransactionSchema", () => {
   });
 
   it("allows negative amount (signed transfers)", () => {
-    const result = CreateTransactionSchema.parse({ ...valid, amount: -100, type: "transfer" });
-    expect(result.amount).toBe(-100);
+    const result = CreateTransactionSchema.parse({ ...valid, amount: -1, type: "transfer" });
+    expect(result.amount).toBe(-1);
   });
 
-  it("rejects decimal amount", () => {
-    expect(() => CreateTransactionSchema.parse({ ...valid, amount: 12.5 })).toThrow();
+  it("accepts decimal amount", () => {
+    const result = CreateTransactionSchema.parse({ ...valid, amount: 12.5 });
+    expect(result.amount).toBe(12.5);
   });
 
   it("rejects empty description", () => {
@@ -133,8 +134,8 @@ describe("UpdateTransactionSchema", () => {
   });
 
   it("accepts partial update", () => {
-    const result = UpdateTransactionSchema.parse({ amount: 500, description: "Updated" });
-    expect(result.amount).toBe(500);
+    const result = UpdateTransactionSchema.parse({ amount: 5, description: "Updated" });
+    expect(result.amount).toBe(5);
     expect(result.description).toBe("Updated");
   });
 
@@ -150,7 +151,7 @@ describe("UpdateTransactionSchema", () => {
 });
 
 describe("CreateTransactionsBatchSchema", () => {
-  const tx = { amount: 100, description: "Item", date: "2026-03-17" };
+  const tx = { amount: 1, description: "Item", date: "2026-03-17" };
 
   it("accepts an array of transactions", () => {
     const result = CreateTransactionsBatchSchema.parse({ transactions: [tx, tx] });
@@ -180,8 +181,8 @@ describe("ListTransactionsSchema", () => {
       dateFrom: "2026-01-01",
       dateTo: "2026-03-31",
       categoryId: 2,
-      amountMin: 100,
-      amountMax: 5000,
+      amountMin: 1,
+      amountMax: 50,
       merchant: "REWE",
       search: "groceries",
       tags: ["food"],
@@ -288,13 +289,13 @@ describe("MergeCategoriesSchema", () => {
 // ─── Budgets ──────────────────────────────────────────────────────────────────
 
 describe("SetBudgetSchema", () => {
-  const valid = { categoryId: 1, month: "2026-03", amount: 50000 };
+  const valid = { categoryId: 1, month: "2026-03", amount: 500 };
 
   it("parses valid budget", () => {
     const result = SetBudgetSchema.parse(valid);
     expect(result.categoryId).toBe(1);
     expect(result.month).toBe("2026-03");
-    expect(result.amount).toBe(50000);
+    expect(result.amount).toBe(500);
   });
 
   it("rejects invalid month format", () => {
@@ -333,7 +334,7 @@ describe("ResetBudgetsSchema", () => {
 
 describe("CreateRecurringSchema", () => {
   const valid = {
-    amount: 9900,
+    amount: 99,
     description: "Netflix",
     frequency: "monthly",
     startDate: "2026-01-01",

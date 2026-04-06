@@ -25,11 +25,11 @@ beforeEach(() => {
 describe("resolvePrice", () => {
   it("returns user price when asset_prices entry exists near date", () => {
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
-    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: "2026-03-20T10:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 350, recordedAt: "2026-03-20T10:00:00Z" });
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
-    expect(result!.price).toBe(35000);
+    expect(result!.price).toBe(350);
     expect(result!.source).toBe("user");
   });
 
@@ -44,7 +44,7 @@ describe("resolvePrice", () => {
     db.insert(marketPrices)
       .values({
         symbol: "bitcoin",
-        price: "80000.50",
+        price: 80000.5,
         currency: "EUR",
         date: "2026-03-20",
         provider: "coingecko",
@@ -53,7 +53,7 @@ describe("resolvePrice", () => {
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
-    expect(result!.price).toBe(8000050); // 80000.50 * 100
+    expect(result!.price).toBe(80000.5);
     expect(result!.source).toBe("market");
   });
 
@@ -65,11 +65,11 @@ describe("resolvePrice", () => {
       symbolMap: { coingecko: "bitcoin" },
     });
 
-    priceService.record(asset.id, { pricePerUnit: 9000000, recordedAt: "2026-03-20T12:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 90000, recordedAt: "2026-03-20T12:00:00Z" });
     db.insert(marketPrices)
       .values({
         symbol: "bitcoin",
-        price: "80000",
+        price: 80000,
         currency: "EUR",
         date: "2026-03-20",
         provider: "coingecko",
@@ -78,31 +78,31 @@ describe("resolvePrice", () => {
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result!.source).toBe("user");
-    expect(result!.price).toBe(9000000);
+    expect(result!.price).toBe(90000);
   });
 
   it("uses buy-time price snapshot when no later user prices exist", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
-    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 10000, date: "2026-01-15" });
+    lotService.buy(asset.id, { quantity: 5, pricePerUnit: 100, date: "2026-01-15" });
 
     // buy() records a price snapshot, so the user price persists forward
     const result = resolvePrice(db, asset, "2026-06-15");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("user");
-    expect(result!.price).toBe(10000);
+    expect(result!.price).toBe(100);
   });
 
   it("falls back to lot cost basis when no user prices exist", () => {
     const asset = assetService.create({ name: "ETF", type: "investment", currency: "EUR" });
     // Create a lot directly without a price snapshot
     db.insert(assetLots)
-      .values({ assetId: asset.id, quantity: 5, pricePerUnit: 10000, date: "2026-01-15" })
+      .values({ assetId: asset.id, quantity: 5, pricePerUnit: 100, date: "2026-01-15" })
       .run();
 
     const result = resolvePrice(db, asset, "2026-06-15");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("lot");
-    expect(result!.price).toBe(10000);
+    expect(result!.price).toBe(100);
   });
 
   it("returns deposit identity for deposit assets with no other prices", () => {
@@ -110,7 +110,7 @@ describe("resolvePrice", () => {
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
-    expect(result!.price).toBe(100);
+    expect(result!.price).toBe(1);
     expect(result!.source).toBe("deposit");
   });
 
@@ -132,7 +132,7 @@ describe("resolvePrice", () => {
     db.insert(marketPrices)
       .values({
         symbol: "bitcoin",
-        price: "75000",
+        price: 75000,
         currency: "EUR",
         date: "2026-03-15",
         provider: "coingecko",
@@ -142,7 +142,7 @@ describe("resolvePrice", () => {
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
-    expect(result!.price).toBe(7500000);
+    expect(result!.price).toBe(75000);
   });
 
   it("uses cached price regardless of which provider stored it", () => {
@@ -157,7 +157,7 @@ describe("resolvePrice", () => {
     db.insert(marketPrices)
       .values({
         symbol: "bitcoin",
-        price: "99999",
+        price: 99999,
         currency: "EUR",
         date: "2026-03-20",
         provider: "alpha-vantage",
@@ -166,7 +166,7 @@ describe("resolvePrice", () => {
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result?.source).toBe("market");
-    expect(result?.price).toBe(9999900); // 99999 * 100
+    expect(result?.price).toBe(99999);
   });
 
   it("iterates multiple symbols in symbolMap", () => {
@@ -181,7 +181,7 @@ describe("resolvePrice", () => {
     db.insert(marketPrices)
       .values({
         symbol: "BTC",
-        price: "82000",
+        price: 82000,
         currency: "EUR",
         date: "2026-03-20",
         provider: "alpha-vantage",
@@ -191,7 +191,7 @@ describe("resolvePrice", () => {
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
-    expect(result!.price).toBe(8200000);
+    expect(result!.price).toBe(82000);
   });
 
   it("resolves foreign currency deposit via market_prices", () => {
@@ -206,7 +206,7 @@ describe("resolvePrice", () => {
       .values({
         symbol: "USD",
         currency: "EUR",
-        price: "0.92",
+        price: 0.92,
         date: "2026-03-20",
         provider: "frankfurter",
       })
@@ -215,7 +215,7 @@ describe("resolvePrice", () => {
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
-    expect(result!.price).toBe(92); // 0.92 * 100
+    expect(result!.price).toBe(0.92);
   });
 
   it("exchange rate uses cached price regardless of provider", () => {
@@ -231,7 +231,7 @@ describe("resolvePrice", () => {
       .values({
         symbol: "USD",
         currency: "EUR",
-        price: "0.92",
+        price: 0.92,
         date: "2026-03-20",
         provider: "ecb",
       })
@@ -239,7 +239,7 @@ describe("resolvePrice", () => {
 
     const result = resolvePrice(db, asset, "2026-03-20");
     expect(result?.source).toBe("market");
-    expect(result?.price).toBe(92); // 0.92 * 100
+    expect(result?.price).toBe(0.92);
   });
 });
 
@@ -247,11 +247,11 @@ describe("resolvePrice (no date — defaults to today)", () => {
   it("returns latest user price when available", () => {
     const today = isoToday();
     const asset = assetService.create({ name: "SPX", type: "investment", currency: "EUR" });
-    priceService.record(asset.id, { pricePerUnit: 30000, recordedAt: "2026-01-01T00:00:00Z" });
-    priceService.record(asset.id, { pricePerUnit: 35000, recordedAt: `${today}T00:00:00Z` });
+    priceService.record(asset.id, { pricePerUnit: 300, recordedAt: "2026-01-01T00:00:00Z" });
+    priceService.record(asset.id, { pricePerUnit: 350, recordedAt: `${today}T00:00:00Z` });
 
     const result = resolvePrice(db, asset);
-    expect(result!.price).toBe(35000);
+    expect(result!.price).toBe(350);
     expect(result!.source).toBe("user");
   });
 
@@ -267,7 +267,7 @@ describe("resolvePrice (no date — defaults to today)", () => {
     db.insert(marketPrices)
       .values({
         symbol: "bitcoin",
-        price: "85000",
+        price: 85000,
         currency: "EUR",
         date: today,
         provider: "coingecko",
@@ -277,7 +277,7 @@ describe("resolvePrice (no date — defaults to today)", () => {
     const result = resolvePrice(db, asset);
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
-    expect(result!.price).toBe(8500000);
+    expect(result!.price).toBe(85000);
   });
 
   it("returns exchange rate for foreign currency deposit", () => {
@@ -293,7 +293,7 @@ describe("resolvePrice (no date — defaults to today)", () => {
       .values({
         symbol: "GBP",
         currency: "EUR",
-        price: "1.17",
+        price: 1.17,
         date: today,
         provider: "frankfurter",
       })
@@ -302,13 +302,13 @@ describe("resolvePrice (no date — defaults to today)", () => {
     const result = resolvePrice(db, asset);
     expect(result).not.toBeNull();
     expect(result!.source).toBe("market");
-    expect(result!.price).toBe(117); // 1.17 * 100
+    expect(result!.price).toBe(1.17);
   });
 
   it("returns deposit fallback for EUR deposits", () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
     const result = resolvePrice(db, asset);
-    expect(result!.price).toBe(100);
+    expect(result!.price).toBe(1);
     expect(result!.source).toBe("deposit");
   });
 

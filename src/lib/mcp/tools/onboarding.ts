@@ -75,7 +75,7 @@ export function registerOnboardingTools(server: McpServer): void {
     {
       description:
         "Add an existing asset holding during onboarding — 'I already own this.' " +
-        "For EUR deposits: pricePerUnit is always 100, quantity = EUR amount. " +
+        "For EUR deposits: pricePerUnit is always 1, quantity = EUR amount. " +
         "Use search_symbol first to get a symbolMap for automatic price tracking.",
       inputSchema: AddOpeningAssetSchema,
     },

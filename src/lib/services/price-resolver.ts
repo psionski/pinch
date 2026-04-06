@@ -14,7 +14,6 @@ const BASE_CURRENCY = "EUR";
 export type PriceSource = "user" | "market" | "lot" | "deposit";
 
 export interface ResolvedPrice {
-  /** Price in cents. */
   price: number;
   source: PriceSource;
 }
@@ -27,7 +26,7 @@ export interface ResolvedPrice {
  * it defaults to today, so CRUD and reporting paths behave identically.
  *
  * Resolution order:
- * 1. Deposit identity — EUR deposits: price is always 1 (100 cents), no DB needed
+ * 1. Deposit identity — EUR deposits: price is always 1, no DB needed
  * 2. User override — asset_prices entry
  * 3. Provider data — for each (provider, symbol) in symbolMap, look up market_prices.
  *    This covers crypto, stocks, AND exchange rates (all stored in one table).
@@ -38,7 +37,7 @@ export function resolvePrice(db: Db, asset: AssetResponse, date?: string): Resol
   const effectiveDate = date ?? isoToday();
   // Step 1: Deposit identity — EUR deposits are always €1/unit, skip SQL
   if (asset.type === "deposit" && asset.currency === BASE_CURRENCY) {
-    return { price: 100, source: "deposit" };
+    return { price: 1, source: "deposit" };
   }
 
   // Step 2: User override
@@ -52,12 +51,12 @@ export function resolvePrice(db: Db, asset: AssetResponse, date?: string): Resol
 
       // Try with asset's own currency first (crypto/stocks priced in that currency)
       const mp = findCachedPrice(db, symbol, asset.currency, effectiveDate);
-      if (mp) return { price: Math.round(parseFloat(mp.price) * 100), source: "market" };
+      if (mp) return { price: mp.price, source: "market" };
 
       // Try with base currency (exchange rates: symbol=USD, currency=EUR)
       if (asset.currency !== BASE_CURRENCY) {
         const xr = findCachedPrice(db, symbol, BASE_CURRENCY, effectiveDate);
-        if (xr) return { price: Math.round(parseFloat(xr.price) * 100), source: "market" };
+        if (xr) return { price: xr.price, source: "market" };
       }
     }
   }

@@ -70,8 +70,8 @@ function buildTree(categories: CategoryWithCountResponse[]): TreeNode[] {
   return roots;
 }
 
-function formatAmount(cents: number): string {
-  return (cents / 100).toFixed(2);
+function formatAmount(amount: number): string {
+  return amount.toFixed(2);
 }
 
 function BudgetBar({ spent, budget }: { spent: number; budget: number }): React.ReactElement {

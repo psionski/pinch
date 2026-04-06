@@ -164,8 +164,8 @@ describe("getPrice — provider fallback", () => {
 
 describe("convert", () => {
   it("converts same currency with no API call", async () => {
-    const result = await service.convert(1000, "EUR", "EUR", {});
-    expect(result?.converted).toBe(1000);
+    const result = await service.convert(10, "EUR", "EUR", {});
+    expect(result?.converted).toBe(10);
     expect(result?.rate).toBe(1);
   });
 
@@ -174,8 +174,8 @@ describe("convert", () => {
     const db = makeTestDb();
     const svc = new FinancialDataService(db, new SettingsService(db), mockFactory(provider));
 
-    const result = await svc.convert(10000, "USD", "EUR", { frankfurter: "USD" }, "2026-01-15");
-    expect(result?.converted).toBe(9200); // 10000 * 0.92
+    const result = await svc.convert(100, "USD", "EUR", { frankfurter: "USD" }, "2026-01-15");
+    expect(result?.converted).toBe(92); // 100 * 0.92
     expect(result?.rate).toBeCloseTo(0.92);
   });
 
@@ -184,7 +184,7 @@ describe("convert", () => {
     const db = makeTestDb();
     const svc = new FinancialDataService(db, new SettingsService(db), mockFactory(failProvider));
 
-    const result = await svc.convert(1000, "USD", "EUR", { frankfurter: "USD" });
+    const result = await svc.convert(10, "USD", "EUR", { frankfurter: "USD" });
     expect(result).toBeNull();
   });
 });
@@ -385,7 +385,7 @@ describe("ensurePriceHistory", () => {
     // Pre-populate cache with 3 out of 3 days (100% > 80%)
     for (const d of ["2026-03-01", "2026-03-02", "2026-03-03"]) {
       db.insert(schema.marketPrices)
-        .values({ symbol: "USD", currency: "EUR", price: "0.92", date: d, provider: "frankfurter" })
+        .values({ symbol: "USD", currency: "EUR", price: 0.92, date: d, provider: "frankfurter" })
         .run();
     }
 
@@ -423,7 +423,7 @@ describe("ensurePriceHistory", () => {
       .values({
         symbol: "USD",
         currency: "EUR",
-        price: "0.90",
+        price: 0.9,
         date: "2026-03-01",
         provider: "frankfurter",
       })

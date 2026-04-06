@@ -39,14 +39,14 @@ export function IncomeExpensesCard({
   const chartData = useMemo((): MergedPoint[] => {
     const map = new Map<string, MergedPoint>();
     for (const p of incomeTrend) {
-      map.set(p.month, { month: p.month, income: p.total / 100, expenses: 0 });
+      map.set(p.month, { month: p.month, income: p.total, expenses: 0 });
     }
     for (const p of expenseTrend) {
       const existing = map.get(p.month);
       if (existing) {
-        existing.expenses = p.total / 100;
+        existing.expenses = p.total;
       } else {
-        map.set(p.month, { month: p.month, income: 0, expenses: p.total / 100 });
+        map.set(p.month, { month: p.month, income: 0, expenses: p.total });
       }
     }
     return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
@@ -105,9 +105,10 @@ export function IncomeExpensesCard({
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value) =>
-                      `€${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`
-                    }
+                    formatter={(value, name) => {
+                      const label = chartConfig[name as keyof typeof chartConfig]?.label ?? name;
+                      return `${label}: €${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
+                    }}
                     labelFormatter={formatMonth}
                   />
                 }
