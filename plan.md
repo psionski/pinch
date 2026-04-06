@@ -310,12 +310,12 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 ### Sprint 25: Documentation & Project Files
 **Goal:** Make this a proper public open-source project.
 
-- [ ] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
-- [ ] LICENSE file (choose an appropriate open-source license)
-- [ ] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
-- [ ] API documentation — REST endpoints and MCP tools (in README or `docs/`)
-- [ ] Extend MCP `instructions` field: Add explicit behavioral prompts (e.g., "If unsure about categorization, ask the user and remember the decision for next time").
-- [ ] Verify .gitignore, .env.example, and any other dotfiles are in order
+- [x] README.md — project overview, feature list, screenshots/demo, tech stack, quick start guide, usage instructions
+- [x] LICENSE file — AGPL-3.0-or-later
+- [x] CONTRIBUTING.md — dev setup, how to run tests, coding standards, PR workflow
+- [x] API documentation — REST endpoints (Swagger at `/api-docs`) and MCP tools (`get_started` tool) referenced in README
+- [x] Extend MCP `instructions` field: Added behavioral prompts for categorization, budget alerts, recurring suggestions, data quality
+- [x] Verify .gitignore, .env.example, and any other dotfiles are in order
 
 **Done when:** A developer can clone the repo, read the README, and get running. Project looks professional on GitHub.
 
