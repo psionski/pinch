@@ -447,7 +447,7 @@ describe("PortfolioService", async () => {
 describe("AssetLotService.createOpeningLot", async () => {
   it("creates a lot with no linked transaction", async () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    const lot = lotService.createOpeningLot(asset.id, {
+    const lot = await lotService.createOpeningLot(asset.id, {
       quantity: 5000,
       pricePerUnit: 1,
       date: "2026-03-20",
@@ -461,7 +461,7 @@ describe("AssetLotService.createOpeningLot", async () => {
 
   it("records a price snapshot when pricePerUnit > 0", async () => {
     const asset = assetService.create({ name: "BTC", type: "crypto", currency: "EUR" });
-    lotService.createOpeningLot(asset.id, {
+    await lotService.createOpeningLot(asset.id, {
       quantity: 0.5,
       pricePerUnit: 50000,
       date: "2026-03-20",
@@ -476,7 +476,7 @@ describe("AssetLotService.createOpeningLot", async () => {
       type: "investment",
       currency: "EUR",
     });
-    lotService.createOpeningLot(asset.id, {
+    await lotService.createOpeningLot(asset.id, {
       quantity: 10,
       pricePerUnit: 0,
       date: "2026-03-20",
@@ -488,14 +488,14 @@ describe("AssetLotService.createOpeningLot", async () => {
   });
 
   it("throws for non-existent asset", async () => {
-    expect(() =>
+    await expect(
       lotService.createOpeningLot(9999, { quantity: 1, pricePerUnit: 1, date: "2026-03-20" })
-    ).toThrow("Asset 9999 not found");
+    ).rejects.toThrow("Asset 9999 not found");
   });
 
   it("opening lot contributes to holdings and cost basis", async () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
-    lotService.createOpeningLot(asset.id, {
+    await lotService.createOpeningLot(asset.id, {
       quantity: 3000,
       pricePerUnit: 1,
       date: "2026-03-20",

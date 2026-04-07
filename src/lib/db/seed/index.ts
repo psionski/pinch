@@ -145,6 +145,36 @@ async function seed(): Promise<void> {
     await db.insert(transactions).values(rows.slice(i, i + BATCH));
   }
 
+  // ── One foreign-currency demo transaction ──────────────────────────────────
+  // Surfaces the multi-currency UI tooltip on a fresh sample-data DB without
+  // requiring the user to create a foreign-currency transaction by hand. The
+  // FX rate is pre-cached in `market_prices` so the seed never depends on a
+  // live network call. Anchored to the most recent month so it shows up in the
+  // dashboard's "this month" view.
+  const fcDate = isoDate(lastMonth.year, lastMonth.month, Math.min(12, lastMonth.lastDay));
+  const fcRate = 1.18; // 1 GBP ≈ 1.18 EUR — illustrative, not live
+  const fcNative = 4.5; // £4.50 airport coffee
+  const fcBase = Math.round(fcNative * fcRate * 100) / 100;
+  await db.insert(marketPrices).values({
+    symbol: "GBP",
+    currency: "EUR",
+    price: fcRate,
+    date: fcDate,
+    provider: "frankfurter",
+  });
+  await db.insert(transactions).values({
+    amount: fcNative,
+    currency: "GBP",
+    amountBase: fcBase,
+    type: "expense",
+    description: "Airport coffee in London",
+    merchant: "Heathrow Costa",
+    categoryId: catIds.Coffee,
+    date: fcDate,
+    tags: JSON.stringify(["travel", "coffee"]),
+  });
+  seedLogger.info(`  Added 1 GBP demo transaction (£${fcNative} ≈ €${fcBase.toFixed(2)}).`);
+
   // ── Budgets ─────────────────────────────────────────────────────────────
   seedLogger.info("Generating budgets...");
   const budgetRows = generateBudgets(allTxs, catIds, months);

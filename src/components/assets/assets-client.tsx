@@ -28,7 +28,8 @@ const TYPE_LABELS: Record<string, string> = {
 
 function SummaryCards({ portfolio }: { portfolio: PortfolioResponse }): React.ReactElement {
   const { netWorth, cashBalance, totalAssetValue, pnl } = portfolio;
-  const totalInvested = portfolio.assets.reduce((s, a) => s + a.costBasis, 0);
+  // Sum the base-currency cost basis so cross-currency assets aggregate correctly.
+  const totalInvested = portfolio.assets.reduce((s, a) => s + a.costBasisBase, 0);
   const pnlPct = totalInvested > 0 && pnl !== null ? (pnl / totalInvested) * 100 : null;
 
   return (
@@ -256,17 +257,43 @@ export function AssetsClient({ initialAssets, portfolio }: AssetsClientProps): R
                     </div>
                     <div className="text-muted-foreground flex justify-between">
                       <span>Cost basis</span>
-                      <span className="font-mono">{formatCurrency(asset.costBasis)}</span>
+                      <span
+                        className="font-mono"
+                        title={
+                          asset.currency !== undefined
+                            ? `≈ ${formatCurrency(asset.costBasisBase)} (base)`
+                            : undefined
+                        }
+                      >
+                        {formatCurrency(asset.costBasis, asset.currency)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Current value</span>
-                      <span className="font-mono font-medium">
-                        {asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}
+                      <span
+                        className="font-mono font-medium"
+                        title={
+                          asset.currentValueBase !== null
+                            ? `≈ ${formatCurrency(asset.currentValueBase)} (base)`
+                            : undefined
+                        }
+                      >
+                        {asset.currentValue !== null
+                          ? formatCurrency(asset.currentValue, asset.currency)
+                          : "—"}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">P&amp;L</span>
-                      <PnlDisplay pnl={asset.pnl} size="sm" />
+                      <PnlDisplay
+                        pnl={asset.pnlBase}
+                        size="sm"
+                        title={
+                          asset.pnl !== null
+                            ? `Native: ${asset.pnl >= 0 ? "+" : ""}${formatCurrency(asset.pnl, asset.currency)}`
+                            : undefined
+                        }
+                      />
                     </div>
                   </div>
 

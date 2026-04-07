@@ -93,8 +93,8 @@ export default function DashboardPage(): React.ReactElement {
 
       <section data-tour="spending-section">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <SpendingTrendChart data={trends} />
-          <CategoryDonutChart data={breakdown} monthLabel={monthLabel} />
+          <SpendingTrendChart data={trends.points} />
+          <CategoryDonutChart data={breakdown.items} monthLabel={monthLabel} />
         </div>
       </section>
 

@@ -9,6 +9,8 @@ import {
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { assets, assetLots, transactions } from "@/lib/db/schema";
 import { resolvePrice } from "./price-resolver";
+import { findCachedFxRate } from "./fx-cache";
+import { getBaseCurrency } from "@/lib/format";
 import {
   type Db,
   parseAssetRow,
@@ -149,11 +151,16 @@ export class PortfolioReportService {
     const allAssets = this.db.select().from(assets).all().map(parseAssetRow);
     const today = isoToday();
     const evalDate = to ?? today;
+    const baseCurrency = getBaseCurrency();
 
     return allAssets
       .map((asset) => {
         const holdings = getHoldingsAtDate(this.db, asset.id, evalDate);
-        const { costBasis, earliestDate } = getCostBasisAtDate(this.db, asset.id, evalDate);
+        const { costBasis, costBasisBase, earliestDate } = getCostBasisAtDate(
+          this.db,
+          asset.id,
+          evalDate
+        );
 
         if (costBasis === 0 && holdings <= 0) return null;
 
@@ -162,6 +169,40 @@ export class PortfolioReportService {
         const currentValue = Math.round(holdings * resolved.price * 100) / 100;
         const pnl = Math.round((currentValue - costBasis) * 100) / 100;
         const pnlPct = costBasis > 0 ? Math.round((pnl / costBasis) * 10000) / 100 : 0;
+
+        // Convert current value to base currency. For base-currency assets the
+        // FX rate is 1 and there's no decomposition to do. For foreign assets
+        // we look up the most recent cached rate; if missing, base-side numbers
+        // become null but the native-side numbers still render.
+        let currentValueBase: number | null;
+        let pnlBase: number | null;
+        let pricePnlBase: number | null;
+        let fxPnlBase: number | null;
+
+        if (asset.currency === baseCurrency) {
+          currentValueBase = currentValue;
+          pnlBase = pnl;
+          pricePnlBase = pnl;
+          fxPnlBase = 0;
+        } else {
+          const currentRate = findCachedFxRate(this.db, asset.currency, baseCurrency, evalDate);
+          if (currentRate === null) {
+            currentValueBase = null;
+            pnlBase = null;
+            pricePnlBase = null;
+            fxPnlBase = null;
+          } else {
+            currentValueBase = Math.round(currentValue * currentRate * 100) / 100;
+            pnlBase = Math.round((currentValueBase - costBasisBase) * 100) / 100;
+            // Decompose total base P&L into "asset price moved" vs "FX moved":
+            //   pricePnlBase = (currentNative − costNative) × currentRate
+            //   fxPnlBase    = pnlBase − pricePnlBase
+            //                = costNative × (currentRate − historicalAvgRate)
+            // where historicalAvgRate is implicit in costBasisBase / costBasis.
+            pricePnlBase = Math.round((currentValue - costBasis) * currentRate * 100) / 100;
+            fxPnlBase = Math.round((pnlBase - pricePnlBase) * 100) / 100;
+          }
+        }
 
         const daysHeld = earliestDate ? Math.max(1, daysBetween(earliestDate, evalDate)) : 0;
 
@@ -177,8 +218,13 @@ export class PortfolioReportService {
           type: asset.type as string,
           currency: asset.currency,
           costBasis,
+          costBasisBase,
           currentValue,
+          currentValueBase,
           pnl,
+          pnlBase,
+          pricePnlBase,
+          fxPnlBase,
           pnlPct,
           annualizedReturn,
           daysHeld,
@@ -282,6 +328,7 @@ export class PortfolioReportService {
         .select({
           quantity: assetLots.quantity,
           pricePerUnit: assetLots.pricePerUnit,
+          pricePerUnitBase: assetLots.pricePerUnitBase,
           date: assetLots.date,
         })
         .from(assetLots)
@@ -289,7 +336,7 @@ export class PortfolioReportService {
         .orderBy(asc(assetLots.date), asc(assetLots.id))
         .all();
 
-      const buyQueue: Array<{ qty: number; price: number }> = [];
+      const buyQueue: Array<{ qty: number; price: number; priceBase: number }> = [];
       let totalSold = 0;
       let proceeds = 0;
       let costOfSold = 0;
@@ -305,12 +352,16 @@ export class PortfolioReportService {
         }
 
         if (lot.quantity > 0) {
-          buyQueue.push({ qty: lot.quantity, price: lot.pricePerUnit });
+          buyQueue.push({
+            qty: lot.quantity,
+            price: lot.pricePerUnit,
+            priceBase: lot.pricePerUnitBase,
+          });
         } else {
           const toConsume = -lot.quantity;
           proceeds += Math.round(toConsume * lot.pricePerUnit * 100) / 100;
           totalSold += toConsume;
-          costOfSold += consumeFifo(buyQueue, toConsume);
+          costOfSold += consumeFifo(buyQueue, toConsume).cost;
         }
       }
 

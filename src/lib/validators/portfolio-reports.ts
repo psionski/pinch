@@ -43,11 +43,37 @@ export const AssetPerformanceItemSchema = z.object({
   assetId: z.number().int(),
   name: z.string(),
   type: z.string(),
-  currency: z.string(),
-  costBasis: z.number(),
-  currentValue: z.number(),
-  pnl: z.number(),
-  pnlPct: z.number(),
+  currency: z.string().describe("ISO 4217 of the asset itself (its native currency)"),
+  costBasis: z.number().describe("FIFO cost basis in the asset's native currency"),
+  costBasisBase: z.number().describe("FIFO cost basis converted to the configured base currency"),
+  currentValue: z.number().describe("Holdings × latest price, in the asset's native currency"),
+  currentValueBase: z
+    .number()
+    .nullable()
+    .describe(
+      "Holdings × latest price × current FX rate, in base currency. " +
+        "Null when no current FX rate is cached for foreign-currency assets."
+    ),
+  pnl: z.number().describe("currentValue − costBasis in the asset's native currency"),
+  pnlBase: z
+    .number()
+    .nullable()
+    .describe("Total P&L in base currency. Null when currentValueBase is null."),
+  pricePnlBase: z
+    .number()
+    .nullable()
+    .describe(
+      "Component of pnlBase attributable to the asset's price moving (in its native currency), " +
+        "valued at the current FX rate. Equals pnlBase for base-currency assets."
+    ),
+  fxPnlBase: z
+    .number()
+    .nullable()
+    .describe(
+      "Component of pnlBase attributable to FX rate changes between cost and current dates. " +
+        "Always 0 for base-currency assets. pricePnlBase + fxPnlBase = pnlBase."
+    ),
+  pnlPct: z.number().describe("pnl ÷ costBasis × 100, in native currency"),
   annualizedReturn: z.number().nullable(),
   daysHeld: z.number().int(),
 });

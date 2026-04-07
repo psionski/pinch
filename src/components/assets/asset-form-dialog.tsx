@@ -59,9 +59,22 @@ export function AssetFormDialog({
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState<string>(initialData?.type ?? "deposit");
   const [currency, setCurrency] = useState(initialData?.currency ?? "EUR");
+  const [currencyDirty, setCurrencyDirty] = useState(false);
   const [symbolMap, setSymbolMap] = useState<SymbolMap>(initSymbolMap(initialData));
   const [icon, setIcon] = useState(initialData?.icon ?? "");
   const [error, setError] = useState("");
+
+  /**
+   * Auto-fill the currency field from a symbol search result, but only if the
+   * user hasn't manually typed in the field yet. Cross-listed instruments
+   * (SHEL on LSE in GBP vs NYSE in USD) keep the field editable so the user
+   * can override.
+   */
+  function handleCurrencyHint(hinted: string): void {
+    if (!isEdit && !currencyDirty) {
+      setCurrency(hinted.toUpperCase());
+    }
+  }
 
   function handleSubmit(e: React.FormEvent): void {
     e.preventDefault();
@@ -119,11 +132,14 @@ export function AssetFormDialog({
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="asset-currency">Base currency</Label>
+            <Label htmlFor="asset-currency">Currency</Label>
             <Input
               id="asset-currency"
               value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setCurrency(e.target.value.toUpperCase());
+                setCurrencyDirty(true);
+              }}
               placeholder="EUR"
               maxLength={10}
               disabled={loading}
@@ -139,6 +155,7 @@ export function AssetFormDialog({
               <SymbolSearch
                 value={symbolMap}
                 onChange={setSymbolMap}
+                onCurrencyHint={handleCurrencyHint}
                 disabled={loading}
                 assetType={type as AssetType}
               />

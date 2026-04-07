@@ -193,25 +193,26 @@ describe("getCategoryStats", async () => {
     await txService.create(tx({ amount: 7.5, categoryId: food.id }));
     await txService.create(tx({ amount: 2.5, categoryId: transport.id }));
 
-    const result = reports.getCategoryStats(
+    const { items, currency } = reports.getCategoryStats(
       catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
     );
-    const total = result.reduce((s, r) => s + r.percentage, 0);
+    expect(currency).toBe("EUR");
+    const total = items.reduce((s, r) => s + r.percentage, 0);
     expect(Math.round(total)).toBe(100);
-    const food_ = result.find((r) => r.categoryId === food.id);
+    const food_ = items.find((r) => r.categoryId === food.id);
     expect(food_?.percentage).toBe(75);
   });
 
   it("returns empty array when no transactions and includeZeroSpend is false", async () => {
-    const result = reports.getCategoryStats(
+    const { items } = reports.getCategoryStats(
       catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
     );
-    expect(result).toHaveLength(0);
+    expect(items).toHaveLength(0);
   });
 
   it("groups uncategorized transactions under null category", async () => {
     await txService.create(tx({ amount: 5 })); // no categoryId
-    const result = reports.getCategoryStats(
+    const { items } = reports.getCategoryStats(
       catStats({
         dateFrom: "2026-03-01",
         dateTo: "2026-03-31",
@@ -219,19 +220,19 @@ describe("getCategoryStats", async () => {
         includeUncategorized: true,
       })
     );
-    expect(result).toHaveLength(1);
-    expect(result[0].categoryId).toBeNull();
-    expect(result[0].percentage).toBe(100);
+    expect(items).toHaveLength(1);
+    expect(items[0].categoryId).toBeNull();
+    expect(items[0].percentage).toBe(100);
   });
 
   it("includes color and icon from category", async () => {
     const food = catService.create({ name: "Food", color: "#FF0000", icon: "🍕" });
     await txService.create(tx({ amount: 5, categoryId: food.id }));
 
-    const result = reports.getCategoryStats(
+    const { items } = reports.getCategoryStats(
       catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
     );
-    const foodItem = result.find((r) => r.categoryId === food.id);
+    const foodItem = items.find((r) => r.categoryId === food.id);
     expect(foodItem?.color).toBe("#FF0000");
     expect(foodItem?.icon).toBe("🍕");
   });
@@ -240,9 +241,9 @@ describe("getCategoryStats", async () => {
     catService.create({ name: "A" });
     catService.create({ name: "B" });
 
-    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
-    expect(result).toHaveLength(2);
-    expect(result.every((s) => s.total === 0 && s.count === 0)).toBe(true);
+    const { items } = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    expect(items).toHaveLength(2);
+    expect(items.every((s) => s.total === 0 && s.count === 0)).toBe(true);
   });
 
   it("computes total spend from expense transactions in the given month", async () => {
@@ -252,8 +253,8 @@ describe("getCategoryStats", async () => {
     // Different month — should not count
     await txService.create(tx({ categoryId: cat.id, amount: 9.99, date: "2026-02-28" }));
 
-    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
-    const foodStats = result.find((s) => s.categoryId === cat.id);
+    const { items } = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const foodStats = items.find((s) => s.categoryId === cat.id);
     expect(foodStats?.total).toBe(8);
     expect(foodStats?.count).toBe(2);
   });
@@ -265,8 +266,8 @@ describe("getCategoryStats", async () => {
     );
     await txService.create(tx({ categoryId: cat.id, amount: 2, date: "2026-03-01" })); // expense
 
-    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
-    const salaryStats = result.find((s) => s.categoryId === cat.id);
+    const { items } = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const salaryStats = items.find((s) => s.categoryId === cat.id);
     expect(salaryStats?.total).toBe(2);
     expect(salaryStats?.count).toBe(1);
   });
@@ -279,8 +280,8 @@ describe("getCategoryStats", async () => {
     const marchStats = reports.getCategoryStats(catStats({ month: "2026-03" }));
     const aprilStats = reports.getCategoryStats(catStats({ month: "2026-04" }));
 
-    expect(marchStats.find((s) => s.categoryId === cat.id)?.total).toBe(1);
-    expect(aprilStats.find((s) => s.categoryId === cat.id)?.total).toBe(2);
+    expect(marchStats.items.find((s) => s.categoryId === cat.id)?.total).toBe(1);
+    expect(aprilStats.items.find((s) => s.categoryId === cat.id)?.total).toBe(2);
   });
 
   it("rollup includes parent's own spend plus all children", async () => {
@@ -292,8 +293,8 @@ describe("getCategoryStats", async () => {
     await txService.create(tx({ categoryId: child1.id, amount: 5, date: "2026-03-01" }));
     await txService.create(tx({ categoryId: child2.id, amount: 3, date: "2026-03-01" }));
 
-    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
-    const parentStats = result.find((s) => s.categoryId === parent.id);
+    const { items } = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const parentStats = items.find((s) => s.categoryId === parent.id);
 
     expect(parentStats?.total).toBe(1);
     expect(parentStats?.count).toBe(1);
@@ -307,8 +308,8 @@ describe("getCategoryStats", async () => {
 
     await txService.create(tx({ categoryId: child.id, amount: 5, date: "2026-03-01" }));
 
-    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
-    const childStats = result.find((s) => s.categoryId === child.id);
+    const { items } = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const childStats = items.find((s) => s.categoryId === child.id);
 
     expect(childStats?.total).toBe(5);
     expect(childStats?.rollupTotal).toBe(5);
@@ -323,11 +324,11 @@ describe("getCategoryStats", async () => {
     await txService.create(tx({ categoryId: parent.id, amount: 2, date: "2026-03-01" }));
     await txService.create(tx({ categoryId: child.id, amount: 3, date: "2026-03-01" }));
 
-    const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
+    const { items } = reports.getCategoryStats(catStats({ month: "2026-03" }));
 
-    expect(result.find((s) => s.categoryId === grandparent.id)?.rollupTotal).toBe(6);
-    expect(result.find((s) => s.categoryId === parent.id)?.rollupTotal).toBe(5);
-    expect(result.find((s) => s.categoryId === child.id)?.rollupTotal).toBe(3);
+    expect(items.find((s) => s.categoryId === grandparent.id)?.rollupTotal).toBe(6);
+    expect(items.find((s) => s.categoryId === parent.id)?.rollupTotal).toBe(5);
+    expect(items.find((s) => s.categoryId === child.id)?.rollupTotal).toBe(3);
   });
 });
 
@@ -388,13 +389,14 @@ describe("getBudgetStats", async () => {
 
 describe("trends", async () => {
   it("returns N month data points", async () => {
-    const result = reports.trends(TrendsSchema.parse({ months: 3 }));
-    expect(result).toHaveLength(3);
+    const { points, currency } = reports.trends(TrendsSchema.parse({ months: 3 }));
+    expect(points).toHaveLength(3);
+    expect(currency).toBe("EUR");
   });
 
   it("returns 6 months by default", async () => {
-    const result = reports.trends(TrendsSchema.parse({}));
-    expect(result).toHaveLength(6);
+    const { points } = reports.trends(TrendsSchema.parse({}));
+    expect(points).toHaveLength(6);
   });
 
   it("sums transactions correctly for each month", async () => {
@@ -402,9 +404,9 @@ describe("trends", async () => {
     await txService.create(tx({ amount: 2, date: "2026-03-15" }));
     await txService.create(tx({ amount: 0.5, date: "2026-02-10" }));
 
-    const result = reports.trends(TrendsSchema.parse({ months: 6 }));
-    const march = result.find((r) => r.month === "2026-03");
-    const feb = result.find((r) => r.month === "2026-02");
+    const { points } = reports.trends(TrendsSchema.parse({ months: 6 }));
+    const march = points.find((r) => r.month === "2026-03");
+    const feb = points.find((r) => r.month === "2026-02");
     expect(march?.total).toBe(3);
     expect(march?.count).toBe(2);
     expect(feb?.total).toBe(0.5);
@@ -415,8 +417,8 @@ describe("trends", async () => {
     await txService.create(tx({ amount: 5, categoryId: food.id, date: "2026-03-01" }));
     await txService.create(tx({ amount: 2, date: "2026-03-01" })); // different category
 
-    const result = reports.trends(TrendsSchema.parse({ months: 3, categoryId: food.id }));
-    const march = result.find((r) => r.month === "2026-03");
+    const { points } = reports.trends(TrendsSchema.parse({ months: 3, categoryId: food.id }));
+    const march = points.find((r) => r.month === "2026-03");
     expect(march?.total).toBe(5);
   });
 
@@ -427,17 +429,17 @@ describe("trends", async () => {
     );
 
     const expenses = reports.trends(TrendsSchema.parse({ months: 3, type: "expense" }));
-    const march = expenses.find((r) => r.month === "2026-03");
+    const march = expenses.points.find((r) => r.month === "2026-03");
     expect(march?.total).toBe(5);
 
     const income = reports.trends(TrendsSchema.parse({ months: 3, type: "income" }));
-    const marchIncome = income.find((r) => r.month === "2026-03");
+    const marchIncome = income.points.find((r) => r.month === "2026-03");
     expect(marchIncome?.total).toBe(30);
   });
 
   it("months are returned in ascending order", async () => {
-    const result = reports.trends(TrendsSchema.parse({ months: 4 }));
-    const months = result.map((r) => r.month);
+    const { points } = reports.trends(TrendsSchema.parse({ months: 4 }));
+    const months = points.map((r) => r.month);
     expect(months).toEqual([...months].sort());
   });
 });
@@ -521,43 +523,44 @@ describe("topMerchants", async () => {
   });
 
   it("returns merchants sorted by total descending", async () => {
-    const result = reports.topMerchants(
+    const { merchants, currency } = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
-    expect(result[0].merchant).toBe("ALDI");
-    expect(result[0].total).toBe(15);
-    expect(result[0].count).toBe(2);
+    expect(currency).toBe("EUR");
+    expect(merchants[0].merchant).toBe("ALDI");
+    expect(merchants[0].total).toBe(15);
+    expect(merchants[0].count).toBe(2);
   });
 
   it("excludes transactions without a merchant", async () => {
-    const result = reports.topMerchants(
+    const { merchants } = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
-    expect(result.every((r) => r.merchant !== null)).toBe(true);
-    expect(result).toHaveLength(2);
+    expect(merchants.every((r) => r.merchant !== null)).toBe(true);
+    expect(merchants).toHaveLength(2);
   });
 
   it("respects the limit parameter", async () => {
-    const result = reports.topMerchants(
+    const { merchants } = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31", limit: 1 })
     );
-    expect(result).toHaveLength(1);
-    expect(result[0].merchant).toBe("ALDI");
+    expect(merchants).toHaveLength(1);
+    expect(merchants[0].merchant).toBe("ALDI");
   });
 
   it("computes avgAmount correctly", async () => {
-    const result = reports.topMerchants(
+    const { merchants } = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
-    const aldi = result.find((r) => r.merchant === "ALDI");
+    const aldi = merchants.find((r) => r.merchant === "ALDI");
     expect(aldi?.avgAmount).toBe(7.5); // (10 + 5) / 2
   });
 
   it("returns all-time results when no dates are provided", async () => {
-    const result = reports.topMerchants(TopMerchantsSchema.parse({}));
-    expect(result).toHaveLength(2);
-    expect(result[0].merchant).toBe("ALDI");
-    expect(result[0].total).toBe(15);
+    const { merchants } = reports.topMerchants(TopMerchantsSchema.parse({}));
+    expect(merchants).toHaveLength(2);
+    expect(merchants[0].merchant).toBe("ALDI");
+    expect(merchants[0].total).toBe(15);
   });
 });
 
@@ -598,17 +601,17 @@ describe("transfer exclusion from spending reports", async () => {
   });
 
   it("trends type=all excludes transfers", async () => {
-    const result = reports.trends(TrendsSchema.parse({ months: 1, type: "all" }));
-    const march = result.find((r) => r.month === "2026-03");
+    const { points } = reports.trends(TrendsSchema.parse({ months: 1, type: "all" }));
+    const march = points.find((r) => r.month === "2026-03");
     expect(march?.total).toBe(150); // expense + income only
   });
 
   it("topMerchants excludes transfer transactions", async () => {
-    const result = reports.topMerchants(
+    const { merchants } = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31", type: "all" })
     );
     // Broker transaction is a transfer — should not appear
-    const broker = result.find((r) => r.merchant === "Broker");
+    const broker = merchants.find((r) => r.merchant === "Broker");
     expect(broker).toBeUndefined();
   });
 });

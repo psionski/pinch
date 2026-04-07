@@ -21,6 +21,7 @@ function parseLot(row: schema.AssetLot): AssetLotResponse {
     assetId: row.assetId,
     quantity: row.quantity,
     pricePerUnit: row.pricePerUnit,
+    pricePerUnitBase: row.pricePerUnitBase,
     date: row.date,
     transactionId: row.transactionId,
     notes: row.notes,
@@ -98,6 +99,10 @@ export class AssetLotService {
     const total = roundToCurrency(input.quantity * input.pricePerUnit, asset.currency);
     // FX conversion happens before the SQLite transaction (which must be sync).
     const totalBase = await this.toBase(total, asset.currency, input.date);
+    // Per-unit base price is pinned at lot creation. Derive it from totalBase
+    // so it's consistent with the synthetic transaction's amount_base — same
+    // FX call, same rate, no drift.
+    const pricePerUnitBase = totalBase / input.quantity;
 
     const verb = asset.type === "deposit" ? "Deposit" : "Buy";
     const description =
@@ -125,6 +130,7 @@ export class AssetLotService {
           assetId,
           quantity: input.quantity,
           pricePerUnit: input.pricePerUnit,
+          pricePerUnitBase,
           date: input.date,
           transactionId: txRow.id,
           notes: input.notes ?? null,
@@ -160,6 +166,9 @@ export class AssetLotService {
 
     const total = roundToCurrency(input.quantity * input.pricePerUnit, asset.currency);
     const totalBase = await this.toBase(total, asset.currency, input.date);
+    // Sells store the proceeds-per-unit in base for parity with buys; FIFO
+    // consumption uses the stored buy-side base price, not the sell.
+    const pricePerUnitBase = totalBase / input.quantity;
 
     const verb = asset.type === "deposit" ? "Withdraw" : "Sell";
     const description =
@@ -199,6 +208,7 @@ export class AssetLotService {
           assetId,
           quantity: -input.quantity,
           pricePerUnit: input.pricePerUnit,
+          pricePerUnitBase,
           date: input.date,
           transactionId: txRow.id,
           notes: input.notes ?? null,
@@ -213,17 +223,29 @@ export class AssetLotService {
   }
 
   /** Create an opening lot (no linked transaction) for onboarding — "I already own this." */
-  createOpeningLot(assetId: number, input: CreateOpeningLotInput): AssetLotResponse {
-    return this.db.transaction(() => {
-      const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
-      if (!asset) throw new Error(`Asset ${assetId} not found`);
+  async createOpeningLot(assetId: number, input: CreateOpeningLotInput): Promise<AssetLotResponse> {
+    const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
+    if (!asset) throw new Error(`Asset ${assetId} not found`);
 
+    // Compute base-currency cost outside the SQLite transaction (which is sync).
+    // For zero-cost opening lots ("I own this but don't know what I paid"),
+    // we don't need an FX rate at all — both numbers are zero.
+    const baseCurrency = getBaseCurrency();
+    let pricePerUnitBase = input.pricePerUnit;
+    if (input.pricePerUnit > 0 && asset.currency !== baseCurrency) {
+      const total = roundToCurrency(input.quantity * input.pricePerUnit, asset.currency);
+      const totalBase = await this.toBase(total, asset.currency, input.date);
+      pricePerUnitBase = totalBase / input.quantity;
+    }
+
+    return this.db.transaction(() => {
       const [lotRow] = this.db
         .insert(assetLots)
         .values({
           assetId,
           quantity: input.quantity,
           pricePerUnit: input.pricePerUnit,
+          pricePerUnitBase,
           date: input.date,
           transactionId: null,
           notes: input.notes ?? null,

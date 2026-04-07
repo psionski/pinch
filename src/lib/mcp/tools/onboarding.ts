@@ -79,7 +79,7 @@ export function registerOnboardingTools(server: McpServer): void {
         "Use search_symbol first to get a symbolMap for automatic price tracking.",
       inputSchema: AddOpeningAssetSchema,
     },
-    (input) => {
+    async (input) => {
       try {
         const date = input.date ?? isoToday();
 
@@ -116,7 +116,7 @@ export function registerOnboardingTools(server: McpServer): void {
           date,
           notes: input.notes,
         });
-        const lot = getAssetLotService().createOpeningLot(asset.id, lotInput);
+        const lot = await getAssetLotService().createOpeningLot(asset.id, lotInput);
 
         return ok({ asset, lot });
       } catch (e) {

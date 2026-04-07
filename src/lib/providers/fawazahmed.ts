@@ -83,6 +83,8 @@ export class FawazahmedProvider implements FinancialDataProvider {
         symbol: code.toUpperCase(),
         name,
         type: "currency",
+        // FX provider — the symbol *is* the listing currency.
+        currency: code.toUpperCase(),
       }));
   }
 

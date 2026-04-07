@@ -214,7 +214,8 @@ export const assetLots = sqliteTable(
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
     quantity: real("quantity").notNull(), // positive = buy/deposit, negative = sell/withdraw
-    pricePerUnit: real("price_per_unit").notNull(),
+    pricePerUnit: real("price_per_unit").notNull(), // native, in the asset's currency
+    pricePerUnitBase: real("price_per_unit_base").notNull().default(0), // converted to base currency at lot creation; constant for the life of the lot
     date: text("date").notNull(), // ISO 8601 date
     transactionId: integer("transaction_id").references(() => transactions.id, {
       onDelete: "set null",

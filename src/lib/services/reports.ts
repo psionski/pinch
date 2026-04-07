@@ -1,6 +1,7 @@
 import { Temporal } from "@js-temporal/polyfill";
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { getCurrentMonth } from "@/lib/date-ranges";
+import { getBaseCurrency } from "@/lib/format";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { transactions, categories, assetLots, assets } from "@/lib/db/schema";
@@ -19,6 +20,9 @@ import {
   type TrendPoint,
   type TopMerchant,
   type SpendingSummaryResult,
+  type CategoryStatsResult,
+  type TrendsResult,
+  type TopMerchantsResult,
   type NetIncomeResult,
   type CashBalanceResult,
   type TransferGroup,
@@ -261,10 +265,11 @@ export class ReportService {
       comparePeriod,
       groups,
       transfers,
+      currency: getBaseCurrency(),
     };
   }
 
-  getCategoryStats(input: CategoryStatsInput): CategorySpendingItem[] {
+  getCategoryStats(input: CategoryStatsInput): CategoryStatsResult {
     // Normalize date range
     let dateFrom: string;
     let dateTo: string;
@@ -378,12 +383,13 @@ export class ReportService {
     }
 
     items.sort((a, b) => b.rollupTotal - a.rollupTotal);
-    return items;
+    return { items, currency: getBaseCurrency() };
   }
 
   getBudgetStats(input: BudgetStatsInput): {
     items: BudgetStatsItem[];
     inheritedFrom: string | null;
+    currency: string;
   } {
     const stats = this.getCategoryStats({
       month: input.month,
@@ -394,15 +400,15 @@ export class ReportService {
 
     const { budgets: budgetMap, inheritedFrom } = getEffectiveBudgets(this.db, input.month);
 
-    const items = stats.map((s) => ({
+    const items = stats.items.map((s) => ({
       ...s,
       budgetAmount: s.categoryId !== null ? (budgetMap.get(s.categoryId) ?? null) : null,
     }));
 
-    return { items, inheritedFrom };
+    return { items, inheritedFrom, currency: stats.currency };
   }
 
-  trends(input: TrendsInput): TrendPoint[] {
+  trends(input: TrendsInput): TrendsResult {
     const currentMonth = getCurrentMonth();
     // Build month series with start/end dates so the LEFT JOIN uses
     // range comparisons (t.date >= … AND t.date < …) instead of
@@ -436,11 +442,12 @@ export class ReportService {
       `
     );
 
-    return rows.map((r) => ({
+    const points: TrendPoint[] = rows.map((r) => ({
       month: r.month,
       total: Number(r.total),
       count: Number(r.count),
     }));
+    return { points, currency: getBaseCurrency() };
   }
 
   netIncome(input: NetIncomeInput): NetIncomeResult {
@@ -473,6 +480,7 @@ export class ReportService {
       totalExpenses: expenses,
       netIncome: income - expenses,
       transactionCount: row?.count ?? 0,
+      currency: getBaseCurrency(),
     };
   }
 
@@ -504,10 +512,11 @@ export class ReportService {
       totalIncome: income,
       totalExpenses: expenses,
       totalTransfers: transfers,
+      currency: getBaseCurrency(),
     };
   }
 
-  topMerchants(input: TopMerchantsInput): TopMerchant[] {
+  topMerchants(input: TopMerchantsInput): TopMerchantsResult {
     const filters: SQL[] = [];
     if (input.dateFrom) filters.push(gte(transactions.date, input.dateFrom));
     if (input.dateTo) filters.push(lte(transactions.date, input.dateTo));
@@ -530,11 +539,12 @@ export class ReportService {
       .limit(input.limit)
       .all();
 
-    return rows.map((r) => ({
+    const merchants: TopMerchant[] = rows.map((r) => ({
       merchant: r.merchant!,
       total: r.total,
       count: r.count,
       avgAmount: Math.round(r.avgAmount * 100) / 100,
     }));
+    return { merchants, currency: getBaseCurrency() };
   }
 }

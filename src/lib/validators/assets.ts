@@ -66,9 +66,33 @@ export type AssetResponse = z.infer<typeof AssetResponseSchema>;
 
 export const AssetWithMetricsSchema = AssetResponseSchema.extend({
   currentHoldings: z.number(),
-  costBasis: z.number(),
-  currentValue: z.number().nullable(),
-  pnl: z.number().nullable(),
+  costBasis: z.number().describe("FIFO cost basis in the asset's native currency"),
+  costBasisBase: z
+    .number()
+    .describe(
+      "FIFO cost basis converted to the configured base currency. " +
+        "Each underlying lot was converted at its own creation-date FX rate, so this is " +
+        "stable across rate drifts."
+    ),
+  currentValue: z
+    .number()
+    .nullable()
+    .describe("Current value (currentHoldings × latestPrice) in the asset's native currency"),
+  currentValueBase: z
+    .number()
+    .nullable()
+    .describe(
+      "Current value converted to the base currency using the most recent cached FX rate. " +
+        "Null when no market FX rate is available within the 7-day lookback window."
+    ),
+  pnl: z.number().nullable().describe("currentValue − costBasis in the asset's native currency"),
+  pnlBase: z
+    .number()
+    .nullable()
+    .describe(
+      "currentValueBase − costBasisBase. The total P&L in base currency, including FX effects. " +
+        "Null when currentValueBase is null."
+    ),
   latestPrice: z.number().nullable(),
 });
 export type AssetWithMetrics = z.infer<typeof AssetWithMetricsSchema>;
@@ -162,7 +186,15 @@ export const AssetLotResponseSchema = z.object({
   id: z.number().int(),
   assetId: z.number().int(),
   quantity: z.number(),
-  pricePerUnit: z.number(),
+  pricePerUnit: z
+    .number()
+    .describe("Price per unit in the asset's native currency, captured at lot creation"),
+  pricePerUnitBase: z
+    .number()
+    .describe(
+      "Price per unit converted to the configured base currency at the FX rate on the lot date. " +
+        "Locked at lot creation so historical reports stay stable as provider rates drift."
+    ),
   date: z.string(),
   transactionId: z.number().int().nullable(),
   notes: z.string().nullable(),

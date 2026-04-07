@@ -56,6 +56,10 @@ export function AssetDetailClient({
   const unrealizedPnl =
     asset.pnl !== null && realizedPnl !== null ? asset.pnl - realizedPnl : asset.pnl;
 
+  // Realized P&L is recorded against transfer transactions whose amount is in
+  // the asset's native currency, so the unrealized derivation works in native
+  // units. The base-currency PnlDisplay below uses pnlBase directly.
+
   const showTrackingSection = asset.type !== "deposit" || asset.currency !== "EUR";
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -247,7 +251,12 @@ export function AssetDetailClient({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xl font-bold">{formatCurrency(asset.costBasis)}</p>
+            <p className="text-xl font-bold">{formatCurrency(asset.costBasis, asset.currency)}</p>
+            {asset.costBasisBase !== asset.costBasis && (
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                ≈ {formatCurrency(asset.costBasisBase)}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -258,8 +267,15 @@ export function AssetDetailClient({
           </CardHeader>
           <CardContent>
             <p className="text-xl font-bold">
-              {asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}
+              {asset.currentValue !== null
+                ? formatCurrency(asset.currentValue, asset.currency)
+                : "—"}
             </p>
+            {asset.currentValueBase !== null && asset.currentValueBase !== asset.currentValue && (
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                ≈ {formatCurrency(asset.currentValueBase)}
+              </p>
+            )}
             {asset.latestPrice !== null && (
               <p className="text-muted-foreground mt-0.5 text-xs">
                 @ {formatPrice(asset.latestPrice)} {asset.currency}
@@ -275,7 +291,14 @@ export function AssetDetailClient({
           </CardHeader>
           <CardContent className="space-y-1">
             <p className="text-xl font-bold">
-              <PnlDisplay pnl={asset.pnl} />
+              <PnlDisplay
+                pnl={asset.pnl}
+                title={
+                  asset.pnlBase !== null && asset.pnlBase !== asset.pnl
+                    ? `≈ ${asset.pnlBase >= 0 ? "+" : ""}${formatCurrency(asset.pnlBase)} (base)`
+                    : undefined
+                }
+              />
             </p>
             <div className="space-y-0.5 text-sm">
               <div className="flex justify-between">
@@ -384,7 +407,7 @@ export function AssetDetailClient({
                 </strong>{" "}
                 in holdings
                 {asset.currentValue !== null && (
-                  <> (valued at {formatCurrency(asset.currentValue)})</>
+                  <> (valued at {formatCurrency(asset.currentValue, asset.currency)})</>
                 )}
                 .
               </span>
