@@ -66,12 +66,12 @@ describe("runRecurringJob", () => {
     const { runRecurringJob } = await import("@/lib/cron");
     const { getRecurringService } = await import("@/lib/api/services");
 
-    const mockGeneratePending = vi.fn().mockReturnValue(3);
+    const mockGeneratePending = vi.fn().mockResolvedValue(3);
     vi.mocked(getRecurringService).mockReturnValue({
       generatePending: mockGeneratePending,
     } as unknown as ReturnType<typeof getRecurringService>);
 
-    runRecurringJob();
+    await runRecurringJob();
 
     expect(getRecurringService).toHaveBeenCalled();
     expect(mockGeneratePending).toHaveBeenCalledWith();
@@ -83,11 +83,11 @@ describe("runRecurringJob", () => {
     const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(getRecurringService).mockReturnValue({
-      generatePending: vi.fn().mockReturnValue(5),
+      generatePending: vi.fn().mockResolvedValue(5),
     } as unknown as ReturnType<typeof getRecurringService>);
 
     const infoSpy = vi.spyOn(cronLogger, "info");
-    runRecurringJob();
+    await runRecurringJob();
     expect(infoSpy).toHaveBeenCalledWith(
       expect.objectContaining({ count: 5 }),
       expect.stringContaining("Generated recurring transactions")
@@ -101,11 +101,11 @@ describe("runRecurringJob", () => {
     const { cronLogger } = await import("@/lib/logger");
 
     vi.mocked(getRecurringService).mockReturnValue({
-      generatePending: vi.fn().mockReturnValue(0),
+      generatePending: vi.fn().mockResolvedValue(0),
     } as unknown as ReturnType<typeof getRecurringService>);
 
     const infoSpy = vi.spyOn(cronLogger, "info");
-    runRecurringJob();
+    await runRecurringJob();
     expect(infoSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ count: expect.any(Number) }),
       expect.stringContaining("Generated recurring transactions")
@@ -123,7 +123,7 @@ describe("runRecurringJob", () => {
     });
 
     const errorSpy = vi.spyOn(cronLogger, "error");
-    expect(() => runRecurringJob()).not.toThrow();
+    await expect(runRecurringJob()).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
       expect.stringContaining("Failed to generate")

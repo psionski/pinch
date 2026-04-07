@@ -52,12 +52,8 @@ export type PriceResultResponse = z.infer<typeof PriceResultSchema>;
 
 export const ConvertCurrencySchema = z.object({
   amount: z.number().describe("Amount to convert (e.g. 15.99)"),
-  from: CurrencyCodeSchema.describe("Source currency code"),
-  to: CurrencyCodeSchema.describe("Target currency code"),
-  symbolMap: QuerySymbolMapSchema.describe(
-    "Provider→symbol mapping for the source currency (JSON string in query params). " +
-      "E.g. { frankfurter: 'USD' } to convert from USD"
-  ),
+  from: CurrencyCodeSchema.describe("Source currency code (ISO 4217)"),
+  to: CurrencyCodeSchema.describe("Target currency code (ISO 4217)"),
   date: DateSchema.describe("Date for the exchange rate. Defaults to today."),
 });
 

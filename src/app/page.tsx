@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { requireTimezone } from "@/lib/api/require-timezone";
+import { requireOnboarding } from "@/lib/api/require-timezone";
 import {
   getReportService,
   getBudgetService,
@@ -24,7 +24,7 @@ import { AllocationMiniDonut } from "@/components/dashboard/allocation-mini-donu
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
 export default function DashboardPage(): React.ReactElement {
-  requireTimezone();
+  requireOnboarding();
   const reportService = getReportService();
   const budgetService = getBudgetService();
   const transactionService = getTransactionService();

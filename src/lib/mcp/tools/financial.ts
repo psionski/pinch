@@ -21,9 +21,9 @@ export function registerFinancialTools(server: McpServer): void {
     "convert_currency",
     {
       description:
-        "Convert an amount between currencies using live exchange rates. " +
-        "Requires a symbolMap specifying which providers to use (e.g. { frankfurter: 'USD' }). " +
-        "Use search_symbol to find the correct provider→symbol mapping.",
+        "Convert an amount between two ISO 4217 currencies using live exchange rates. " +
+        "Routes through the default FX provider chain (Frankfurter then fawazahmed0) — no " +
+        "symbolMap needed for transaction-style currency conversions.",
       inputSchema: ConvertCurrencySchema,
     },
     async (input) => {
@@ -31,7 +31,7 @@ export function registerFinancialTools(server: McpServer): void {
         input.amount,
         input.from,
         input.to,
-        input.symbolMap,
+        undefined,
         input.date
       );
       if (!result) return err(`No exchange rate available for ${input.from}→${input.to}`);

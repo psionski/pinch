@@ -42,7 +42,7 @@ function periodTotal(db: Db, dateFrom: string, dateTo: string, type: "income" | 
 
   const [row] = db
     .select({
-      total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+      total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
       count: sql<number>`count(*)`.mapWith(Number),
     })
     .from(transactions)
@@ -102,14 +102,14 @@ export class ReportService {
         .select({
           categoryId: transactions.categoryId,
           categoryName: categories.name,
-          total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+          total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
           count: sql<number>`count(*)`.mapWith(Number),
         })
         .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(where)
         .groupBy(transactions.categoryId)
-        .orderBy(sql`sum(${transactions.amount}) DESC`)
+        .orderBy(sql`sum(${transactions.amountBase}) DESC`)
         .all();
 
       const compareMap = new Map<number | null, number>();
@@ -119,7 +119,7 @@ export class ReportService {
         const cRows = this.db
           .select({
             categoryId: transactions.categoryId,
-            total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+            total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
           })
           .from(transactions)
           .where(and(...cFilters))
@@ -139,7 +139,7 @@ export class ReportService {
       const rows = this.db
         .select({
           month: sql<string>`strftime('%Y-%m', ${transactions.date})`.mapWith(String),
-          total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+          total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
           count: sql<number>`count(*)`.mapWith(Number),
         })
         .from(transactions)
@@ -155,7 +155,7 @@ export class ReportService {
         const cRows = this.db
           .select({
             month: sql<string>`strftime('%Y-%m', ${transactions.date})`.mapWith(String),
-            total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+            total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
           })
           .from(transactions)
           .where(and(...cFilters))
@@ -177,13 +177,13 @@ export class ReportService {
           merchant: sql<string>`coalesce(${transactions.merchant}, '(no merchant)')`.mapWith(
             String
           ),
-          total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+          total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
           count: sql<number>`count(*)`.mapWith(Number),
         })
         .from(transactions)
         .where(where)
         .groupBy(transactions.merchant)
-        .orderBy(sql`sum(${transactions.amount}) DESC`)
+        .orderBy(sql`sum(${transactions.amountBase}) DESC`)
         .all();
 
       const compareMap = new Map<string, number>();
@@ -195,7 +195,7 @@ export class ReportService {
             merchant: sql<string>`coalesce(${transactions.merchant}, '(no merchant)')`.mapWith(
               String
             ),
-            total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+            total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
           })
           .from(transactions)
           .where(and(...cFilters))
@@ -221,7 +221,8 @@ export class ReportService {
           assetName: assets.name,
           assetType: assets.type,
           quantity: assetLots.quantity,
-          amount: transactions.amount,
+          // Use base-currency equivalent so cross-currency lots aggregate correctly.
+          amount: transactions.amountBase,
         })
         .from(assetLots)
         .innerJoin(assets, eq(assetLots.assetId, assets.id))
@@ -286,7 +287,7 @@ export class ReportService {
     const spendRows = this.db
       .select({
         categoryId: transactions.categoryId,
-        total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+        total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
         count: sql<number>`count(*)`.mapWith(Number),
       })
       .from(transactions)
@@ -423,7 +424,7 @@ export class ReportService {
         )
         SELECT
           months.m AS month,
-          coalesce(sum(t.amount), 0) AS total,
+          coalesce(sum(t.amount_base), 0) AS total,
           coalesce(count(t.id), 0) AS count
         FROM months
         LEFT JOIN transactions t
@@ -451,11 +452,11 @@ export class ReportService {
     const [row] = this.db
       .select({
         totalIncome:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`.mapWith(
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amountBase} else 0 end), 0)`.mapWith(
             Number
           ),
         totalExpenses:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amountBase} else 0 end), 0)`.mapWith(
             Number
           ),
         count: sql<number>`count(*)`.mapWith(Number),
@@ -479,15 +480,15 @@ export class ReportService {
     const [row] = this.db
       .select({
         income:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`.mapWith(
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amountBase} else 0 end), 0)`.mapWith(
             Number
           ),
         expenses:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`.mapWith(
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amountBase} else 0 end), 0)`.mapWith(
             Number
           ),
         transfers:
-          sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`.mapWith(
+          sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amountBase} else 0 end), 0)`.mapWith(
             Number
           ),
       })
@@ -518,14 +519,14 @@ export class ReportService {
     const rows = this.db
       .select({
         merchant: transactions.merchant,
-        total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number),
+        total: sql<number>`coalesce(sum(${transactions.amountBase}), 0)`.mapWith(Number),
         count: sql<number>`count(*)`.mapWith(Number),
-        avgAmount: sql<number>`coalesce(avg(${transactions.amount}), 0)`.mapWith(Number),
+        avgAmount: sql<number>`coalesce(avg(${transactions.amountBase}), 0)`.mapWith(Number),
       })
       .from(transactions)
       .where(and(...filters))
       .groupBy(transactions.merchant)
-      .orderBy(sql`sum(${transactions.amount}) DESC`)
+      .orderBy(sql`sum(${transactions.amountBase}) DESC`)
       .limit(input.limit)
       .all();
 

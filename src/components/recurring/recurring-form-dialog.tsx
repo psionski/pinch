@@ -151,7 +151,7 @@ export function RecurringFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="recurring-amount">Amount (EUR)</Label>
+            <Label htmlFor="recurring-amount">Amount</Label>
             <Input
               id="recurring-amount"
               type="number"

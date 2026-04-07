@@ -6,9 +6,14 @@ export async function register(): Promise<void> {
     const { initCronJobs } = await import("@/lib/cron");
     const { getSettingsService } = await import("@/lib/api/services");
     const { setUserTimezone } = await import("@/lib/date-ranges");
+    const { setBaseCurrencyCache } = await import("@/lib/format");
 
-    const tz = getSettingsService().getTimezone();
+    const settings = getSettingsService();
+    const tz = settings.getTimezone();
     if (tz) setUserTimezone(tz);
+
+    const baseCurrency = settings.getBaseCurrency();
+    if (baseCurrency) setBaseCurrencyCache(baseCurrency);
 
     initCronJobs();
   }

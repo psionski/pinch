@@ -1,11 +1,18 @@
 import { z } from "zod";
-import { PaginationSchema, IsoDateSchema, TransactionTypeSchema } from "./common";
+import { PaginationSchema, IsoDateSchema, TransactionTypeSchema, CurrencySchema } from "./common";
 
 // ─── Response ────────────────────────────────────────────────────────────────
 
 export const TransactionResponseSchema = z.object({
   id: z.number().int(),
-  amount: z.number(),
+  amount: z.number().describe("Native amount in the transaction's own currency"),
+  currency: z.string().describe("ISO 4217 currency of the native amount"),
+  amountBase: z
+    .number()
+    .describe(
+      "Amount converted to the configured base currency at the time the transaction was written. " +
+        "Use this for aggregations across mixed-currency transactions."
+    ),
   type: z.enum(["income", "expense", "transfer"]),
   description: z.string(),
   merchant: z.string().nullable(),
@@ -38,9 +45,14 @@ export const CreateTransactionSchema = z.object({
     .number()
     .refine((n) => n !== 0, "Amount must not be zero")
     .describe(
-      "Amount in EUR (e.g. 12.10). " +
+      "Native amount (e.g. 12.10). " +
         "Positive for income/expense. Signed for transfers: negative = cash out (asset purchase), positive = cash in (asset sale)"
     ),
+  currency: CurrencySchema.optional().describe(
+    "ISO 4217 currency of the amount. Defaults to the configured base currency. " +
+      "Foreign currencies are converted to the base currency at write time using the configured FX providers; " +
+      "the create fails if no provider can resolve the rate for the transaction date."
+  ),
   type: TransactionTypeSchema.default("expense").describe("Defaults to 'expense'"),
   description: z
     .string()
@@ -70,6 +82,9 @@ export const UpdateTransactionSchema = z.object({
     .number()
     .refine((n) => n !== 0, "Amount must not be zero")
     .optional(),
+  currency: CurrencySchema.optional().describe(
+    "ISO 4217 currency. Updating amount or currency triggers a fresh FX lookup to recompute amount_base."
+  ),
   type: TransactionTypeSchema.optional(),
   description: z.string().min(1).max(500).optional(),
   merchant: z.string().max(255).nullable().optional(),

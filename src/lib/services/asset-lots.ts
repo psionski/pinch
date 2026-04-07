@@ -10,6 +10,8 @@ import type {
 } from "@/lib/validators/assets";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 import { localToUtc, utcToLocal } from "@/lib/date-ranges";
+import { getBaseCurrency, roundToCurrency } from "@/lib/format";
+import type { FinancialDataService } from "./financial-data";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -37,7 +39,10 @@ function parseTransaction(row: schema.Transaction): TransactionResponse {
 }
 
 export class AssetLotService {
-  constructor(private db: Db) {}
+  constructor(
+    private db: Db,
+    private financialData?: FinancialDataService
+  ) {}
 
   /** Record a price snapshot from a transaction — every buy/sell is a price observation. */
   private recordPriceSnapshot(assetId: number, pricePerUnit: number, date: string): void {
@@ -51,31 +56,61 @@ export class AssetLotService {
       .run();
   }
 
-  buy(
+  /**
+   * Convert a native total (in `currency`) to the base currency. Used by
+   * buy/sell to denormalize amount_base on the synthetic transfer transaction
+   * they create. Throws when no FX provider can resolve the rate.
+   */
+  private async toBase(total: number, currency: string, date: string): Promise<number> {
+    const base = getBaseCurrency();
+    if (currency === base) return roundToCurrency(total, base);
+    if (!this.financialData) {
+      throw new Error(
+        `Cannot record ${currency} buy/sell without FinancialDataService — ` +
+          `inject one when constructing AssetLotService.`
+      );
+    }
+    const result = await this.financialData.convertToBase(total, currency, date);
+    if (result === null) {
+      throw new Error(
+        `Cannot convert ${currency} → ${base} on ${date} — no FX provider has the rate.`
+      );
+    }
+    return result.amountBase;
+  }
+
+  async buy(
     assetId: number,
     input: BuyAssetInput
-  ): { lot: AssetLotResponse; transaction: TransactionResponse } {
+  ): Promise<{ lot: AssetLotResponse; transaction: TransactionResponse }> {
+    const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
+    if (!asset) throw new Error(`Asset ${assetId} not found`);
+
+    const baseCurrency = getBaseCurrency();
+    if (asset.type === "deposit" && asset.currency === baseCurrency && input.pricePerUnit !== 1) {
+      throw new Error(
+        `${baseCurrency} deposit: pricePerUnit must be 1 (1 unit per unit). ` +
+          `Use quantity to represent the ${baseCurrency} amount ` +
+          `(e.g. quantity: 5000 for a 5,000 ${baseCurrency} deposit).`
+      );
+    }
+
+    const total = roundToCurrency(input.quantity * input.pricePerUnit, asset.currency);
+    // FX conversion happens before the SQLite transaction (which must be sync).
+    const totalBase = await this.toBase(total, asset.currency, input.date);
+
+    const verb = asset.type === "deposit" ? "Deposit" : "Buy";
+    const description =
+      input.description ??
+      `${verb} ${input.quantity} ${asset.name} @ ${input.pricePerUnit.toFixed(2)} ${asset.currency}`;
+
     return this.db.transaction(() => {
-      const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
-      if (!asset) throw new Error(`Asset ${assetId} not found`);
-
-      if (asset.type === "deposit" && asset.currency === "EUR" && input.pricePerUnit !== 1) {
-        throw new Error(
-          `EUR deposit: pricePerUnit must be 1 (€1 per unit). ` +
-            `Use quantity to represent the EUR amount (e.g. quantity: 5000 for a €5,000 deposit).`
-        );
-      }
-
-      const total = Math.round(input.quantity * input.pricePerUnit * 100) / 100;
-      const verb = asset.type === "deposit" ? "Deposit" : "Buy";
-      const description =
-        input.description ??
-        `${verb} ${input.quantity} ${asset.name} @ ${input.pricePerUnit.toFixed(2)} ${asset.currency}`;
-
       const [txRow] = this.db
         .insert(transactions)
         .values({
           amount: -total,
+          currency: asset.currency,
+          amountBase: -totalBase,
           type: "transfer",
           description,
           date: input.date,
@@ -103,37 +138,53 @@ export class AssetLotService {
     });
   }
 
-  sell(
+  async sell(
     assetId: number,
     input: SellAssetInput
-  ): { lot: AssetLotResponse; transaction: TransactionResponse } {
-    return this.db.transaction(() => {
-      const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
-      if (!asset) throw new Error(`Asset ${assetId} not found`);
+  ): Promise<{ lot: AssetLotResponse; transaction: TransactionResponse }> {
+    const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
+    if (!asset) throw new Error(`Asset ${assetId} not found`);
 
-      // Check sufficient holdings inside the transaction to prevent races
-      const [holdingsRow] = this.db
+    // Check sufficient holdings (race-prone outside the inner transaction, but
+    // the same sanity check is repeated inside; the inner check is the
+    // authoritative one).
+    const [holdingsRow] = this.db
+      .select({ total: sql<number>`coalesce(sum(${assetLots.quantity}), 0)`.mapWith(Number) })
+      .from(assetLots)
+      .where(eq(assetLots.assetId, assetId))
+      .all();
+    const currentHoldings = holdingsRow?.total ?? 0;
+    if (input.quantity > currentHoldings) {
+      throw new Error(`Insufficient holdings: have ${currentHoldings}, selling ${input.quantity}`);
+    }
+
+    const total = roundToCurrency(input.quantity * input.pricePerUnit, asset.currency);
+    const totalBase = await this.toBase(total, asset.currency, input.date);
+
+    const verb = asset.type === "deposit" ? "Withdraw" : "Sell";
+    const description =
+      input.description ??
+      `${verb} ${input.quantity} ${asset.name} @ ${input.pricePerUnit.toFixed(2)} ${asset.currency}`;
+
+    return this.db.transaction(() => {
+      // Re-check inside the inner transaction in case of concurrent writes.
+      const [innerHoldings] = this.db
         .select({ total: sql<number>`coalesce(sum(${assetLots.quantity}), 0)`.mapWith(Number) })
         .from(assetLots)
         .where(eq(assetLots.assetId, assetId))
         .all();
-      const currentHoldings = holdingsRow?.total ?? 0;
-      if (input.quantity > currentHoldings) {
+      if (input.quantity > (innerHoldings?.total ?? 0)) {
         throw new Error(
-          `Insufficient holdings: have ${currentHoldings}, selling ${input.quantity}`
+          `Insufficient holdings: have ${innerHoldings?.total ?? 0}, selling ${input.quantity}`
         );
       }
-
-      const total = Math.round(input.quantity * input.pricePerUnit * 100) / 100;
-      const verb = asset.type === "deposit" ? "Withdraw" : "Sell";
-      const description =
-        input.description ??
-        `${verb} ${input.quantity} ${asset.name} @ ${input.pricePerUnit.toFixed(2)} ${asset.currency}`;
 
       const [txRow] = this.db
         .insert(transactions)
         .values({
           amount: total,
+          currency: asset.currency,
+          amountBase: totalBase,
           type: "transfer",
           description,
           date: input.date,

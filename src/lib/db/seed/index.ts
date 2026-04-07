@@ -130,8 +130,12 @@ async function seed(): Promise<void> {
   }
 
   seedLogger.info(`Inserting ${allTxs.length} transactions...`);
+  // Sample data is fully denominated in EUR, which matches the configured base
+  // currency for the seed (set below). amount_base mirrors amount.
   const rows = allTxs.map((tx) => ({
     ...tx,
+    currency: "EUR",
+    amountBase: tx.amount,
     tags: JSON.stringify(tx.tags),
     recurringId: tx.recurringId ?? null,
   }));
@@ -159,10 +163,16 @@ async function seed(): Promise<void> {
 
     for (const lot of seed.lots) {
       const totalValue = Math.round(Math.abs(lot.quantity) * lot.pricePerUnit * 100) / 100;
+      const signed = lot.quantity >= 0 ? -totalValue : totalValue;
       const [txRow] = await db
         .insert(transactions)
         .values({
-          amount: lot.quantity >= 0 ? -totalValue : totalValue,
+          amount: signed,
+          // Sample-data lots are denominated in their asset currency, which is
+          // EUR for the seed (single-currency demo). The base-currency
+          // equivalent is identical.
+          currency: seed.asset.currency ?? "EUR",
+          amountBase: signed,
           type: "transfer",
           description: lot.description,
           date: lot.date,
@@ -197,12 +207,13 @@ async function seed(): Promise<void> {
   }
   seedLogger.info(`  ${mpSeeds.length} market price points, ${totalLots} asset lots total.`);
 
-  // ── Settings (timezone + tutorial flag) ─────────────────────────────────
+  // ── Settings (timezone + base currency + tutorial flag) ────────────────
   seedLogger.info("Configuring settings...");
   await db.insert(settings).values({ key: "timezone", value: "Europe/Amsterdam" });
+  await db.insert(settings).values({ key: "base_currency", value: "EUR" });
   await db.insert(settings).values({ key: "tutorial", value: "true" });
   await db.insert(settings).values({ key: "sample_data", value: "true" });
-  seedLogger.info("  Timezone: Europe/Amsterdam, tutorial: enabled, sample_data: flagged.");
+  seedLogger.info("  Timezone: Europe/Amsterdam, base currency: EUR, tutorial: enabled.");
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);

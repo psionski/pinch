@@ -17,6 +17,7 @@ export function registerTransactionTools(server: McpServer): void {
     {
       description:
         "Add a single transaction. Use list_categories to find valid categoryId values. " +
+        "Optional currency field accepts any ISO 4217 code; defaults to the configured base currency. " +
         "When someone pays FROM a specific account/wallet (e.g. 'paid from Revolut'): " +
         "create the expense transaction, then call sell_asset on that asset to reduce its balance. " +
         "When someone receives money INTO a specific account (e.g. 'Alice sent me 50 EUR to Revolut'): " +
@@ -24,7 +25,7 @@ export function registerTransactionTools(server: McpServer): void {
         "Transfer amounts are signed: negative = cash out (asset purchase), positive = cash in (asset sale).",
       inputSchema: CreateTransactionSchema,
     },
-    (input) => ok(getTransactionService().create(input))
+    async (input) => ok(await getTransactionService().create(input))
   );
 
   server.registerTool(
@@ -34,24 +35,26 @@ export function registerTransactionTools(server: McpServer): void {
         "Batch-add multiple transactions in one call. " +
         "Use list_categories to find valid categoryId values. " +
         "Optionally link all to an uploaded receipt via receiptId. " +
+        "Each line item can specify its own currency; defaults to the configured base currency. " +
         "For account-linked transactions (paying from or receiving into a specific account), " +
         "use create_transaction + buy_asset/sell_asset instead — buy_asset and sell_asset create " +
         "the transfer transaction automatically and also update the account's holdings.",
       inputSchema: CreateTransactionsBatchSchema,
     },
-    (input) => ok(getTransactionService().createBatch(input))
+    async (input) => ok(await getTransactionService().createBatch(input))
   );
 
   server.registerTool(
     "update_transaction",
     {
       description:
-        "Update fields on an existing transaction by ID. Only supplied fields are changed.",
+        "Update fields on an existing transaction by ID. Only supplied fields are changed. " +
+        "Updating amount, currency, or date triggers a fresh FX lookup to recompute amount_base.",
       inputSchema: IdSchema.merge(UpdateTransactionSchema),
     },
-    ({ id, ...updates }) => {
+    async ({ id, ...updates }) => {
       const svc = getTransactionService();
-      const result = svc.update(id, updates);
+      const result = await svc.update(id, updates);
       if (!result) throw new Error(`Transaction ${id} not found`);
       return ok(result);
     }
@@ -116,7 +119,7 @@ export function registerTransactionTools(server: McpServer): void {
         "Silently skips IDs that don't exist. Returns the updated transactions.",
       inputSchema: UpdateTransactionsBatchSchema,
     },
-    (input) => ok(getTransactionService().updateBatch(input))
+    async (input) => ok(await getTransactionService().updateBatch(input))
   );
 
   server.registerTool(

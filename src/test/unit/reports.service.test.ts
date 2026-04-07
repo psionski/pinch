@@ -23,7 +23,7 @@ let catService: CategoryService;
 let budgetService: BudgetService;
 
 // Pin clock to March 2026 — test data uses March dates
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(Date.UTC(2026, 2, 15)));
   db = makeTestDb();
@@ -48,20 +48,26 @@ function tx(overrides: Record<string, unknown> = {}) {
 
 // ─── spendingSummary ──────────────────────────────────────────────────────────
 
-describe("spendingSummary", () => {
-  beforeEach(() => {
+describe("spendingSummary", async () => {
+  beforeEach(async () => {
     const food = catService.create({ name: "Food" });
     const transport = catService.create({ name: "Transport" });
 
-    txService.create(tx({ amount: 5, date: "2026-03-05", categoryId: food.id, merchant: "ALDI" }));
-    txService.create(tx({ amount: 3, date: "2026-03-10", categoryId: food.id, merchant: "Lidl" }));
-    txService.create(
+    await txService.create(
+      tx({ amount: 5, date: "2026-03-05", categoryId: food.id, merchant: "ALDI" })
+    );
+    await txService.create(
+      tx({ amount: 3, date: "2026-03-10", categoryId: food.id, merchant: "Lidl" })
+    );
+    await txService.create(
       tx({ amount: 2, date: "2026-03-15", categoryId: transport.id, merchant: "BVG" })
     );
-    txService.create(tx({ amount: 10, date: "2026-02-28", categoryId: food.id, merchant: "ALDI" }));
+    await txService.create(
+      tx({ amount: 10, date: "2026-02-28", categoryId: food.id, merchant: "ALDI" })
+    );
   });
 
-  it("returns correct period total for date range", () => {
+  it("returns correct period total for date range", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
@@ -69,7 +75,7 @@ describe("spendingSummary", () => {
     expect(result.period.count).toBe(3);
   });
 
-  it("groups by category correctly", () => {
+  it("groups by category correctly", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -83,7 +89,7 @@ describe("spendingSummary", () => {
     expect(food?.count).toBe(2);
   });
 
-  it("groups by month correctly", () => {
+  it("groups by month correctly", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-02-01",
@@ -96,7 +102,7 @@ describe("spendingSummary", () => {
     expect(march?.total).toBe(10);
   });
 
-  it("groups by merchant correctly", () => {
+  it("groups by merchant correctly", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -108,7 +114,7 @@ describe("spendingSummary", () => {
     expect(aldi?.total).toBe(5);
   });
 
-  it("includes compareTotal when compare period is provided", () => {
+  it("includes compareTotal when compare period is provided", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -123,7 +129,7 @@ describe("spendingSummary", () => {
     expect(result.comparePeriod?.total).toBe(10);
   });
 
-  it("includes compareTotal when grouped by month", () => {
+  it("includes compareTotal when grouped by month", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -140,7 +146,7 @@ describe("spendingSummary", () => {
     expect(result.comparePeriod?.total).toBe(10);
   });
 
-  it("includes compareTotal when grouped by merchant", () => {
+  it("includes compareTotal when grouped by merchant", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -158,8 +164,10 @@ describe("spendingSummary", () => {
     expect(lidl?.compareTotal).toBe(0);
   });
 
-  it("respects type filter (income vs expense)", () => {
-    txService.create(tx({ amount: 50, type: "income", date: "2026-03-20", description: "Salary" }));
+  it("respects type filter (income vs expense)", async () => {
+    await txService.create(
+      tx({ amount: 50, type: "income", date: "2026-03-20", description: "Salary" })
+    );
     const expense = reports.spendingSummary(
       SpendingSummarySchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31", type: "expense" })
     );
@@ -178,12 +186,12 @@ function catStats(overrides: Record<string, unknown> = {}) {
 
 // ─── getCategoryStats ─────────────────────────────────────────────────────────
 
-describe("getCategoryStats", () => {
-  it("returns percentages that sum to 100", () => {
+describe("getCategoryStats", async () => {
+  it("returns percentages that sum to 100", async () => {
     const food = catService.create({ name: "Food" });
     const transport = catService.create({ name: "Transport" });
-    txService.create(tx({ amount: 7.5, categoryId: food.id }));
-    txService.create(tx({ amount: 2.5, categoryId: transport.id }));
+    await txService.create(tx({ amount: 7.5, categoryId: food.id }));
+    await txService.create(tx({ amount: 2.5, categoryId: transport.id }));
 
     const result = reports.getCategoryStats(
       catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
@@ -194,15 +202,15 @@ describe("getCategoryStats", () => {
     expect(food_?.percentage).toBe(75);
   });
 
-  it("returns empty array when no transactions and includeZeroSpend is false", () => {
+  it("returns empty array when no transactions and includeZeroSpend is false", async () => {
     const result = reports.getCategoryStats(
       catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
     );
     expect(result).toHaveLength(0);
   });
 
-  it("groups uncategorized transactions under null category", () => {
-    txService.create(tx({ amount: 5 })); // no categoryId
+  it("groups uncategorized transactions under null category", async () => {
+    await txService.create(tx({ amount: 5 })); // no categoryId
     const result = reports.getCategoryStats(
       catStats({
         dateFrom: "2026-03-01",
@@ -216,9 +224,9 @@ describe("getCategoryStats", () => {
     expect(result[0].percentage).toBe(100);
   });
 
-  it("includes color and icon from category", () => {
+  it("includes color and icon from category", async () => {
     const food = catService.create({ name: "Food", color: "#FF0000", icon: "🍕" });
-    txService.create(tx({ amount: 5, categoryId: food.id }));
+    await txService.create(tx({ amount: 5, categoryId: food.id }));
 
     const result = reports.getCategoryStats(
       catStats({ dateFrom: "2026-03-01", dateTo: "2026-03-31", includeZeroSpend: false })
@@ -228,7 +236,7 @@ describe("getCategoryStats", () => {
     expect(foodItem?.icon).toBe("🍕");
   });
 
-  it("returns stats for all categories with zero spend when includeZeroSpend is true", () => {
+  it("returns stats for all categories with zero spend when includeZeroSpend is true", async () => {
     catService.create({ name: "A" });
     catService.create({ name: "B" });
 
@@ -237,12 +245,12 @@ describe("getCategoryStats", () => {
     expect(result.every((s) => s.total === 0 && s.count === 0)).toBe(true);
   });
 
-  it("computes total spend from expense transactions in the given month", () => {
+  it("computes total spend from expense transactions in the given month", async () => {
     const cat = catService.create({ name: "Food" });
-    txService.create(tx({ categoryId: cat.id, amount: 5, date: "2026-03-01" }));
-    txService.create(tx({ categoryId: cat.id, amount: 3, date: "2026-03-15" }));
+    await txService.create(tx({ categoryId: cat.id, amount: 5, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: cat.id, amount: 3, date: "2026-03-15" }));
     // Different month — should not count
-    txService.create(tx({ categoryId: cat.id, amount: 9.99, date: "2026-02-28" }));
+    await txService.create(tx({ categoryId: cat.id, amount: 9.99, date: "2026-02-28" }));
 
     const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
     const foodStats = result.find((s) => s.categoryId === cat.id);
@@ -250,10 +258,12 @@ describe("getCategoryStats", () => {
     expect(foodStats?.count).toBe(2);
   });
 
-  it("excludes income transactions from spend total", () => {
+  it("excludes income transactions from spend total", async () => {
     const cat = catService.create({ name: "Salary" });
-    txService.create(tx({ categoryId: cat.id, amount: 50, type: "income", date: "2026-03-01" }));
-    txService.create(tx({ categoryId: cat.id, amount: 2, date: "2026-03-01" })); // expense
+    await txService.create(
+      tx({ categoryId: cat.id, amount: 50, type: "income", date: "2026-03-01" })
+    );
+    await txService.create(tx({ categoryId: cat.id, amount: 2, date: "2026-03-01" })); // expense
 
     const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
     const salaryStats = result.find((s) => s.categoryId === cat.id);
@@ -261,10 +271,10 @@ describe("getCategoryStats", () => {
     expect(salaryStats?.count).toBe(1);
   });
 
-  it("scopes stats to the requested month only", () => {
+  it("scopes stats to the requested month only", async () => {
     const cat = catService.create({ name: "Food" });
-    txService.create(tx({ categoryId: cat.id, amount: 1, date: "2026-03-01" }));
-    txService.create(tx({ categoryId: cat.id, amount: 2, date: "2026-04-01" }));
+    await txService.create(tx({ categoryId: cat.id, amount: 1, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: cat.id, amount: 2, date: "2026-04-01" }));
 
     const marchStats = reports.getCategoryStats(catStats({ month: "2026-03" }));
     const aprilStats = reports.getCategoryStats(catStats({ month: "2026-04" }));
@@ -273,14 +283,14 @@ describe("getCategoryStats", () => {
     expect(aprilStats.find((s) => s.categoryId === cat.id)?.total).toBe(2);
   });
 
-  it("rollup includes parent's own spend plus all children", () => {
+  it("rollup includes parent's own spend plus all children", async () => {
     const parent = catService.create({ name: "Food" });
     const child1 = catService.create({ name: "Groceries", parentId: parent.id });
     const child2 = catService.create({ name: "Dining", parentId: parent.id });
 
-    txService.create(tx({ categoryId: parent.id, amount: 1, date: "2026-03-01" }));
-    txService.create(tx({ categoryId: child1.id, amount: 5, date: "2026-03-01" }));
-    txService.create(tx({ categoryId: child2.id, amount: 3, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: parent.id, amount: 1, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: child1.id, amount: 5, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: child2.id, amount: 3, date: "2026-03-01" }));
 
     const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
     const parentStats = result.find((s) => s.categoryId === parent.id);
@@ -291,11 +301,11 @@ describe("getCategoryStats", () => {
     expect(parentStats?.rollupCount).toBe(3);
   });
 
-  it("rollup for leaf categories equals their own spend", () => {
+  it("rollup for leaf categories equals their own spend", async () => {
     catService.create({ name: "Food" });
     const child = catService.create({ name: "Groceries", parentId: 1 });
 
-    txService.create(tx({ categoryId: child.id, amount: 5, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: child.id, amount: 5, date: "2026-03-01" }));
 
     const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
     const childStats = result.find((s) => s.categoryId === child.id);
@@ -304,14 +314,14 @@ describe("getCategoryStats", () => {
     expect(childStats?.rollupTotal).toBe(5);
   });
 
-  it("rollup works with nested grandchildren", () => {
+  it("rollup works with nested grandchildren", async () => {
     const grandparent = catService.create({ name: "Food" });
     const parent = catService.create({ name: "Dining", parentId: grandparent.id });
     const child = catService.create({ name: "Coffee", parentId: parent.id });
 
-    txService.create(tx({ categoryId: grandparent.id, amount: 1, date: "2026-03-01" }));
-    txService.create(tx({ categoryId: parent.id, amount: 2, date: "2026-03-01" }));
-    txService.create(tx({ categoryId: child.id, amount: 3, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: grandparent.id, amount: 1, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: parent.id, amount: 2, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: child.id, amount: 3, date: "2026-03-01" }));
 
     const result = reports.getCategoryStats(catStats({ month: "2026-03" }));
 
@@ -327,8 +337,8 @@ function budgetStats(overrides: Record<string, unknown> = {}) {
   return BudgetStatsSchema.parse({ month: "2026-03", ...overrides });
 }
 
-describe("getBudgetStats", () => {
-  it("includes budget amount when a budget exists for the month", () => {
+describe("getBudgetStats", async () => {
+  it("includes budget amount when a budget exists for the month", async () => {
     const cat = catService.create({ name: "Food" });
     budgetService.set({ categoryId: cat.id, month: "2026-03", amount: 500 });
 
@@ -337,16 +347,16 @@ describe("getBudgetStats", () => {
     expect(foodStats?.budgetAmount).toBe(500);
   });
 
-  it("returns null budgetAmount when no budget is set", () => {
+  it("returns null budgetAmount when no budget is set", async () => {
     catService.create({ name: "Food" });
 
     const { items } = reports.getBudgetStats(budgetStats());
     expect(items[0].budgetAmount).toBeNull();
   });
 
-  it("includes spending stats from getCategoryStats", () => {
+  it("includes spending stats from getCategoryStats", async () => {
     const cat = catService.create({ name: "Food" });
-    txService.create(tx({ categoryId: cat.id, amount: 5, date: "2026-03-01" }));
+    await txService.create(tx({ categoryId: cat.id, amount: 5, date: "2026-03-01" }));
     budgetService.set({ categoryId: cat.id, month: "2026-03", amount: 100 });
 
     const { items } = reports.getBudgetStats(budgetStats());
@@ -355,7 +365,7 @@ describe("getBudgetStats", () => {
     expect(foodStats?.budgetAmount).toBe(100);
   });
 
-  it("returns inheritedFrom null when month has own budget rows", () => {
+  it("returns inheritedFrom null when month has own budget rows", async () => {
     const cat = catService.create({ name: "Food" });
     budgetService.set({ categoryId: cat.id, month: "2026-03", amount: 500 });
 
@@ -363,7 +373,7 @@ describe("getBudgetStats", () => {
     expect(inheritedFrom).toBeNull();
   });
 
-  it("returns inherited budget from prior month when no own rows exist", () => {
+  it("returns inherited budget from prior month when no own rows exist", async () => {
     const cat = catService.create({ name: "Food" });
     budgetService.set({ categoryId: cat.id, month: "2026-02", amount: 500 });
 
@@ -376,21 +386,21 @@ describe("getBudgetStats", () => {
 
 // ─── trends ───────────────────────────────────────────────────────────────────
 
-describe("trends", () => {
-  it("returns N month data points", () => {
+describe("trends", async () => {
+  it("returns N month data points", async () => {
     const result = reports.trends(TrendsSchema.parse({ months: 3 }));
     expect(result).toHaveLength(3);
   });
 
-  it("returns 6 months by default", () => {
+  it("returns 6 months by default", async () => {
     const result = reports.trends(TrendsSchema.parse({}));
     expect(result).toHaveLength(6);
   });
 
-  it("sums transactions correctly for each month", () => {
-    txService.create(tx({ amount: 1, date: "2026-03-01" }));
-    txService.create(tx({ amount: 2, date: "2026-03-15" }));
-    txService.create(tx({ amount: 0.5, date: "2026-02-10" }));
+  it("sums transactions correctly for each month", async () => {
+    await txService.create(tx({ amount: 1, date: "2026-03-01" }));
+    await txService.create(tx({ amount: 2, date: "2026-03-15" }));
+    await txService.create(tx({ amount: 0.5, date: "2026-02-10" }));
 
     const result = reports.trends(TrendsSchema.parse({ months: 6 }));
     const march = result.find((r) => r.month === "2026-03");
@@ -400,19 +410,21 @@ describe("trends", () => {
     expect(feb?.total).toBe(0.5);
   });
 
-  it("filters by categoryId when provided", () => {
+  it("filters by categoryId when provided", async () => {
     const food = catService.create({ name: "Food" });
-    txService.create(tx({ amount: 5, categoryId: food.id, date: "2026-03-01" }));
-    txService.create(tx({ amount: 2, date: "2026-03-01" })); // different category
+    await txService.create(tx({ amount: 5, categoryId: food.id, date: "2026-03-01" }));
+    await txService.create(tx({ amount: 2, date: "2026-03-01" })); // different category
 
     const result = reports.trends(TrendsSchema.parse({ months: 3, categoryId: food.id }));
     const march = result.find((r) => r.month === "2026-03");
     expect(march?.total).toBe(5);
   });
 
-  it("filters by type when provided", () => {
-    txService.create(tx({ amount: 5, type: "expense", date: "2026-03-01" }));
-    txService.create(tx({ amount: 30, type: "income", date: "2026-03-15", description: "Salary" }));
+  it("filters by type when provided", async () => {
+    await txService.create(tx({ amount: 5, type: "expense", date: "2026-03-01" }));
+    await txService.create(
+      tx({ amount: 30, type: "income", date: "2026-03-15", description: "Salary" })
+    );
 
     const expenses = reports.trends(TrendsSchema.parse({ months: 3, type: "expense" }));
     const march = expenses.find((r) => r.month === "2026-03");
@@ -423,7 +435,7 @@ describe("trends", () => {
     expect(marchIncome?.total).toBe(30);
   });
 
-  it("months are returned in ascending order", () => {
+  it("months are returned in ascending order", async () => {
     const result = reports.trends(TrendsSchema.parse({ months: 4 }));
     const months = result.map((r) => r.month);
     expect(months).toEqual([...months].sort());
@@ -432,8 +444,8 @@ describe("trends", () => {
 
 // ─── netIncome ───────────────────────────────────────────────────────────────
 
-describe("netIncome", () => {
-  it("returns zero when no transactions exist", () => {
+describe("netIncome", async () => {
+  it("returns zero when no transactions exist", async () => {
     const result = reports.netIncome({});
     expect(result.totalIncome).toBe(0);
     expect(result.totalExpenses).toBe(0);
@@ -441,10 +453,12 @@ describe("netIncome", () => {
     expect(result.transactionCount).toBe(0);
   });
 
-  it("calculates income minus expenses", () => {
-    txService.create(tx({ amount: 50, type: "income", date: "2026-03-01", description: "Salary" }));
-    txService.create(tx({ amount: 12, type: "expense", date: "2026-03-05" }));
-    txService.create(tx({ amount: 8, type: "expense", date: "2026-03-10" }));
+  it("calculates income minus expenses", async () => {
+    await txService.create(
+      tx({ amount: 50, type: "income", date: "2026-03-01", description: "Salary" })
+    );
+    await txService.create(tx({ amount: 12, type: "expense", date: "2026-03-05" }));
+    await txService.create(tx({ amount: 8, type: "expense", date: "2026-03-10" }));
 
     const result = reports.netIncome({});
     expect(result.totalIncome).toBe(50);
@@ -453,10 +467,12 @@ describe("netIncome", () => {
     expect(result.transactionCount).toBe(3);
   });
 
-  it("filters by date range", () => {
-    txService.create(tx({ amount: 50, type: "income", date: "2026-03-01", description: "Salary" }));
-    txService.create(tx({ amount: 10, type: "expense", date: "2026-03-15" }));
-    txService.create(tx({ amount: 20, type: "expense", date: "2026-04-01" }));
+  it("filters by date range", async () => {
+    await txService.create(
+      tx({ amount: 50, type: "income", date: "2026-03-01", description: "Salary" })
+    );
+    await txService.create(tx({ amount: 10, type: "expense", date: "2026-03-15" }));
+    await txService.create(tx({ amount: 20, type: "expense", date: "2026-04-01" }));
 
     const result = reports.netIncome({ dateFrom: "2026-03-01", dateTo: "2026-03-31" });
     expect(result.totalIncome).toBe(50);
@@ -465,27 +481,29 @@ describe("netIncome", () => {
     expect(result.transactionCount).toBe(2);
   });
 
-  it("works with only dateFrom", () => {
-    txService.create(tx({ amount: 5, type: "expense", date: "2026-02-15" }));
-    txService.create(tx({ amount: 3, type: "expense", date: "2026-03-15" }));
+  it("works with only dateFrom", async () => {
+    await txService.create(tx({ amount: 5, type: "expense", date: "2026-02-15" }));
+    await txService.create(tx({ amount: 3, type: "expense", date: "2026-03-15" }));
 
     const result = reports.netIncome({ dateFrom: "2026-03-01" });
     expect(result.totalExpenses).toBe(3);
     expect(result.transactionCount).toBe(1);
   });
 
-  it("works with only dateTo", () => {
-    txService.create(tx({ amount: 5, type: "expense", date: "2026-02-15" }));
-    txService.create(tx({ amount: 3, type: "expense", date: "2026-03-15" }));
+  it("works with only dateTo", async () => {
+    await txService.create(tx({ amount: 5, type: "expense", date: "2026-02-15" }));
+    await txService.create(tx({ amount: 3, type: "expense", date: "2026-03-15" }));
 
     const result = reports.netIncome({ dateTo: "2026-02-28" });
     expect(result.totalExpenses).toBe(5);
     expect(result.transactionCount).toBe(1);
   });
 
-  it("returns negative balance when expenses exceed income", () => {
-    txService.create(tx({ amount: 10, type: "income", date: "2026-03-01", description: "Salary" }));
-    txService.create(tx({ amount: 30, type: "expense", date: "2026-03-05" }));
+  it("returns negative balance when expenses exceed income", async () => {
+    await txService.create(
+      tx({ amount: 10, type: "income", date: "2026-03-01", description: "Salary" })
+    );
+    await txService.create(tx({ amount: 30, type: "expense", date: "2026-03-05" }));
 
     const result = reports.netIncome({});
     expect(result.netIncome).toBe(-20);
@@ -494,15 +512,15 @@ describe("netIncome", () => {
 
 // ─── topMerchants ─────────────────────────────────────────────────────────────
 
-describe("topMerchants", () => {
-  beforeEach(() => {
-    txService.create(tx({ amount: 10, merchant: "ALDI", date: "2026-03-01" }));
-    txService.create(tx({ amount: 5, merchant: "ALDI", date: "2026-03-05" }));
-    txService.create(tx({ amount: 8, merchant: "Lidl", date: "2026-03-10" }));
-    txService.create(tx({ amount: 3, date: "2026-03-15" })); // no merchant
+describe("topMerchants", async () => {
+  beforeEach(async () => {
+    await txService.create(tx({ amount: 10, merchant: "ALDI", date: "2026-03-01" }));
+    await txService.create(tx({ amount: 5, merchant: "ALDI", date: "2026-03-05" }));
+    await txService.create(tx({ amount: 8, merchant: "Lidl", date: "2026-03-10" }));
+    await txService.create(tx({ amount: 3, date: "2026-03-15" })); // no merchant
   });
 
-  it("returns merchants sorted by total descending", () => {
+  it("returns merchants sorted by total descending", async () => {
     const result = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
@@ -511,7 +529,7 @@ describe("topMerchants", () => {
     expect(result[0].count).toBe(2);
   });
 
-  it("excludes transactions without a merchant", () => {
+  it("excludes transactions without a merchant", async () => {
     const result = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
@@ -519,7 +537,7 @@ describe("topMerchants", () => {
     expect(result).toHaveLength(2);
   });
 
-  it("respects the limit parameter", () => {
+  it("respects the limit parameter", async () => {
     const result = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31", limit: 1 })
     );
@@ -527,7 +545,7 @@ describe("topMerchants", () => {
     expect(result[0].merchant).toBe("ALDI");
   });
 
-  it("computes avgAmount correctly", () => {
+  it("computes avgAmount correctly", async () => {
     const result = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31" })
     );
@@ -535,7 +553,7 @@ describe("topMerchants", () => {
     expect(aldi?.avgAmount).toBe(7.5); // (10 + 5) / 2
   });
 
-  it("returns all-time results when no dates are provided", () => {
+  it("returns all-time results when no dates are provided", async () => {
     const result = reports.topMerchants(TopMerchantsSchema.parse({}));
     expect(result).toHaveLength(2);
     expect(result[0].merchant).toBe("ALDI");
@@ -545,16 +563,16 @@ describe("topMerchants", () => {
 
 // ─── Transfer exclusion ───────────────────────────────────────────────────────
 
-describe("transfer exclusion from spending reports", () => {
-  beforeEach(() => {
-    txService.create(tx({ amount: 50, type: "expense", description: "Rent" }));
-    txService.create(tx({ amount: 100, type: "income", description: "Salary" }));
-    txService.create(
+describe("transfer exclusion from spending reports", async () => {
+  beforeEach(async () => {
+    await txService.create(tx({ amount: 50, type: "expense", description: "Rent" }));
+    await txService.create(tx({ amount: 100, type: "income", description: "Salary" }));
+    await txService.create(
       tx({ amount: 30, type: "transfer", description: "Buy ETF", merchant: "Broker" })
     );
   });
 
-  it("spendingSummary type=all excludes transfers", () => {
+  it("spendingSummary type=all excludes transfers", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -567,7 +585,7 @@ describe("transfer exclusion from spending reports", () => {
     expect(result.period.count).toBe(2);
   });
 
-  it("spendingSummary type=expense excludes transfers", () => {
+  it("spendingSummary type=expense excludes transfers", async () => {
     const result = reports.spendingSummary(
       SpendingSummarySchema.parse({
         dateFrom: "2026-03-01",
@@ -579,13 +597,13 @@ describe("transfer exclusion from spending reports", () => {
     expect(result.period.total).toBe(50);
   });
 
-  it("trends type=all excludes transfers", () => {
+  it("trends type=all excludes transfers", async () => {
     const result = reports.trends(TrendsSchema.parse({ months: 1, type: "all" }));
     const march = result.find((r) => r.month === "2026-03");
     expect(march?.total).toBe(150); // expense + income only
   });
 
-  it("topMerchants excludes transfer transactions", () => {
+  it("topMerchants excludes transfer transactions", async () => {
     const result = reports.topMerchants(
       TopMerchantsSchema.parse({ dateFrom: "2026-03-01", dateTo: "2026-03-31", type: "all" })
     );

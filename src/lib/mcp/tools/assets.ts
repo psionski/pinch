@@ -103,15 +103,15 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Record an asset purchase or deposit. Creates a negative-amount transfer transaction (cash out) and adds to holdings. " +
-        "For EUR deposits: pricePerUnit = 1, quantity = EUR amount. " +
-        "For foreign currency deposits: pricePerUnit = EUR exchange rate " +
-        "(use get_price with symbol='USD', currency='EUR' to find the rate).",
+        "For deposits in the configured base currency: pricePerUnit = 1, quantity = the amount. " +
+        "For foreign-currency assets, pricePerUnit is in the asset's native currency; the cash side of the transfer " +
+        "is denominated in that currency, then converted to the base currency at write time via the FX provider chain.",
       inputSchema: IdSchema.merge(BuyAssetSchema),
     },
-    (input) => {
+    async (input) => {
       const { id, ...rest } = input;
       try {
-        return ok(getAssetLotService().buy(id, rest));
+        return ok(await getAssetLotService().buy(id, rest));
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Buy failed";
         return err(msg);
@@ -125,13 +125,13 @@ export function registerAssetTools(server: McpServer): void {
       description:
         "Record an asset sale or withdrawal. Creates a positive-amount transfer transaction (cash in) and reduces holdings. " +
         "Returns error if quantity exceeds current holdings. " +
-        "For EUR withdrawals: pricePerUnit = 1. For foreign currency: use EUR exchange rate.",
+        "Same currency rules as buy_asset — pricePerUnit is in the asset's native currency.",
       inputSchema: IdSchema.merge(SellAssetSchema),
     },
-    (input) => {
+    async (input) => {
       const { id, ...rest } = input;
       try {
-        return ok(getAssetLotService().sell(id, rest));
+        return ok(await getAssetLotService().sell(id, rest));
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Sell failed";
         return err(msg);

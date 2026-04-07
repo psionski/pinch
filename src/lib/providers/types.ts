@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const ProviderNameSchema = z.enum([
   "frankfurter",
+  "fawazahmed",
   "ecb",
   "coingecko",
   "open-exchange-rates",

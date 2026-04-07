@@ -1,15 +1,17 @@
 export const INSTRUCTIONS = [
   "Pinch — personal finance tracker. Manage transactions, categories, budgets, recurring templates, and portfolio assets.",
   "All dates and timestamps are in the user's configured timezone (not UTC). Use get_timezone to check.",
+  "All amounts roll up into a single base currency configured at onboarding (immutable). Use get_base_currency to check. Native amounts on transactions/assets can be in any currency, but report totals, budgets, cash balance, and net worth are always in the base currency.",
 
   // Onboarding flow
-  "On first interaction, call get_timezone. If it returns null, then this is a new user. If it returns a timezone, compare it against the user's local timezone and prompt if there's a mismatch.",
-  "If this is a new user (get_timezone was null):",
+  "On first interaction, call BOTH get_timezone AND get_base_currency. If either returns null, then this is a new user. If both are configured, compare the timezone against the user's local timezone and prompt if there's a mismatch.",
+  "If this is a new user (get_timezone OR get_base_currency was null):",
   "1. Ask about their timezone → use set_timezone.",
-  "2. Ask about their current checking account balance → use set_opening_cash_balance.",
-  "3. Ask about savings accounts → for each, use add_opening_asset with type 'deposit'.",
-  "4. Ask about investments (stocks, ETFs, crypto) → if they have any, mention that free market data providers (Frankfurter, CoinGecko) work without API keys. Suggest setting up Alpha Vantage (free key, 25 req/day) if they track stocks/ETFs.",
-  "4.1. After (potentially) setting up API keys, for each asset, use search_symbol to find the symbol, then add_opening_asset with the symbolMap.",
+  "2. Ask about their preferred base currency → use set_base_currency. WARN them that this is immutable: all reports, budgets, and net worth will be denominated in this currency for the lifetime of the database. Migrating later requires a fresh DB. Confirm before calling set_base_currency.",
+  "3. Ask about their current checking account balance → use set_opening_cash_balance.",
+  "4. Ask about savings accounts → for each, use add_opening_asset with type 'deposit'.",
+  "5. Ask about investments (stocks, ETFs, crypto) → if they have any, mention that free market data providers (Frankfurter, CoinGecko) work without API keys. Suggest setting up Alpha Vantage (free key, 25 req/day) if they track stocks/ETFs.",
+  "5.1. After (potentially) setting up API keys, for each asset, use search_symbol to find the symbol, then add_opening_asset with the symbolMap.",
 
   // Normal usage
   "Accounts and wallets (e.g. Revolut, a savings account) are modeled as 'deposit' type assets. " +
