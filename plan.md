@@ -328,18 +328,71 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 - [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
 - [ ] Donation button / MCP instructions ("if user is saving lots of money...")
 
-### Sprint 27: Multi-Currency UX
-**Goal:** Make foreign-currency assets a first-class experience — surface currency info during search, auto-fill on creation, and separate FX effects in reports.
+### Sprint 27: Multi-Currency
+**Goal:** Make foreign currencies a first-class experience across the whole app — assets, transactions, reports — with a base currency chosen at onboarding (and immutable thereafter), and FX effects visible separately from underlying performance.
 
-- [ ] **Currency selector dropdown** - search + dropdown (similar to the Symbol Search widget), Intl API for currency symbols, currency-codes NPM package for codes, most popular (USD, EUR, GBP, JPY, CAD, AUD) on top, then divider, then the rest of the codes, alphabetically
-- [ ] **Symbol search: surface currency** — return base currency (e.g. USD for SPX, USD for AAPL) from financial data providers in search results, display it in the symbol search UI
-- [ ] **Asset creation: auto-fill currency** — when a symbol search result is selected, pre-fill the asset's currency field from the result's base currency instead of defaulting to EUR
-- [ ] **Buy/sell dialog: show native + base currency** — display both the asset's native currency amount and the EUR equivalent side-by-side
-- [ ] **Reports: separate FX vs asset P&L** — in asset performance reports, break down total P&L into asset price change and FX gain/loss components
-- [ ] **Configurable base currency** — extract the hardcoded `"EUR"` from throughout the application into a user setting. After we're done, we shouldn't have "EUR" or "toEuros" and similar anywhere in the code, maybe except for sample data (seed script) and tests
-- [ ] **Currency exposure chart** — add a dashboard widget showing portfolio allocation by currency with current FX rates
+**Architecture decisions (locked before starting):**
+- **Base currency is immutable.** Set once during onboarding alongside timezone. Displayed grayed-out in settings with a tooltip. Eliminates the entire "what if base currency changes" recomputation problem — a configured Pinch instance is a "EUR database" or a "USD database" for life. Migrating between base currencies would require a fresh DB.
+- **Denormalize base-currency amounts on write.** Each transaction stores `amount` (native), `currency`, and `amount_base` (computed at write time via the price resolver). Reports become O(N) sums with no FX joins. The trade-off — a rate must be available at create time, and corrected rates don't propagate without an opt-in refresh — is a clear win when the base never changes.
+- **Drop the EUR pivot in `market_prices`.** Store FX rates against the configured base directly (`symbol='USD', currency=<base>`). The existing `FrankfurterProvider` already supports arbitrary `from`/`to`, no provider rewrite needed.
 
-**Done when:** A user can add a USD-denominated asset (e.g. SPX) and clearly see what currency it's in at every step — search, creation, transactions, and reports. FX effects are visible separately from asset performance.
+**Foundation**
+- [ ] **Base currency setting** — `SettingsService.getBaseCurrency()` / `setBaseCurrency()`. `setBaseCurrency()` throws if already set (immutable). Settings UI shows the current base grayed-out with an explainer tooltip.
+- [ ] **Onboarding gate** — generalize `requireTimezone()` → `requireOnboarding()` (timezone + base currency); update all 9 page callers. Insert a "base currency" step into the settings wizard between timezone and cash. Add `get_base_currency` / `set_base_currency` MCP tools and update `INSTRUCTIONS` so the AI's "new user" detection checks both, asking currency before any opening-balance tools (`set_opening_cash_balance`, `add_opening_asset`).
+- [ ] **`currencySchema` Zod validator** — ISO 4217, used everywhere a currency is accepted. Lives in `src/lib/validators/common.ts`.
+- [ ] **Currency selector component** — search + dropdown using `Intl.supportedValuesOf('currency')` and `Intl.NumberFormat` for symbols/names. Pin popular currencies (USD, EUR, GBP, JPY, CAD, AUD) at top, rest alphabetical. No external NPM package needed.
+- [ ] **Per-currency formatting** — replace `formatCurrency(amount)` with `formatCurrency(amount, currency)` using `Intl.NumberFormat` (handles JPY 0 decimals, BHD 3 decimals). Replace `Math.round(x * 100) / 100` boundary rounding in services with per-currency precision via `resolvedOptions().maximumFractionDigits`.
+
+**Financial data providers**
+- [ ] **De-EUR-ize the price resolver** — remove `BASE_CURRENCY = "EUR"` from `price-resolver.ts`. Deposit identity rule becomes "deposits in *base* currency = 1.00." Audit every place that reads `market_prices` for a hardcoded second-column EUR assumption. Update `CLAUDE.md` and `plan.md` storage convention docs.
+- [ ] **Use Frankfurter with arbitrary base** — call with `from=<source>&to=<base>` instead of pivoting through EUR. Existing provider already supports this; only resolver call sites change. Add a unit test for triangulation direction.
+- [ ] **Add `fawazahmed0/exchange-api` provider** — no key, CC0 license, covers 200+ currencies including crypto and metals. Static JSON files on jsDelivr CDN, no rate limits. Implement as `FinancialDataProvider`, register in `registry.ts`. Use as fallback when Frankfurter has no rate (covers exotic currencies — IDR, NGN, VND, etc., plus EUR/RUB which ECB suspended in 2022).
+- [ ] **Currency support validation at write time** — when a user creates a transaction in a currency no configured provider can resolve, fail the create with a clear error: "Currency XXX isn't supported by any configured FX provider." Never store an unconvertible amount.
+- [ ] **Historical FX backfill** — extend the 04:00 cron to fetch missing rates for any `(date, currency)` pair appearing in `transactions` where the rate isn't cached. Bounded query via `LEFT JOIN market_prices`. Also fetch on-demand at transaction-create time. Weekend/holiday fallback walks back to most recent prior business day (existing 7-day lookback already handles this — document it).
+
+**Transactions**
+- [ ] **Schema migration** — add `currency text NOT NULL` and `amount_base real NOT NULL` to `transactions`. Backfill existing rows: `currency = <base>`, `amount_base = amount`. Same migration for `recurring_transactions` (currency only — generated transactions are normal rows).
+- [ ] **Service layer** — `createTransaction` accepts `{ amount, currency? }`, defaults currency to base. Computes `amount_base` synchronously via the price resolver at write time. If FX lookup fails, the create fails. Read paths return `{ amount, currency, amountBase }` on every transaction.
+- [ ] **Validators + MCP tools** — `create_transaction`, `create_transactions`, `update_transaction`, `batch_update_transactions` accept optional `currency`. All read tools include `amount`, `currency`, `amount_base` in response schemas. Aggregation tools (`get_spending_summary`, `get_category_stats`, `get_trends`, `get_top_merchants`, `get_net_income`, `get_cash_balance`) return base-currency totals plus a top-level `currency: <base>` field so AI consumers know what they're looking at.
+- [ ] **`convert_currency` MCP tool** — drop the `symbolMap` requirement; route through the default FX provider chain so it works for transaction-style conversions, not just asset-coupled ones.
+- [ ] **Transactions UI** — currency field in create/edit forms (using the new selector); transactions table shows native amount with base-currency equivalent in a tooltip when they differ (no secondary line for same-currency rows).
+- [ ] **Recurring transactions** — `currency` field on templates; generated transactions inherit it. The recurring engine calls the same `createTransaction` path so `amount_base` is computed at *generation* time using that day's rate, not template-creation time.
+
+**Budgets**
+- [ ] **Budgets are base-currency only** — single amount field, document that it's in base currency. No schema change, no per-currency budgets.
+- [ ] **`BudgetService.getForMonth()`** — change the spent rollup to sum `amount_base` instead of `amount`. Each foreign-currency transaction contributes its base-currency equivalent computed at the transaction's date (consistent with reports).
+
+**Cash balance & portfolio**
+- [ ] **`reports.cashBalance()`** — sum `amount_base` instead of `amount`. Response gains a `currency: <base>` field. Optionally also return a per-currency breakdown.
+- [ ] **`portfolio.netWorth()`** — `cashBalance + totalAssetValue` is now safe since both are in base currency. Audit `getCashBalance` and `getNetWorth` for residual EUR assumptions.
+
+**Reports**
+- [ ] **All aggregations sum `amount_base`** — spending summaries, category stats, trends, top merchants, net income. No per-query FX joins (the denormalization wins here). Each response includes `currency: <base>` at the top level.
+- [ ] **Asset performance: separate FX vs price P&L** — for assets in non-base currencies, break down total P&L into asset price change (in native currency) and FX gain/loss (currency move applied to cost basis). Cost basis stored in native at lot creation; FX delta computed on read against current rate.
+
+**Assets**
+- [ ] **Symbol search: surface currency** — return native currency in financial-data-provider search results; display it in the symbol search UI.
+- [ ] **Asset creation: auto-fill currency** — pre-fill from search result when one is selected (user can still override — important for cross-listed stocks like SHEL on LSE/NYSE).
+- [ ] **Buy/sell dialog: native + base side-by-side** — display both amounts when they differ.
+
+**Sample data, tests, docs**
+- [ ] **Sample data** — keep EUR-denominated for the most part, but seed one transaction in a non-base currency to demonstrate the feature. Parameterize the seed script on the configured base where it matters.
+- [ ] **Test infrastructure** — `makeTestDb()` defaults to seeding base currency = "EUR" so existing tests don't break. Add `makeTestDb({ baseCurrency: "USD" })` for currency-aware tests. Cover: per-currency formatter precision, FX triangulation direction, `amount_base` computation, budget rollup with mixed currencies, currency-support validation.
+- [ ] **OpenAPI spec** — update `src/lib/api/openapi.ts` for new `currency` parameter on transaction endpoints and new `currency`/`amount_base` response fields.
+- [ ] **Docs** — update `CLAUDE.md` Currency section to remove EUR-only framing and document the immutability rule. Update README screenshots if any show EUR symbols. Update MCP `INSTRUCTIONS` and `get_started` to explain the currency convention.
+
+**Done when:** A user can record a USD coffee purchase or add a USD-denominated asset and clearly see both native and base amounts at every step. All aggregations (transactions, budgets, cash balance, reports) roll up to the immutable base currency. FX effects are visible separately from underlying performance. Adding a transaction in a currency no configured provider can resolve fails with a clear error. The base currency cannot be changed after onboarding.
+
+**Gotchas (working list — keep updated as the sprint runs):**
+1. **Migration backfill assumes EUR.** Existing rows get `currency = "EUR"`, `amount_base = amount`. Correct only if the user has been EUR-only — worth a one-line warning for users who logged non-EUR cash flows against assets.
+2. **`BASE_CURRENCY = "EUR"` is load-bearing in `price-resolver.ts:12`.** EUR deposit identity becomes base-currency deposit identity — branching change, not just a rename.
+3. **Frankfurter triangulation direction.** `rate(X→Y) = rate(P→Y) / rate(P→X)`, NOT the other way. Common bug. Unit test it.
+4. **EUR/RUB suspended at ECB since 2022.** Frankfurter returns nothing for it. fawazahmed0 fallback covers this; surface a specific error if both fail.
+5. **`market_prices` storage key `(symbol, currency, date)` is unique.** Pre-migration FX rows say `currency='EUR'` ("rate to EUR"); post-migration rows say `currency=<base>`. Existing users default to EUR so the old rows remain valid; new users have no pre-existing rows. No re-keying needed.
+6. **JPY/BHD decimals.** `Math.round(x * 100) / 100` is wrong for these. Use `Intl.NumberFormat(...).resolvedOptions().maximumFractionDigits` consistently in service-boundary rounding.
+7. **First write of a new currency blocks on a network call.** Frankfurter lookup at create time. Acceptable; surface a loading state in the UI.
+8. **Stocks listed on multiple exchanges.** SHEL is GBP on LSE and USD on NYSE. Symbol search auto-fill picks one — don't lock the field.
+9. **Stable historical reports become live only if rates are corrected.** With denormalized `amount_base`, reports are stable by default. An opt-in "refresh base amounts" MCP tool / cron lets users recompute if a provider corrects historical data. Out of scope for the initial sprint unless it becomes a real problem.
 
 ---
 
@@ -383,7 +436,6 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 
 - **CSV export:** Export any filtered transaction view as CSV.
 - **CSV/OFX import:** Bank statement import. Service layer already structured for batch inserts. Add a parser + import UI/MCP tool when needed.
-- **Multi-currency transactions:** Assets already support per-asset currencies (Sprint 17). For full multi-currency, add a `currency` field to transactions and an exchange rate table. All reporting converts to EUR base.
 - **Attachments:** Beyond receipts — invoices, contracts. Generalize receipt storage to a generic attachments table.
 - **App-level auth:** Session-based or token-based auth for shared access or public exposure. Keep auth concerns in middleware/route guards so this can be slotted in cleanly.
 - **Shared access:** Multiple users or shared household access. Auth is a prerequisite.
