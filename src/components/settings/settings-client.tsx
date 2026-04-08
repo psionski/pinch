@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { setBaseCurrencyCache } from "@/lib/format";
 import type { BackupInfo } from "@/lib/services/backup";
 import { Section } from "./settings-section";
@@ -180,7 +177,6 @@ export function SettingsClient({
       <Section title="Timezone" icon={null}>
         <div className="max-w-md space-y-4">
           <div className="space-y-2">
-            <Label>Timezone</Label>
             <TimezonePicker value={timezone} onChange={setTimezone} />
             <p className="text-muted-foreground text-xs">
               Determines what &quot;today&quot; and &quot;this month&quot; mean throughout the app.
@@ -199,23 +195,6 @@ export function SettingsClient({
           <Section title="Base currency" icon={null}>
             <div className="max-w-md space-y-4">
               <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="base-currency">Base currency</Label>
-                  {baseCurrencyLocked && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" aria-label="Why can't I change this?">
-                          <Info className="text-muted-foreground size-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Base currency is immutable once configured. All transactions, budgets, cash
-                        balance, and net worth are denominated in this currency. Migrating between
-                        base currencies requires a fresh database.
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
                 <CurrencyPicker
                   id="base-currency"
                   value={baseCurrency}
