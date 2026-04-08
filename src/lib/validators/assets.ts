@@ -18,7 +18,7 @@ export type SymbolMap = z.infer<typeof SymbolMapSchema>;
 export const CreateAssetSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   type: AssetTypeSchema.describe(
-    "Asset type: 'deposit' (bank/savings), 'investment' (stocks/ETFs), 'crypto', 'other'"
+    "Asset type: 'deposit' (bank/savings/wallet), 'investment' (stocks/ETFs), 'crypto', 'other'"
   ),
   currency: z
     .string()
@@ -26,12 +26,15 @@ export const CreateAssetSchema = z.object({
     .max(10)
     .optional()
     .describe(
-      "Asset denomination currency (ISO 4217). Defaults to the configured base currency " +
-        "when omitted — call get_base_currency to find out what that is. For cross-listed " +
-        "instruments (SHEL on LSE in GBP vs NYSE in USD) pass an explicit code."
+      "ISO 4217 fiat currency code (USD, EUR, GBP, JPY, …) the asset is denominated/priced in. " +
+        "NEVER a crypto ticker (BTC, ETH) or stock symbol — those go in symbolMap. " +
+        "For deposits: the account's currency. For investments: the listing currency (USD for NYSE, GBP for LSE, etc.). " +
+        "For crypto: the fiat currency to track the holding in (ask the user; the base currency is usually right). " +
+        "Defaults to the configured base currency when omitted — call get_base_currency to check."
     ),
   symbolMap: SymbolMapSchema.optional().describe(
-    "Provider→symbol mapping for automatic price tracking (e.g. { coingecko: 'bitcoin' }). Use search_symbol to discover symbols"
+    "Provider→symbol mapping for automatic price tracking (e.g. { coingecko: 'bitcoin' }, { 'alpha-vantage': 'AAPL' }). " +
+      "This is where crypto tickers and stock symbols live, NOT in `currency`. Use search_symbol to discover the right mapping."
   ),
   icon: z.string().max(100).optional(),
   color: z.string().max(20).optional(),
@@ -107,13 +110,16 @@ export const BuyAssetSchema = z.object({
   quantity: z
     .number()
     .positive("Quantity must be positive")
-    .describe("Number of units to buy (can be fractional, e.g. 0.5 BTC)"),
+    .describe(
+      "Number of units to buy (can be fractional, e.g. 0.5). " +
+        "For 'deposit' assets, this is the amount in the asset's currency (e.g. 500 for a 500 USD deposit)."
+    ),
   pricePerUnit: z
     .number()
     .positive("Price must be positive")
     .describe(
       "Price per unit in the asset's native currency (e.g. 345.63). " +
-        "For base-currency deposits use 1 — quantity carries the deposit amount."
+        "For ANY 'deposit' asset, regardless of currency, this is always 1 — quantity carries the amount."
     ),
   date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
@@ -122,13 +128,19 @@ export const BuyAssetSchema = z.object({
 export type BuyAssetInput = z.infer<typeof BuyAssetSchema>;
 
 export const SellAssetSchema = z.object({
-  quantity: z.number().positive("Quantity must be positive").describe("Number of units to sell"),
+  quantity: z
+    .number()
+    .positive("Quantity must be positive")
+    .describe(
+      "Number of units to sell. " +
+        "For 'deposit' assets, this is the amount in the asset's currency (e.g. 500 for a 500 USD withdrawal)."
+    ),
   pricePerUnit: z
     .number()
     .positive("Price must be positive")
     .describe(
       "Sale price per unit in the asset's native currency. " +
-        "For base-currency withdrawals use 1."
+        "For ANY 'deposit' asset, regardless of currency, this is always 1 — quantity carries the amount."
     ),
   date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
@@ -161,7 +173,7 @@ export type SetOpeningCashBalanceInput = z.infer<typeof SetOpeningCashBalanceSch
 export const AddOpeningAssetSchema = z.object({
   name: z.string().min(1).max(255),
   type: AssetTypeSchema.describe(
-    "Asset type: 'deposit' (bank/savings), 'investment' (stocks/ETFs), 'crypto', 'other'"
+    "Asset type: 'deposit' (bank/savings/wallet), 'investment' (stocks/ETFs), 'crypto', 'other'"
   ),
   currency: z
     .string()
@@ -169,21 +181,25 @@ export const AddOpeningAssetSchema = z.object({
     .max(10)
     .optional()
     .describe(
-      "Asset denomination currency (ISO 4217). Defaults to the configured base currency " +
-        "when omitted. For foreign-currency holdings (e.g. a USD account on a EUR-base " +
-        "instance) pass the explicit code."
+      "ISO 4217 fiat currency code (USD, EUR, GBP, …) the asset is denominated/priced in. " +
+        "NEVER a crypto ticker or stock symbol — those go in symbolMap. " +
+        "For deposits: the account's currency. For investments: the listing currency. " +
+        "For crypto: the fiat to denominate the holding in (ask the user). " +
+        "Defaults to the configured base currency when omitted."
     ),
   quantity: z
     .number()
     .positive("Quantity must be positive")
-    .describe("Number of units currently held"),
+    .describe(
+      "Number of units currently held. For 'deposit' assets, this is the amount in the asset's currency."
+    ),
   costBasisTotal: z
     .number()
     .positive("Cost basis must be positive")
     .optional()
     .describe(
       "Total cost basis in the asset's native currency. " +
-        "If omitted, calculated from pricePerUnit × quantity."
+        "If omitted, calculated from pricePerUnit × quantity. Skip both for deposits."
     ),
   pricePerUnit: z
     .number()
@@ -191,10 +207,12 @@ export const AddOpeningAssetSchema = z.object({
     .optional()
     .describe(
       "Cost per unit in the asset's native currency. Used if costBasisTotal omitted. " +
-        "If neither provided, P&L starts from zero."
+        "For 'deposit' assets always pass 1 (or omit) — the quantity carries the amount. " +
+        "If neither pricePerUnit nor costBasisTotal is provided, P&L starts from zero."
     ),
   symbolMap: SymbolMapSchema.optional().describe(
-    "Provider→symbol mapping for price tracking. Use search_symbol to discover symbols"
+    "Provider→symbol mapping for price tracking (e.g. { coingecko: 'bitcoin' }). " +
+      "Where crypto tickers and stock symbols live. Use search_symbol to discover the right mapping."
   ),
   date: PastOrTodayDateSchema.optional().describe("Lot date (YYYY-MM-DD). Defaults to today"),
   icon: z.string().max(100).optional(),

@@ -86,7 +86,13 @@ export function registerFinancialTools(server: McpServer): void {
       description:
         "Search for a market symbol by name. Use before creating/updating an asset or calling get_price. " +
         "Pass the best match as symbolMap: { [result.provider]: result.symbol } to create_asset or update_asset " +
-        "for automatic price tracking. For exchange rates, search the currency code (e.g. 'USD'). " +
+        "for automatic price tracking. " +
+        "Stock/ETF results often include a `currency` field — that's the listing currency, use it to fill " +
+        "the asset's `currency` field directly. " +
+        "Crypto results never include a currency: cryptocurrencies aren't denominated in any single fiat — " +
+        "the same coin can be quoted against any currency the user chooses. ASK the user which fiat to track " +
+        "the holding in (the base currency is usually the right default), then put that in the asset's `currency` field. " +
+        "For exchange rates, search the currency code (e.g. 'USD'). " +
         "If no results, you can still create the asset without symbolMap and use record_price manually.",
       inputSchema: SearchSymbolQuerySchema,
     },

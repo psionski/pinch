@@ -31,7 +31,7 @@ test.describe.serial("Onboarding wizard", () => {
     // Pick EUR as the base currency
     await page.locator("#base-currency").click();
     await page.getByPlaceholder("Search currencies...").fill("EUR");
-    await page.getByRole("button", { name: /^EUR\s/ }).click();
+    await page.getByTestId("currency-option-EUR").click();
 
     // Click Save — saves base currency, reveals cash balance section.
     // Two Save buttons are visible at this point (timezone + base currency);

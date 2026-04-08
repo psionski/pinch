@@ -231,16 +231,19 @@ describe("AssetLotService", async () => {
     ).rejects.toThrow("not found");
   });
 
-  // ── Regression: EUR deposit pricePerUnit guard ──────────────────────────────
+  // ── Regression: deposit pricePerUnit guard ──────────────────────────────────
+  // Deposits are 1-unit-per-currency-unit by definition (the quantity carries
+  // the amount). Anything else corrupts cost basis. The guard fires for ALL
+  // deposits regardless of currency, on every lot-creation path.
 
-  it("buy throws for EUR deposit with pricePerUnit !== 1", async () => {
+  it("buy throws for base-currency deposit with pricePerUnit !== 1", async () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
     await expect(
       lotService.buy(asset.id, { quantity: 1, pricePerUnit: 5000, date: "2026-01-01" })
     ).rejects.toThrow("pricePerUnit must be 1");
   });
 
-  it("buy accepts EUR deposit with pricePerUnit === 1", async () => {
+  it("buy accepts base-currency deposit with pricePerUnit === 1", async () => {
     const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
     const { lot } = await lotService.buy(asset.id, {
       quantity: 5000,
@@ -251,14 +254,30 @@ describe("AssetLotService", async () => {
     expect(lot.pricePerUnit).toBe(1);
   });
 
-  it("buy does NOT enforce pricePerUnit for non-EUR deposits", async () => {
+  it("buy throws for foreign-currency deposit with pricePerUnit !== 1", async () => {
     const asset = assetService.create({ name: "USD Account", type: "deposit", currency: "USD" });
-    const { lot } = await lotService.buy(asset.id, {
-      quantity: 1000,
-      pricePerUnit: 1.1,
-      date: "2026-01-01",
-    });
-    expect(lot.pricePerUnit).toBe(1.1);
+    await expect(
+      lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 1.1, date: "2026-01-01" })
+    ).rejects.toThrow("pricePerUnit must be 1");
+  });
+
+  it("sell throws for foreign-currency deposit with pricePerUnit !== 1", async () => {
+    const asset = assetService.create({ name: "USD Account", type: "deposit", currency: "USD" });
+    await lotService.buy(asset.id, { quantity: 1000, pricePerUnit: 1, date: "2026-01-01" });
+    await expect(
+      lotService.sell(asset.id, { quantity: 100, pricePerUnit: 1.1, date: "2026-02-01" })
+    ).rejects.toThrow("pricePerUnit must be 1");
+  });
+
+  it("createOpeningLot throws for foreign-currency deposit with pricePerUnit !== 1", async () => {
+    const asset = assetService.create({ name: "USD Account", type: "deposit", currency: "USD" });
+    await expect(
+      lotService.createOpeningLot(asset.id, {
+        quantity: 1000,
+        pricePerUnit: 1.1,
+        date: "2026-01-01",
+      })
+    ).rejects.toThrow("pricePerUnit must be 1");
   });
 
   // ── Regression: every code path that creates a lot must populate the base

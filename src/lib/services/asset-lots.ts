@@ -58,6 +58,21 @@ export class AssetLotService {
   }
 
   /**
+   * Deposit assets are 1-unit-per-unit-of-the-asset's-currency, regardless of
+   * whether that currency is the base or a foreign one. Anything else corrupts
+   * the cost basis. Centralised so buy/sell/createOpeningLot all enforce it.
+   */
+  private assertDepositPrice(asset: schema.Asset, pricePerUnit: number): void {
+    if (asset.type === "deposit" && pricePerUnit !== 1) {
+      throw new Error(
+        `${asset.currency} deposit: pricePerUnit must be 1 (1 unit per ${asset.currency}). ` +
+          `Use quantity to represent the ${asset.currency} amount ` +
+          `(e.g. quantity: 5000 for a 5,000 ${asset.currency} deposit).`
+      );
+    }
+  }
+
+  /**
    * Convert a native total (in `currency`) to the base currency. Used by
    * buy/sell to denormalize amount_base on the synthetic transfer transaction
    * they create. Throws when no FX provider can resolve the rate.
@@ -86,15 +101,7 @@ export class AssetLotService {
   ): Promise<{ lot: AssetLotResponse; transaction: TransactionResponse }> {
     const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
     if (!asset) throw new Error(`Asset ${assetId} not found`);
-
-    const baseCurrency = getBaseCurrency();
-    if (asset.type === "deposit" && asset.currency === baseCurrency && input.pricePerUnit !== 1) {
-      throw new Error(
-        `${baseCurrency} deposit: pricePerUnit must be 1 (1 unit per unit). ` +
-          `Use quantity to represent the ${baseCurrency} amount ` +
-          `(e.g. quantity: 5000 for a 5,000 ${baseCurrency} deposit).`
-      );
-    }
+    this.assertDepositPrice(asset, input.pricePerUnit);
 
     const total = roundToCurrency(input.quantity * input.pricePerUnit, asset.currency);
     // FX conversion happens before the SQLite transaction (which must be sync).
@@ -150,6 +157,7 @@ export class AssetLotService {
   ): Promise<{ lot: AssetLotResponse; transaction: TransactionResponse }> {
     const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
     if (!asset) throw new Error(`Asset ${assetId} not found`);
+    this.assertDepositPrice(asset, input.pricePerUnit);
 
     // Check sufficient holdings (race-prone outside the inner transaction, but
     // the same sanity check is repeated inside; the inner check is the
@@ -226,6 +234,11 @@ export class AssetLotService {
   async createOpeningLot(assetId: number, input: CreateOpeningLotInput): Promise<AssetLotResponse> {
     const asset = this.db.select().from(assets).where(eq(assets.id, assetId)).get();
     if (!asset) throw new Error(`Asset ${assetId} not found`);
+    // Allow pricePerUnit === 0 for "I own this but don't know what I paid"
+    // opening lots; only enforce the deposit rule when a price is given.
+    if (input.pricePerUnit > 0) {
+      this.assertDepositPrice(asset, input.pricePerUnit);
+    }
 
     // Compute base-currency cost outside the SQLite transaction (which is sync).
     // For zero-cost opening lots ("I own this but don't know what I paid"),

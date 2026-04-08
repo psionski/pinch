@@ -154,6 +154,7 @@ export function CurrencyPicker({
               <button
                 key={entry.code}
                 type="button"
+                data-testid={`currency-option-${entry.code}`}
                 className="hover:bg-accent flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
                 onClick={() => {
                   onChange(entry.code);

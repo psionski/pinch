@@ -75,8 +75,11 @@ export function registerOnboardingTools(server: McpServer): void {
     {
       description:
         "Add an existing asset holding during onboarding — 'I already own this.' " +
-        "For base-currency deposits: pricePerUnit is always 1, quantity = the amount in that currency. " +
-        "Use search_symbol first to get a symbolMap for automatic price tracking.",
+        "For ANY 'deposit' asset (savings, bank, exchange wallet), regardless of currency: " +
+        "pricePerUnit=1 and quantity=the amount in the asset's currency. " +
+        "For investments/crypto: call search_symbol first to get the symbolMap. " +
+        "Reminder: `currency` is always an ISO 4217 fiat code (USD, EUR, …) — never a crypto ticker. " +
+        "For crypto, ASK the user which fiat currency to denominate it in (default to the base currency).",
       inputSchema: AddOpeningAssetSchema,
     },
     async (input) => {
@@ -86,11 +89,15 @@ export function registerOnboardingTools(server: McpServer): void {
         // Determine pricePerUnit. Don't round to integer — that destroys
         // sub-currency precision (e.g. 10 shares × $123.45 → 1234.5 / 10 →
         // Math.round(123.45) = 123, losing $4.50 of cost basis).
+        // Deposits are 1-unit-per-currency-unit by definition; the quantity
+        // already carries the amount, so default to 1 instead of 0.
         let pricePerUnit: number;
         if (input.costBasisTotal !== undefined) {
           pricePerUnit = input.costBasisTotal / input.quantity;
         } else if (input.pricePerUnit !== undefined) {
           pricePerUnit = input.pricePerUnit;
+        } else if (input.type === "deposit") {
+          pricePerUnit = 1;
         } else {
           pricePerUnit = 0;
         }

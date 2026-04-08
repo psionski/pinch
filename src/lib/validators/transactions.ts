@@ -44,10 +44,7 @@ export const CreateTransactionSchema = z.object({
   amount: z
     .number()
     .refine((n) => n !== 0, "Amount must not be zero")
-    .describe(
-      "Native amount (e.g. 12.10). " +
-        "Positive for income/expense. Signed for transfers: negative = cash out (asset purchase), positive = cash in (asset sale)"
-    ),
+    .describe("Native amount (e.g. 12.10). Always positive for income and expense."),
   currency: CurrencySchema.optional().describe(
     "ISO 4217 currency of the amount. Defaults to the configured base currency. " +
       "Foreign currencies are converted to the base currency at write time using the configured FX providers; " +
