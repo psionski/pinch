@@ -398,10 +398,7 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 **Gotchas still relevant for follow-up work:**
 1. **First write of a new currency blocks on a network call.** Frankfurter lookup happens synchronously inside `TransactionService.create`. Acceptable for now (background backfill via the 04:00 cron means subsequent writes are cached) but the create form should show a loading state when a non-base currency is selected.
 2. **Stocks listed on multiple exchanges.** SHEL is GBP on LSE *and* USD on NYSE; many ADRs have the same property. The deferred "auto-fill currency from symbol search" item must pre-fill the field but **not lock it**.
-3. **Stable historical reports vs. corrected provider data.** With denormalized `amount_base`, reports are stable by default. If a provider issues a historical correction, the stored `amount_base` won't reflect it without an explicit refresh. Out of scope unless it bites; the eventual fix is an opt-in "refresh base amounts" MCP tool that walks `transactions` and recomputes from current FX.
-4. Clarify MCP tool descriptions for adding assets, e.g. USD deposit is pricePerUnit 1 and currency: USD? The AI is getting confused around pricePerUnit for foreign currency deposits. Lots of unnecessary internal details too. Also really confused about crypto, tries to put "BTC" in "currency".
-5. Formatted currency amounts are getting clipped in charts.
-6. No way to set foreign currency in "Add Recurring Transaction" dialog.
+3. Formatted currency amounts are getting clipped in charts.
 
 ---
 

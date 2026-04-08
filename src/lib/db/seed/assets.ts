@@ -91,10 +91,17 @@ interface LotDef {
   notes?: string;
 }
 
-/** Convert lot definitions to concrete lots, filtering out lots past the month's lastDay. */
+/**
+ * Convert lot definitions to concrete lots. The day-of-month is clamped
+ * by `dateAt` to the month's `lastDay` (which for the current month is
+ * `today.day`), so a definition like `{monthIdx: 11, day: 28}` running on
+ * the 9th of the month produces a day-9 lot rather than being silently
+ * dropped. This keeps the lot count stable across seed runs regardless of
+ * which day of the month the seed is regenerated.
+ */
 function buildLots(defs: LotDef[], months: MonthSpec[]): AssetSeed["lots"] {
   return defs
-    .filter((d) => d.monthIdx < months.length && d.day <= months[d.monthIdx].lastDay)
+    .filter((d) => d.monthIdx < months.length)
     .map((d) => ({
       quantity: d.quantity,
       pricePerUnit: d.pricePerUnit,
