@@ -40,11 +40,23 @@ function formatShortMonth(date: string): string {
 }
 
 function formatCurrency(amount: number, currency: string): string {
-  return amount.toLocaleString("de-DE", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  });
+  // Per-currency precision via Intl — JPY = 0, BHD = 3, etc.
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
+}
+
+/** Currency symbol for axis ticks, derived via Intl so it works for any code. */
+function currencySymbol(currency: string): string {
+  try {
+    const fmt = new Intl.NumberFormat("en", {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    });
+    const part = fmt.formatToParts(0).find((p) => p.type === "currency");
+    return part?.value ?? currency;
+  } catch {
+    return currency;
+  }
 }
 
 export function ValueChart({ data, currency }: ValueChartProps): React.ReactElement {
@@ -89,7 +101,7 @@ export function ValueChart({ data, currency }: ValueChartProps): React.ReactElem
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v: number) => `${currency === "EUR" ? "\u20AC" : currency}${v}`}
+                tickFormatter={(v: number) => `${currencySymbol(currency)}${v}`}
               />
               <ChartTooltip
                 content={

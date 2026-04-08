@@ -83,17 +83,20 @@ export function registerOnboardingTools(server: McpServer): void {
       try {
         const date = input.date ?? isoToday();
 
-        // Determine pricePerUnit
+        // Determine pricePerUnit. Don't round to integer — that destroys
+        // sub-currency precision (e.g. 10 shares × $123.45 → 1234.5 / 10 →
+        // Math.round(123.45) = 123, losing $4.50 of cost basis).
         let pricePerUnit: number;
         if (input.costBasisTotal !== undefined) {
-          pricePerUnit = Math.round(input.costBasisTotal / input.quantity);
+          pricePerUnit = input.costBasisTotal / input.quantity;
         } else if (input.pricePerUnit !== undefined) {
           pricePerUnit = input.pricePerUnit;
         } else {
           pricePerUnit = 0;
         }
 
-        // Create the asset
+        // Create the asset (currency defaults to base in AssetService.create
+        // when omitted — Zod can't default to a runtime value).
         const asset = getAssetService().create({
           name: input.name,
           type: input.type,

@@ -29,9 +29,9 @@ export const GetPriceSchema = z.object({
     "Provider→symbol mapping (JSON string in query params). Use search_symbol to discover symbols. " +
       "E.g. { coingecko: 'bitcoin' } or { frankfurter: 'USD' }"
   ),
-  currency: CurrencyCodeSchema.optional()
-    .default("EUR")
-    .describe("Target currency for the price. Defaults to EUR."),
+  currency: CurrencyCodeSchema.optional().describe(
+    "Target currency for the price. Defaults to the configured base currency when omitted."
+  ),
   date: DateSchema.describe("Date in YYYY-MM-DD format. Defaults to today."),
 });
 

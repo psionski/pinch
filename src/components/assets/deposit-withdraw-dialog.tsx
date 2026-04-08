@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, getBaseCurrency } from "@/lib/format";
 import type { AssetWithMetrics } from "@/lib/validators/assets";
 
 interface DepositWithdrawDialogProps {
@@ -60,44 +60,47 @@ export function DepositWithdrawDialog({
   loading,
 }: DepositWithdrawDialogProps): React.ReactElement {
   const today = isoToday();
-  const isEur = asset.currency === "EUR";
+  const baseCurrency = getBaseCurrency();
+  // Base-currency deposits are pure cash and need no FX rate. Foreign-currency
+  // deposits need a per-unit rate to convert to base for the cost basis.
+  const isBase = asset.currency === baseCurrency;
 
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
 
-  // For non-EUR deposits, exchange rate is shown if symbolMap is available.
-  const willFetchRate = !isEur && !!asset.symbolMap;
-  const [nonEurRate, setNonEurRate] = useState("");
-  const [fetchingNonEurRate, setFetchingNonEurRate] = useState(willFetchRate);
+  // For foreign-currency deposits, exchange rate is shown if symbolMap is available.
+  const willFetchRate = !isBase && !!asset.symbolMap;
+  const [foreignRate, setForeignRate] = useState("");
+  const [fetchingForeignRate, setFetchingForeignRate] = useState(willFetchRate);
   const [rateFetchFailed, setRateFetchFailed] = useState(false);
 
-  // Fetch exchange rate for non-EUR deposits on open
+  // Fetch exchange rate for foreign-currency deposits on open
   useEffect(() => {
-    if (!open || isEur || !asset.symbolMap) return;
+    if (!open || isBase || !asset.symbolMap) return;
     let cancelled = false;
     void (async () => {
-      setFetchingNonEurRate(true);
+      setFetchingForeignRate(true);
       setRateFetchFailed(false);
-      const rate = await fetchExchangeRate(asset.symbolMap!, "EUR", date);
+      const rate = await fetchExchangeRate(asset.symbolMap!, baseCurrency, date);
       if (!cancelled) {
         if (rate !== null) {
-          setNonEurRate(rate.toFixed(4));
+          setForeignRate(rate.toFixed(4));
         } else {
           setRateFetchFailed(true);
         }
-        setFetchingNonEurRate(false);
+        setFetchingForeignRate(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, isEur, asset.symbolMap, date]);
+  }, [open, isBase, asset.symbolMap, baseCurrency, date]);
 
-  // Computed EUR cost for non-EUR deposits
-  const computedEurCost =
-    !isEur && amount && nonEurRate ? parseFloat(amount) * parseFloat(nonEurRate) : null;
+  // Computed base-currency cost for foreign-currency deposits
+  const computedBaseCost =
+    !isBase && amount && foreignRate ? parseFloat(amount) * parseFloat(foreignRate) : null;
 
   function handleSubmit(e: React.FormEvent): void {
     e.preventDefault();
@@ -109,7 +112,7 @@ export function DepositWithdrawDialog({
       return;
     }
 
-    if (isEur) {
+    if (isBase) {
       onSubmit({
         quantity: amt,
         pricePerUnit: 1,
@@ -117,7 +120,7 @@ export function DepositWithdrawDialog({
         description: description.trim() || undefined,
       });
     } else {
-      const rate = parseFloat(nonEurRate);
+      const rate = parseFloat(foreignRate);
       if (Number.isNaN(rate) || rate <= 0) {
         setError("Exchange rate must be a positive number.");
         return;
@@ -160,22 +163,24 @@ export function DepositWithdrawDialog({
             />
           </div>
 
-          {!isEur && (
+          {!isBase && (
             <>
               <div className="space-y-1">
-                <Label htmlFor="dep-rate">Exchange rate (EUR per 1 {asset.currency})</Label>
+                <Label htmlFor="dep-rate">
+                  Exchange rate ({baseCurrency} per 1 {asset.currency})
+                </Label>
                 <div className="relative">
                   <Input
                     id="dep-rate"
                     type="number"
                     step="any"
                     min="0"
-                    value={nonEurRate}
-                    onChange={(e) => setNonEurRate(e.target.value)}
+                    value={foreignRate}
+                    onChange={(e) => setForeignRate(e.target.value)}
                     placeholder={asset.symbolMap ? "Auto-fetched" : "Enter manually"}
                     disabled={loading}
                   />
-                  {fetchingNonEurRate && (
+                  {fetchingForeignRate && (
                     <Loader2 className="text-muted-foreground absolute top-2.5 right-3 size-4 animate-spin" />
                   )}
                 </div>
@@ -183,9 +188,9 @@ export function DepositWithdrawDialog({
                   <p className="text-destructive text-xs">Could not fetch rate. Enter manually.</p>
                 )}
               </div>
-              {computedEurCost !== null && !Number.isNaN(computedEurCost) && (
+              {computedBaseCost !== null && !Number.isNaN(computedBaseCost) && (
                 <p className="text-muted-foreground text-sm">
-                  Cost: {formatCurrency(computedEurCost)}
+                  Cost: {formatCurrency(computedBaseCost)}
                 </p>
               )}
             </>

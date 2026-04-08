@@ -8,6 +8,7 @@ import {
 
 import { getFinancialDataService, getSettingsService } from "@/lib/api/services";
 import { getProviderStatuses, getUnconfiguredProviders } from "@/lib/providers/registry";
+import { getBaseCurrency } from "@/lib/format";
 import { ok, err } from "@/lib/mcp/response";
 
 function unconfiguredProviderHint(): string | null {
@@ -51,10 +52,13 @@ export function registerFinancialTools(server: McpServer): void {
     },
     async (input) => {
       const svc = getFinancialDataService();
-      const result = await svc.getPrice(input.symbolMap, input.currency, input.date);
+      // Default to the configured base currency when the AI omits currency.
+      // Done at the boundary because Zod can't default to a runtime value.
+      const targetCurrency = input.currency ?? getBaseCurrency();
+      const result = await svc.getPrice(input.symbolMap, targetCurrency, input.date);
       if (!result) {
         const symbols = Object.values(input.symbolMap).filter(Boolean).join(", ");
-        const msg = `No price available for ${symbols}/${input.currency}`;
+        const msg = `No price available for ${symbols}/${targetCurrency}`;
         const hint = unconfiguredProviderHint();
         return err(hint ? `${msg}. ${hint}` : msg);
       }

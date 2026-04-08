@@ -261,6 +261,86 @@ describe("AssetLotService", async () => {
     expect(lot.pricePerUnit).toBe(1.1);
   });
 
+  // ── Regression: every code path that creates a lot must populate the base
+  //               column. The sample-data seed used to db.insert() lots without
+  //               pricePerUnitBase, letting the NOT NULL DEFAULT 0 take over —
+  //               which made costBasisBase render as 0 and turned pnlBase into
+  //               the entire current value. attachMetrics reads the column
+  //               directly, so a missing write silently corrupts every reader.
+  // ────────────────────────────────────────────────────────────────────────────
+
+  it("regression: buy populates pricePerUnitBase so costBasisBase is non-zero", async () => {
+    const asset = assetService.create({ name: "VWCE", type: "investment", currency: "EUR" });
+    await lotService.buy(asset.id, { quantity: 5, pricePerUnit: 100, date: "2026-01-01" });
+
+    const lots = lotService.listLots(asset.id);
+    expect(lots[0].pricePerUnitBase).toBe(100); // EUR base, EUR asset → 1:1
+
+    const metrics = assetService.getById(asset.id);
+    expect(metrics?.costBasis).toBe(500);
+    expect(metrics?.costBasisBase).toBe(500); // would be 0 if base column unset
+    expect(metrics?.pnlBase).toBe(0); // would equal currentValueBase if base unset
+  });
+
+  it("regression: sell populates pricePerUnitBase on the negative lot", async () => {
+    const asset = assetService.create({ name: "VWCE", type: "investment", currency: "EUR" });
+    await lotService.buy(asset.id, { quantity: 5, pricePerUnit: 100, date: "2026-01-01" });
+    await lotService.sell(asset.id, { quantity: 2, pricePerUnit: 110, date: "2026-02-01" });
+
+    const lots = lotService.listLots(asset.id);
+    const sellLot = lots.find((l) => l.quantity < 0);
+    expect(sellLot?.pricePerUnitBase).toBe(110);
+  });
+
+  it("regression: createOpeningLot populates pricePerUnitBase", async () => {
+    const asset = assetService.create({ name: "Savings", type: "deposit", currency: "EUR" });
+    const lot = await lotService.createOpeningLot(asset.id, {
+      quantity: 5000,
+      pricePerUnit: 1,
+      date: "2026-01-01",
+    });
+    expect(lot.pricePerUnitBase).toBe(1);
+  });
+
+  // ── Regression: per-currency rounding for non-2-decimal base currencies. ──
+  //               attachMetrics used to call Math.round(x * 100) / 100 directly,
+  //               which is wrong for JPY (0 decimals) — sub-yen noise survived.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it("regression: costBasisBase respects per-currency precision (JPY base, 0 decimals)", async () => {
+    const { setBaseCurrencyCache } = await import("@/lib/format");
+    setBaseCurrencyCache("JPY");
+    try {
+      // Need a fresh DB seeded with JPY base so the integer-only currency
+      // flows through every helper consistently.
+      const jpyDb = makeTestDb({ baseCurrency: "JPY" });
+      const fx = makeFx(jpyDb);
+      const jpyAssetService = new AssetService(jpyDb);
+      const jpyLotService = new AssetLotService(jpyDb, fx);
+
+      const asset = jpyAssetService.create({
+        name: "Tokyo Stock",
+        type: "investment",
+        currency: "JPY",
+      });
+      // 7 units at ¥1234.56 each — naive 2-decimal rounding would leave noise.
+      await jpyLotService.buy(asset.id, {
+        quantity: 7,
+        pricePerUnit: 1234.56,
+        date: "2026-01-01",
+      });
+
+      const metrics = jpyAssetService.getById(asset.id);
+      // 7 × 1234.56 = 8641.92 → JPY rounds to 8642 (no decimals).
+      expect(metrics?.costBasis).toBe(8642);
+      expect(metrics?.costBasisBase).toBe(8642);
+      expect(Number.isInteger(metrics!.costBasisBase)).toBe(true);
+    } finally {
+      // Reset back to the default for the rest of the suite.
+      setBaseCurrencyCache("EUR");
+    }
+  });
+
   // ── Regression: average-cost basis after partial sell ───────────────────────
 
   it("currentHoldings is free of IEEE 754 float noise", async () => {

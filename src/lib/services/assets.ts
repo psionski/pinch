@@ -11,7 +11,7 @@ import type {
 import { resolvePrice } from "./price-resolver";
 import { findCachedFxRate } from "./fx-cache";
 import { isoToday, utcToLocal } from "@/lib/date-ranges";
-import { getBaseCurrency } from "@/lib/format";
+import { getBaseCurrency, roundToCurrency } from "@/lib/format";
 
 type Db = BetterSQLite3Database<typeof schema>;
 
@@ -34,12 +34,16 @@ export class AssetService {
   constructor(private db: Db) {}
 
   create(input: CreateAssetInput): AssetResponse {
+    // Default currency to the configured base when the caller omits it. Done
+    // here rather than in the Zod schema because Zod can't default to a
+    // runtime value that's read from settings.
+    const currency = input.currency ?? getBaseCurrency();
     const [row] = this.db
       .insert(assets)
       .values({
         name: input.name,
         type: input.type,
-        currency: input.currency,
+        currency,
         symbolMap: input.symbolMap ? JSON.stringify(input.symbolMap) : null,
         icon: input.icon ?? null,
         color: input.color ?? null,
@@ -121,25 +125,33 @@ export class AssetService {
       }
     }
 
+    const baseCurrency = getBaseCurrency();
     const currentHoldings = parseFloat(queue.reduce((sum, e) => sum + e.qty, 0).toFixed(8));
-    const costBasis = Math.round(queue.reduce((sum, e) => sum + e.qty * e.price, 0) * 100) / 100;
-    const costBasisBase =
-      Math.round(queue.reduce((sum, e) => sum + e.qty * e.priceBase, 0) * 100) / 100;
+    const costBasis = roundToCurrency(
+      queue.reduce((sum, e) => sum + e.qty * e.price, 0),
+      asset.currency
+    );
+    const costBasisBase = roundToCurrency(
+      queue.reduce((sum, e) => sum + e.qty * e.priceBase, 0),
+      baseCurrency
+    );
 
     // Unified price resolution: user override → market → lot → deposit
     const resolved = resolvePrice(this.db, asset);
     const pricePerUnit = resolved?.price ?? null;
 
     const currentValue =
-      pricePerUnit !== null ? Math.round(currentHoldings * pricePerUnit * 100) / 100 : null;
-    const pnl = currentValue !== null ? currentValue - costBasis : null;
+      pricePerUnit !== null
+        ? roundToCurrency(currentHoldings * pricePerUnit, asset.currency)
+        : null;
+    const pnl =
+      currentValue !== null ? roundToCurrency(currentValue - costBasis, asset.currency) : null;
 
     // Convert current value to base currency using a cached FX rate.
     // For base-currency assets the rate is 1; for foreign currencies we look up
     // the most recent rate within the 7-day cache window. If none is cached
     // (e.g. nightly cron hasn't run yet), currentValueBase is null and the
     // portfolio sum simply skips this asset rather than mixing units.
-    const baseCurrency = getBaseCurrency();
     let currentValueBase: number | null = null;
     if (currentValue !== null) {
       if (asset.currency === baseCurrency) {
@@ -147,12 +159,14 @@ export class AssetService {
       } else {
         const rate = findCachedFxRate(this.db, asset.currency, baseCurrency, isoToday());
         if (rate !== null) {
-          currentValueBase = Math.round(currentValue * rate * 100) / 100;
+          currentValueBase = roundToCurrency(currentValue * rate, baseCurrency);
         }
       }
     }
     const pnlBase =
-      currentValueBase !== null ? Math.round((currentValueBase - costBasisBase) * 100) / 100 : null;
+      currentValueBase !== null
+        ? roundToCurrency(currentValueBase - costBasisBase, baseCurrency)
+        : null;
 
     return {
       ...asset,

@@ -215,6 +215,11 @@ async function seed(): Promise<void> {
         assetId: assetRow.id,
         quantity: lot.quantity,
         pricePerUnit: lot.pricePerUnit,
+        // Sample data is single-currency, so per-unit base = per-unit native.
+        // Without this the column falls through to its DEFAULT of 0 and every
+        // seeded asset reports a costBasisBase of 0, which makes pnlBase look
+        // like the entire current value is profit.
+        pricePerUnitBase: lot.pricePerUnit,
         date: lot.date,
         transactionId: txRow.id,
         notes: lot.notes ?? null,

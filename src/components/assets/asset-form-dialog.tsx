@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SymbolSearch } from "./symbol-search";
+import { getBaseCurrency } from "@/lib/format";
 import type { AssetType, AssetWithMetrics, SymbolMap } from "@/lib/validators/assets";
 
 interface AssetFormDialogProps {
@@ -56,9 +57,10 @@ export function AssetFormDialog({
   loading,
 }: AssetFormDialogProps): React.ReactElement {
   const isEdit = !!initialData;
+  const baseCurrency = getBaseCurrency();
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState<string>(initialData?.type ?? "deposit");
-  const [currency, setCurrency] = useState(initialData?.currency ?? "EUR");
+  const [currency, setCurrency] = useState(initialData?.currency ?? baseCurrency);
   const [currencyDirty, setCurrencyDirty] = useState(false);
   const [symbolMap, setSymbolMap] = useState<SymbolMap>(initSymbolMap(initialData));
   const [icon, setIcon] = useState(initialData?.icon ?? "");
@@ -140,12 +142,15 @@ export function AssetFormDialog({
                 setCurrency(e.target.value.toUpperCase());
                 setCurrencyDirty(true);
               }}
-              placeholder="EUR"
+              placeholder={baseCurrency}
               maxLength={10}
               disabled={loading}
             />
           </div>
-          {(type !== "deposit" || currency !== "EUR") && (
+          {/* Base-currency deposits are pure cash and need no price tracking.
+              Anything else (foreign-currency deposit, investment, crypto)
+              benefits from a price/FX feed. */}
+          {(type !== "deposit" || currency !== baseCurrency) && (
             <div className="space-y-1">
               <Label>
                 {type === "deposit"

@@ -24,8 +24,12 @@ export const CreateAssetSchema = z.object({
     .string()
     .min(1)
     .max(10)
-    .default("EUR")
-    .describe("Asset denomination currency (ISO 4217). Defaults to EUR"),
+    .optional()
+    .describe(
+      "Asset denomination currency (ISO 4217). Defaults to the configured base currency " +
+        "when omitted — call get_base_currency to find out what that is. For cross-listed " +
+        "instruments (SHEL on LSE in GBP vs NYSE in USD) pass an explicit code."
+    ),
   symbolMap: SymbolMapSchema.optional().describe(
     "Provider→symbol mapping for automatic price tracking (e.g. { coingecko: 'bitcoin' }). Use search_symbol to discover symbols"
   ),
@@ -107,7 +111,10 @@ export const BuyAssetSchema = z.object({
   pricePerUnit: z
     .number()
     .positive("Price must be positive")
-    .describe("Price per unit in EUR (e.g. 345.63). For EUR deposits use 1"),
+    .describe(
+      "Price per unit in the asset's native currency (e.g. 345.63). " +
+        "For base-currency deposits use 1 — quantity carries the deposit amount."
+    ),
   date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
@@ -119,7 +126,10 @@ export const SellAssetSchema = z.object({
   pricePerUnit: z
     .number()
     .positive("Price must be positive")
-    .describe("Sale price per unit in EUR. For EUR withdrawals use 1"),
+    .describe(
+      "Sale price per unit in the asset's native currency. " +
+        "For base-currency withdrawals use 1."
+    ),
   date: PastOrTodayDateSchema.describe("Transaction date (YYYY-MM-DD). Cannot be in the future"),
   description: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
@@ -140,7 +150,10 @@ export const SetOpeningCashBalanceSchema = z.object({
   amount: z
     .number()
     .positive("Amount must be positive")
-    .describe("Opening balance in EUR (e.g. 5000)"),
+    .describe(
+      "Opening balance in the configured base currency (e.g. 5000). " +
+        "Call get_base_currency to find out what that is."
+    ),
   date: PastOrTodayDateSchema.optional().describe("Balance date (YYYY-MM-DD). Defaults to today"),
 });
 export type SetOpeningCashBalanceInput = z.infer<typeof SetOpeningCashBalanceSchema>;
@@ -154,8 +167,12 @@ export const AddOpeningAssetSchema = z.object({
     .string()
     .min(1)
     .max(10)
-    .default("EUR")
-    .describe("Asset denomination currency. Defaults to EUR"),
+    .optional()
+    .describe(
+      "Asset denomination currency (ISO 4217). Defaults to the configured base currency " +
+        "when omitted. For foreign-currency holdings (e.g. a USD account on a EUR-base " +
+        "instance) pass the explicit code."
+    ),
   quantity: z
     .number()
     .positive("Quantity must be positive")
@@ -164,13 +181,17 @@ export const AddOpeningAssetSchema = z.object({
     .number()
     .positive("Cost basis must be positive")
     .optional()
-    .describe("Total cost basis in EUR. If omitted, calculated from pricePerUnit × quantity"),
+    .describe(
+      "Total cost basis in the asset's native currency. " +
+        "If omitted, calculated from pricePerUnit × quantity."
+    ),
   pricePerUnit: z
     .number()
     .positive("Price per unit must be positive")
     .optional()
     .describe(
-      "Cost per unit in EUR. Used if costBasisTotal omitted. If neither provided, P&L starts from zero"
+      "Cost per unit in the asset's native currency. Used if costBasisTotal omitted. " +
+        "If neither provided, P&L starts from zero."
     ),
   symbolMap: SymbolMapSchema.optional().describe(
     "Provider→symbol mapping for price tracking. Use search_symbol to discover symbols"
@@ -208,7 +229,7 @@ export const RecordPriceSchema = z.object({
   pricePerUnit: z
     .number()
     .positive("Price must be positive")
-    .describe("Current price per unit in EUR"),
+    .describe("Current price per unit in the asset's native currency"),
   recordedAt: z.string().optional().describe("ISO 8601 datetime. Defaults to now"),
 });
 export type RecordPriceInput = z.infer<typeof RecordPriceSchema>;

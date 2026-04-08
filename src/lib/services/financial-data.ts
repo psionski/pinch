@@ -2,7 +2,7 @@ import { Temporal } from "@js-temporal/polyfill";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
-import { marketPrices, transactions } from "@/lib/db/schema";
+import { assets, marketPrices, transactions } from "@/lib/db/schema";
 import type {
   FinancialDataProvider,
   PriceResult,
@@ -339,6 +339,52 @@ export class FinancialDataService {
     }
 
     return { pairs: rows.length, fetched };
+  }
+
+  /**
+   * Ensure today's FX rate is cached for every foreign-currency asset in the
+   * portfolio. This is the asset-side counterpart to `backfillTransactionRates`
+   * — opening lots created via `createOpeningLot` don't generate a transaction,
+   * so the transaction-table walk wouldn't pick them up. Without a fresh rate
+   * the synchronous read paths (attachMetrics, allocation, currency exposure,
+   * net worth) silently drop foreign assets from cross-currency totals.
+   *
+   * Called nightly from the 04:00 cron alongside `backfillTransactionRates`.
+   * Also safe to call on-demand from a UI button or MCP tool.
+   */
+  async backfillAssetCurrencyRates(): Promise<{ currencies: number; fetched: number }> {
+    const base = getBaseCurrency();
+    const today = isoToday();
+
+    // Distinct asset currencies that aren't the base. Cheap query — usually
+    // a handful of rows.
+    const rows = this.db
+      .selectDistinct({ currency: assets.currency })
+      .from(assets)
+      .all()
+      .filter((r) => r.currency && r.currency !== base);
+
+    let fetched = 0;
+    for (const { currency } of rows) {
+      try {
+        const result = await this.getPrice(defaultFxSymbolMap(currency), base, today);
+        if (result) fetched++;
+      } catch (err) {
+        financialLogger.warn(
+          { currency, date: today, err },
+          "Asset FX backfill: failed to fetch today's rate"
+        );
+      }
+    }
+
+    if (rows.length > 0) {
+      financialLogger.info(
+        { base, currencies: rows.length, fetched },
+        "Asset FX rate backfill complete"
+      );
+    }
+
+    return { currencies: rows.length, fetched };
   }
 
   // ─── Range Backfill ────────────────────────────────────────────────────────

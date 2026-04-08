@@ -102,6 +102,20 @@ async function runMarketPriceJob(): Promise<void> {
     } catch (err) {
       cronLogger.warn({ err }, "Transaction FX backfill failed (non-fatal)");
     }
+
+    // Refresh today's rate for every foreign-currency asset. Opening lots
+    // (set during onboarding) don't create transactions, so the previous
+    // backfill wouldn't see them — without this step, attachMetrics drops
+    // them from cross-currency totals once their lot-date rate ages out of
+    // the 7-day cache window.
+    try {
+      const result = await fds.backfillAssetCurrencyRates();
+      if (result.currencies > 0) {
+        cronLogger.info(result, "Asset FX rate backfill complete");
+      }
+    } catch (err) {
+      cronLogger.warn({ err }, "Asset FX backfill failed (non-fatal)");
+    }
   } catch (err) {
     cronLogger.error({ err }, "Market price job failed");
   }

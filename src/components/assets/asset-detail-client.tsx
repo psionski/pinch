@@ -22,7 +22,7 @@ import { SymbolSearchDialog } from "./symbol-search";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { AssetDetailCharts } from "./asset-detail-charts";
 import { LotHistoryTable } from "./lot-history-table";
-import { formatCurrency, formatPrice } from "@/lib/format";
+import { formatCurrency, formatPrice, getBaseCurrency } from "@/lib/format";
 import { PROVIDER_LABELS } from "@/lib/providers/labels";
 import type { AssetWithMetrics, AssetLotResponse, SymbolMap } from "@/lib/validators/assets";
 
@@ -60,7 +60,10 @@ export function AssetDetailClient({
   // the asset's native currency, so the unrealized derivation works in native
   // units. The base-currency PnlDisplay below uses pnlBase directly.
 
-  const showTrackingSection = asset.type !== "deposit" || asset.currency !== "EUR";
+  // Pure base-currency deposits don't need an FX feed; everything else (foreign
+  // deposit, investment, crypto) benefits from external price/exchange-rate
+  // tracking via the symbol map.
+  const showTrackingSection = asset.type !== "deposit" || asset.currency !== getBaseCurrency();
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
