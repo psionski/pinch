@@ -1,6 +1,6 @@
 import { Temporal } from "@js-temporal/polyfill";
 import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
-import { getCurrentMonth } from "@/lib/date-ranges";
+import { getCurrentMonth, isoToday } from "@/lib/date-ranges";
 import { getBaseCurrency } from "@/lib/format";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
@@ -12,16 +12,19 @@ import {
   type CategoryStatsInput,
   type BudgetStatsInput,
   type TrendsInput,
+  type DailySpendInput,
   type TopMerchantsInput,
   type NetIncomeInput,
   type SpendingGroup,
   type CategorySpendingItem,
   type BudgetStatsItem,
   type TrendPoint,
+  type DailySpendPoint,
   type TopMerchant,
   type SpendingSummaryResult,
   type CategoryStatsResult,
   type TrendsResult,
+  type DailySpendResult,
   type TopMerchantsResult,
   type NetIncomeResult,
   type CashBalanceResult,
@@ -444,6 +447,48 @@ export class ReportService {
 
     const points: TrendPoint[] = rows.map((r) => ({
       month: r.month,
+      total: Number(r.total),
+      count: Number(r.count),
+    }));
+    return { points, currency: getBaseCurrency() };
+  }
+
+  /**
+   * Daily expense totals over the last N days, ending today (in the user's
+   * timezone). Every day in the range gets a row, including days with zero
+   * spend — used by the dashboard heatmap which needs a fully-filled grid.
+   * Excludes income and transfers, matching the SpendingTrendChart convention.
+   */
+  dailySpend(input: DailySpendInput): DailySpendResult {
+    const today = isoToday();
+    const startDate = Temporal.PlainDate.from(today)
+      .subtract({ days: input.days - 1 })
+      .toString();
+
+    const rows = this.db.all<{ date: string; total: number; count: number }>(
+      sql`
+        WITH RECURSIVE days(d) AS (
+          SELECT ${startDate}
+          UNION ALL
+          SELECT date(d, '+1 day')
+          FROM days
+          WHERE d < ${today}
+        )
+        SELECT
+          days.d AS date,
+          coalesce(sum(t.amount_base), 0) AS total,
+          coalesce(count(t.id), 0) AS count
+        FROM days
+        LEFT JOIN transactions t
+          ON t.date = days.d
+          AND t.type = 'expense'
+        GROUP BY days.d
+        ORDER BY days.d ASC
+      `
+    );
+
+    const points: DailySpendPoint[] = rows.map((r) => ({
+      date: r.date,
       total: Number(r.total),
       count: Number(r.count),
     }));

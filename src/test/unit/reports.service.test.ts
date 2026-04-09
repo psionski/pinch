@@ -11,6 +11,7 @@ import {
   CategoryStatsSchema,
   BudgetStatsSchema,
   TrendsSchema,
+  DailySpendSchema,
   TopMerchantsSchema,
 } from "@/lib/validators/reports";
 
@@ -441,6 +442,78 @@ describe("trends", async () => {
     const { points } = reports.trends(TrendsSchema.parse({ months: 4 }));
     const months = points.map((r) => r.month);
     expect(months).toEqual([...months].sort());
+  });
+});
+
+// ─── dailySpend ───────────────────────────────────────────────────────────────
+
+describe("dailySpend", async () => {
+  it("returns N day data points ending today, in ascending order", async () => {
+    const { points, currency } = reports.dailySpend(DailySpendSchema.parse({ days: 7 }));
+    expect(points).toHaveLength(7);
+    expect(currency).toBe("EUR");
+    expect(points[0].date).toBe("2026-03-09");
+    expect(points[6].date).toBe("2026-03-15"); // today (clock pinned to 2026-03-15 UTC)
+    const dates = points.map((p) => p.date);
+    expect(dates).toEqual([...dates].sort());
+  });
+
+  it("defaults to 365 days", async () => {
+    const { points } = reports.dailySpend(DailySpendSchema.parse({}));
+    expect(points).toHaveLength(365);
+  });
+
+  it("zero-spend days still appear with total 0 and count 0", async () => {
+    await txService.create(tx({ amount: 7, date: "2026-03-12" }));
+
+    const { points } = reports.dailySpend(DailySpendSchema.parse({ days: 5 }));
+    const day12 = points.find((p) => p.date === "2026-03-12");
+    const day13 = points.find((p) => p.date === "2026-03-13");
+    expect(day12).toEqual({ date: "2026-03-12", total: 7, count: 1 });
+    expect(day13).toEqual({ date: "2026-03-13", total: 0, count: 0 });
+  });
+
+  it("sums multiple expenses on the same day", async () => {
+    await txService.create(tx({ amount: 3, date: "2026-03-10" }));
+    await txService.create(tx({ amount: 4.5, date: "2026-03-10" }));
+    await txService.create(tx({ amount: 2.25, date: "2026-03-10" }));
+
+    const { points } = reports.dailySpend(DailySpendSchema.parse({ days: 10 }));
+    const day = points.find((p) => p.date === "2026-03-10");
+    expect(day?.total).toBe(9.75);
+    expect(day?.count).toBe(3);
+  });
+
+  it("excludes income transactions", async () => {
+    await txService.create(tx({ amount: 5, type: "expense", date: "2026-03-14" }));
+    await txService.create(
+      tx({ amount: 3000, type: "income", date: "2026-03-14", description: "Salary" })
+    );
+
+    const { points } = reports.dailySpend(DailySpendSchema.parse({ days: 3 }));
+    const day = points.find((p) => p.date === "2026-03-14");
+    expect(day?.total).toBe(5);
+    expect(day?.count).toBe(1);
+  });
+
+  it("excludes transfer transactions", async () => {
+    await txService.create(tx({ amount: 5, type: "expense", date: "2026-03-14" }));
+    // Transfers are created via asset lots, but a synthetic transfer row would
+    // also be excluded. The query filters on type='expense' explicitly, so
+    // anything that isn't an expense (income, transfer) is dropped.
+    const { points } = reports.dailySpend(DailySpendSchema.parse({ days: 3 }));
+    const day = points.find((p) => p.date === "2026-03-14");
+    expect(day?.total).toBe(5);
+    expect(day?.count).toBe(1);
+  });
+
+  it("ignores transactions outside the window", async () => {
+    await txService.create(tx({ amount: 100, date: "2026-02-01" })); // older than 7-day window
+    await txService.create(tx({ amount: 5, date: "2026-03-13" }));
+
+    const { points } = reports.dailySpend(DailySpendSchema.parse({ days: 7 }));
+    const total = points.reduce((sum, p) => sum + p.total, 0);
+    expect(total).toBe(5);
   });
 });
 

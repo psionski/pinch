@@ -62,6 +62,20 @@ export const TrendsSchema = z.object({
 
 export type TrendsInput = z.infer<typeof TrendsSchema>;
 
+// ─── Daily Spend ──────────────────────────────────────────────────────────────
+
+export const DailySpendSchema = z.object({
+  days: z
+    .number()
+    .int()
+    .min(1)
+    .max(730)
+    .default(365)
+    .describe("Number of days to look back, ending today (default 365, max 730)"),
+});
+
+export type DailySpendInput = z.infer<typeof DailySpendSchema>;
+
 // ─── Top Merchants ────────────────────────────────────────────────────────────
 
 export const TopMerchantsSchema = z.object({
@@ -155,6 +169,14 @@ export const TrendPointSchema = z.object({
 
 export type TrendPoint = z.infer<typeof TrendPointSchema>;
 
+export const DailySpendPointSchema = z.object({
+  date: z.string().describe("Calendar date (YYYY-MM-DD)"),
+  total: z.number().describe("Sum of expense amount_base for the day, in base currency"),
+  count: z.number().int().describe("Number of expense transactions on the day"),
+});
+
+export type DailySpendPoint = z.infer<typeof DailySpendPointSchema>;
+
 export const TopMerchantSchema = z.object({
   merchant: z.string(),
   total: z.number(),
@@ -217,6 +239,12 @@ export const TrendsResultSchema = z.object({
   currency: z.string().describe("ISO 4217 base currency that all totals are denominated in"),
 });
 export type TrendsResult = z.infer<typeof TrendsResultSchema>;
+
+export const DailySpendResultSchema = z.object({
+  points: z.array(DailySpendPointSchema),
+  currency: z.string().describe("ISO 4217 base currency that all totals are denominated in"),
+});
+export type DailySpendResult = z.infer<typeof DailySpendResultSchema>;
 
 export const TopMerchantsResultSchema = z.object({
   merchants: z.array(TopMerchantSchema),

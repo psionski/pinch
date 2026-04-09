@@ -4,18 +4,17 @@ import { requireOnboarding } from "@/lib/api/require-timezone";
 import {
   getReportService,
   getBudgetService,
-  getTransactionService,
   getCategoryService,
   getRecurringService,
   getPortfolioService,
   getPortfolioReportService,
 } from "@/lib/api/services";
-import { getCurrentMonthInfo, getPreviousMonthRange } from "@/lib/date-ranges";
+import { getCurrentMonthInfo, getPreviousMonthRange, isoToday } from "@/lib/date-ranges";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { SpendingTrendChart } from "@/components/charts/spending-trend-chart";
 import { CategoryDonutChart } from "@/components/charts/category-donut-chart";
 import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
-import { RecentTransactions } from "@/components/dashboard/recent-transactions";
+import { SpendingHeatmap } from "@/components/dashboard/spending-heatmap";
 import { UpcomingRecurring } from "@/components/dashboard/upcoming-recurring";
 import { NetWorthCard } from "@/components/dashboard/net-worth-card";
 import { NetWorthSparkline } from "@/components/dashboard/net-worth-sparkline";
@@ -27,7 +26,6 @@ export default function DashboardPage(): React.ReactElement {
   requireOnboarding();
   const reportService = getReportService();
   const budgetService = getBudgetService();
-  const transactionService = getTransactionService();
   const categoryService = getCategoryService();
 
   const { monthStart, monthEnd, currentMonth, monthLabel } = getCurrentMonthInfo();
@@ -55,12 +53,7 @@ export default function DashboardPage(): React.ReactElement {
 
   const { items: budgetStatus } = budgetService.getForMonth({ month: currentMonth });
 
-  const recentTx = transactionService.list({
-    limit: 15,
-    offset: 0,
-    sortBy: "date",
-    sortOrder: "desc",
-  });
+  const heatmap = reportService.dailySpend({ days: 365 });
 
   const allCategories = categoryService.getAll();
   const categoryMap = new Map<number, CategoryWithCountResponse>(
@@ -112,7 +105,7 @@ export default function DashboardPage(): React.ReactElement {
         <AllocationMiniDonut data={allocationData} />
       </div>
 
-      <RecentTransactions transactions={recentTx.data} categories={categoryMap} />
+      <SpendingHeatmap points={heatmap.points} today={isoToday()} />
     </div>
   );
 }
