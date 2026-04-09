@@ -12,12 +12,7 @@ import {
   transactions,
 } from "../schema";
 import { PARENT_CATEGORIES, CHILD_CATEGORIES } from "./data";
-import {
-  generateEvents,
-  type TxInput,
-  type TemplateWithId,
-  type LotLinkage,
-} from "./transactions";
+import { generateEvents, type TxInput, type TemplateWithId, type LotLinkage } from "./transactions";
 import { generateBudgets } from "./budgets";
 import { generateRecurringTemplates } from "./recurring";
 import { generateAssets, lotsToEvents } from "./assets";

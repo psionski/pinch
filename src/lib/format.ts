@@ -49,6 +49,22 @@ function getFormatter(currency: string): Intl.NumberFormat {
   return f;
 }
 
+const compactFormatterCache = new Map<string, Intl.NumberFormat>();
+
+function getCompactFormatter(currency: string): Intl.NumberFormat {
+  let f = compactFormatterCache.get(currency);
+  if (!f) {
+    f = new Intl.NumberFormat(DISPLAY_LOCALE, {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    });
+    compactFormatterCache.set(currency, f);
+  }
+  return f;
+}
+
 /**
  * Format a monetary amount. Decimal precision is determined by the currency
  * itself via Intl (JPY = 0, USD/EUR = 2, BHD = 3, etc.) — never assume 2.
@@ -60,6 +76,18 @@ function getFormatter(currency: string): Intl.NumberFormat {
  */
 export function formatCurrency(amount: number, currency: string = getBaseCurrency()): string {
   return getFormatter(currency).format(amount);
+}
+
+/**
+ * Compact currency formatter for chart axes and tight UI labels.
+ * Produces e.g. "1,2 Tsd. €" / "1.2K €" — suitable for Y-axis ticks where
+ * the full `formatCurrency` output is too wide.
+ */
+export function formatCurrencyCompact(
+  amount: number,
+  currency: string = getBaseCurrency()
+): string {
+  return getCompactFormatter(currency).format(amount);
 }
 
 /**

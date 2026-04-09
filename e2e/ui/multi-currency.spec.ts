@@ -158,9 +158,7 @@ test.describe.serial("Multi-currency", () => {
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator("#recurring-description")).not.toBeVisible({ timeout: 10_000 });
 
-    const row = page
-      .locator("[data-testid^='recurring-row-']")
-      .filter({ hasText: "London rent" });
+    const row = page.locator("[data-testid^='recurring-row-']").filter({ hasText: "London rent" });
     await expect(row).toBeVisible();
     // de-DE GBP formatting: "1.500,00 £" — verify both the digit grouping
     // and the GBP symbol so we know the table read item.currency, not
