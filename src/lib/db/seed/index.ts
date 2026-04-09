@@ -12,13 +12,22 @@ import {
   transactions,
 } from "../schema";
 import { PARENT_CATEGORIES, CHILD_CATEGORIES } from "./data";
-import { generateMonth, type TxInput } from "./transactions";
+import {
+  generateEvents,
+  type TxInput,
+  type TemplateWithId,
+  type LotLinkage,
+} from "./transactions";
 import { generateBudgets } from "./budgets";
 import { generateRecurringTemplates } from "./recurring";
-import { generateAssets } from "./assets";
+import { generateAssets, lotsToEvents } from "./assets";
+import { buildFxRates } from "./fx-rates";
 import { Temporal } from "@js-temporal/polyfill";
 import { isoDate } from "./rng";
 import { logger, seedLogger } from "@/lib/logger";
+
+const BASE_CURRENCY = "EUR";
+const OPENING_BALANCE = 2000; // €2 000 — previous month's salary leftovers
 
 async function seed(): Promise<void> {
   const db = getDb();
@@ -78,388 +87,218 @@ async function seed(): Promise<void> {
 
   const firstMonth = months[0];
   const lastMonth = months[months.length - 1];
+  const todayStr = isoDate(todayYear, todayMonth, todayDay);
   const rangeLabel =
     `${isoDate(firstMonth.year, firstMonth.month, 1).slice(0, 7)} – ` +
     `${isoDate(lastMonth.year, lastMonth.month, 1).slice(0, 7)}`;
 
+  // ── FX rates (insert FIRST so any later FX-aware insert can rely on the cache) ──
+  // Daily rate entries spanning the seed period for every foreign currency
+  // pair the seed touches. Same shape as runtime cache rows so the resolver
+  // finds an exact match for any (currency, date) lookup. The accompanying
+  // `lookup` function is used by every code path that computes
+  // `amount_base`, so seed-time values match runtime exactly.
+  seedLogger.info("Building FX rate cache...");
+  const fx = buildFxRates(months);
+  const FX_BATCH = 100;
+  for (let i = 0; i < fx.marketPrices.length; i += FX_BATCH) {
+    await db.insert(marketPrices).values(fx.marketPrices.slice(i, i + FX_BATCH));
+  }
+  seedLogger.info(`  ${fx.marketPrices.length} FX rate entries.`);
+
   // ── Recurring templates (before transactions, so we can link them) ────
   seedLogger.info("Creating recurring transaction templates...");
 
-  const recStart = isoDate(firstMonth.year, firstMonth.month, 1);
-  const todayStr = isoDate(todayYear, todayMonth, todayDay);
-  const templates = generateRecurringTemplates(catIds, recStart, todayStr);
+  const templates = generateRecurringTemplates(catIds, months, todayStr);
 
-  const recurringIds: Record<string, number> = {};
+  const templatesWithIds: TemplateWithId[] = [];
   for (const tmpl of templates) {
     const [row] = await db
       .insert(recurringTransactions)
-      .values(tmpl)
+      .values({
+        ...tmpl,
+        // RecurringTemplate.tags is a string[]; the schema column is a
+        // JSON-encoded text blob, matching how the runtime service
+        // serialises it.
+        tags: tmpl.tags ? JSON.stringify(tmpl.tags) : null,
+      })
       .returning({ id: recurringTransactions.id });
-    recurringIds[tmpl.description] = row.id;
+    templatesWithIds.push({ ...tmpl, id: row.id });
   }
   seedLogger.info(`  ${templates.length} recurring templates created.`);
 
-  // ── Transactions ──────────────────────────────────────────────────────
-  seedLogger.info(`Generating 12 months of transactions (${rangeLabel})...`);
+  // ── Asset definitions ─────────────────────────────────────────────────
+  // Build the asset *seeds* (definitions + lots), but DON'T insert them
+  // yet — we need to weave the lot transfers into the unified event
+  // stream first so the running balance stays consistent.
+  seedLogger.info("Generating portfolio assets...");
+  const { assets: assetSeeds, marketPrices: mpSeeds } = generateAssets(months);
 
-  let balance = 2000; // €2 000 — previous month's salary leftovers
-  const allTxs: TxInput[] = [];
+  // Convert each lot definition into a TxInput of type=transfer with
+  // currency / amount_base / lotLinkage filled in. These get interleaved
+  // into the chronological event stream below.
+  const lotEvents = lotsToEvents(assetSeeds, fx.lookup, BASE_CURRENCY);
 
-  // Opening balance — the day before the first generated month
+  // ── One-off deterministic events ──────────────────────────────────────
+  // Opening balance (previous-month leftovers) and the GBP airport-coffee
+  // demo expense. Both are pre-computed and fed into the event stream by
+  // date alongside the recurring templates and asset lots.
   const preYm = Temporal.PlainYearMonth.from({
     year: firstMonth.year,
     month: firstMonth.month,
   }).subtract({ months: 1 });
   const openingDate = isoDate(preYm.year, preYm.month, preYm.daysInMonth);
 
-  allTxs.push({
-    amount: balance,
-    type: "income",
-    description: "Previous month balance",
-    categoryId: catIds.Income,
-    date: openingDate,
-    tags: ["opening-balance"],
-  });
-
-  for (const { year, month, lastDay } of months) {
-    const result = generateMonth(year, month, lastDay, catIds, balance, recurringIds);
-    allTxs.push(...result.txs);
-    balance = result.balance;
-    seedLogger.info(
-      `  ${year}-${String(month).padStart(2, "0")}: ${result.txs.length} transactions`
-    );
-  }
-
-  seedLogger.info(`Inserting ${allTxs.length} transactions...`);
-  // Sample data is fully denominated in EUR, which matches the configured base
-  // currency for the seed (set below). amount_base mirrors amount.
-  const rows = allTxs.map((tx) => ({
-    ...tx,
-    currency: "EUR",
-    amountBase: tx.amount,
-    tags: JSON.stringify(tx.tags),
-    recurringId: tx.recurringId ?? null,
-  }));
-
-  const BATCH = 50;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    await db.insert(transactions).values(rows.slice(i, i + BATCH));
-  }
-
-  // ── One foreign-currency demo transaction ──────────────────────────────────
-  // Surfaces the multi-currency UI tooltip on a fresh sample-data DB without
-  // requiring the user to create a foreign-currency transaction by hand. The
-  // FX rate is pre-cached in `market_prices` so the seed never depends on a
-  // live network call. Anchored to the most recent month so it shows up in the
-  // dashboard's "this month" view.
   const fcDate = isoDate(lastMonth.year, lastMonth.month, Math.min(12, lastMonth.lastDay));
-  const fcRate = 1.18; // 1 GBP ≈ 1.18 EUR — illustrative, not live
-  const fcNative = 4.5; // £4.50 airport coffee
-  const fcBase = Math.round(fcNative * fcRate * 100) / 100;
-  await db.insert(marketPrices).values({
-    symbol: "GBP",
-    currency: "EUR",
-    price: fcRate,
-    date: fcDate,
-    provider: "frankfurter",
+  const fcRate = fx.lookup("GBP", BASE_CURRENCY, fcDate);
+  const fcNative = 4.5;
+
+  const oneOffEvents: TxInput[] = [
+    {
+      amount: OPENING_BALANCE,
+      currency: BASE_CURRENCY,
+      amountBase: OPENING_BALANCE,
+      type: "income",
+      description: "Previous month balance",
+      categoryId: catIds.Income,
+      date: openingDate,
+      tags: ["opening-balance"],
+    },
+    {
+      amount: fcNative,
+      currency: "GBP",
+      amountBase: Math.round(fcNative * fcRate * 100) / 100,
+      type: "expense",
+      description: "Airport coffee in London",
+      merchant: "Heathrow Costa",
+      categoryId: catIds.Coffee,
+      date: fcDate,
+      tags: ["travel", "coffee"],
+    },
+  ];
+
+  // ── Unified event stream ──────────────────────────────────────────────
+  // Single chronological pass over months/days that interleaves lot
+  // transfers, recurring templates, electricity, opening balance, and
+  // stochastic spending under one shared balance counter. Stochastic
+  // expenses back off when cash gets low; deterministic events
+  // (templates, lots, opening balance) always emit. The result is a
+  // chronologically-ordered TxInput[] where the running cash balance is
+  // consistent at every point in time.
+  seedLogger.info(`Generating events (${rangeLabel})...`);
+  const events = generateEvents({
+    months,
+    catIds,
+    templates: templatesWithIds,
+    lotEvents,
+    oneOffEvents,
+    fx: fx.lookup,
+    baseCurrency: BASE_CURRENCY,
+    openingBalance: 0, // opening balance comes in via the oneOffEvents stream
   });
-  await db.insert(transactions).values({
-    amount: fcNative,
-    currency: "GBP",
-    amountBase: fcBase,
-    type: "expense",
-    description: "Airport coffee in London",
-    merchant: "Heathrow Costa",
-    categoryId: catIds.Coffee,
-    date: fcDate,
-    tags: JSON.stringify(["travel", "coffee"]),
-  });
-  seedLogger.info(`  Added 1 GBP demo transaction (£${fcNative} ≈ €${fcBase.toFixed(2)}).`);
+  seedLogger.info(`  ${events.length} events generated.`);
+
+  // ── Insert assets ─────────────────────────────────────────────────────
+  // Done before transactions so we can link asset_lots to the inserted
+  // asset_id (looked up by name post-insert).
+  const assetIdByName = new Map<string, number>();
+  for (const seed of assetSeeds) {
+    const [row] = await db.insert(assets).values(seed.asset).returning({ id: assets.id });
+    assetIdByName.set(seed.asset.name, row.id);
+  }
+  seedLogger.info(`  ${assetSeeds.length} assets inserted.`);
+
+  // ── Insert transactions ───────────────────────────────────────────────
+  // Captures the inserted ids in event-stream order so each event with
+  // a `lotLinkage` can later look up its tx id and create the
+  // corresponding asset_lots row.
+  seedLogger.info(`Inserting ${events.length} transactions...`);
+  const txIdsByEventIndex: number[] = new Array(events.length);
+  const BATCH = 50;
+  for (let i = 0; i < events.length; i += BATCH) {
+    const slice = events.slice(i, i + BATCH);
+    const inserted = await db
+      .insert(transactions)
+      .values(
+        slice.map((tx) => ({
+          amount: tx.amount,
+          currency: tx.currency,
+          amountBase: tx.amountBase,
+          type: tx.type,
+          description: tx.description,
+          merchant: tx.merchant ?? null,
+          categoryId: tx.categoryId,
+          date: tx.date,
+          tags: JSON.stringify(tx.tags),
+          recurringId: tx.recurringId ?? null,
+          notes: tx.notes ?? null,
+        }))
+      )
+      .returning({ id: transactions.id });
+    for (let j = 0; j < inserted.length; j++) {
+      txIdsByEventIndex[i + j] = inserted[j].id;
+    }
+  }
+
+  // ── Insert asset_lots + asset_prices snapshots ────────────────────────
+  // Walk the events; every event with a `lotLinkage` produces an
+  // asset_lots row plus an asset_prices snapshot at the lot date,
+  // matching what AssetLotService.buy() does inside its DB transaction.
+  let totalLots = 0;
+  for (let i = 0; i < events.length; i++) {
+    const link: LotLinkage | undefined = events[i].lotLinkage;
+    if (!link) continue;
+    const assetId = assetIdByName.get(link.assetName);
+    if (assetId === undefined) {
+      throw new Error(`Lot linkage references unknown asset "${link.assetName}"`);
+    }
+    await db.insert(assetLots).values({
+      assetId,
+      quantity: link.quantity,
+      pricePerUnit: link.pricePerUnit,
+      pricePerUnitBase: link.pricePerUnitBase,
+      date: events[i].date,
+      transactionId: txIdsByEventIndex[i],
+      notes: link.notes ?? null,
+    });
+    await db.insert(assetPrices).values({
+      assetId,
+      pricePerUnit: link.pricePerUnit,
+      recordedAt: `${events[i].date}T12:00:00`,
+    });
+    totalLots++;
+  }
+
+  // Optional today-snapshot for assets whose lot prices are stale (e.g.
+  // Apple Inc., whose lots are months old). Without this the
+  // price-resolver's user-price step would return the most recent lot's
+  // price as "current value".
+  for (const seed of assetSeeds) {
+    if (seed.currentPrice === undefined) continue;
+    const assetId = assetIdByName.get(seed.asset.name);
+    if (assetId === undefined) continue;
+    await db.insert(assetPrices).values({
+      assetId,
+      pricePerUnit: seed.currentPrice,
+      recordedAt: `${todayStr}T12:00:00`,
+    });
+  }
+
+  // ── Asset market prices (Bitcoin / MSCI ETF history) ──────────────────
+  for (let i = 0; i < mpSeeds.length; i += BATCH) {
+    await db.insert(marketPrices).values(mpSeeds.slice(i, i + BATCH));
+  }
+  seedLogger.info(`  ${mpSeeds.length} asset market price points, ${totalLots} asset lots total.`);
 
   // ── Budgets ─────────────────────────────────────────────────────────────
+  // Sums `amount_base` so foreign-currency expenses contribute their
+  // base-currency-equivalent value to the rollup.
   seedLogger.info("Generating budgets...");
-  const budgetRows = generateBudgets(allTxs, catIds, months);
+  const budgetRows = generateBudgets(events, catIds, months);
   for (const row of budgetRows) {
     await db.insert(budgets).values(row);
   }
   seedLogger.info(`  ${budgetRows.length} budget entries across ${months.length} months.`);
-
-  // ── Assets & Portfolio ──────────────────────────────────────────────────────
-  seedLogger.info("Generating portfolio assets...");
-  const { assets: assetSeeds, marketPrices: mpSeeds } = generateAssets(months);
-
-  let totalLots = 0;
-  for (const seed of assetSeeds) {
-    const [assetRow] = await db.insert(assets).values(seed.asset).returning({ id: assets.id });
-
-    for (const lot of seed.lots) {
-      const totalValue = Math.round(Math.abs(lot.quantity) * lot.pricePerUnit * 100) / 100;
-      const signed = lot.quantity >= 0 ? -totalValue : totalValue;
-      const [txRow] = await db
-        .insert(transactions)
-        .values({
-          amount: signed,
-          // Sample-data lots are denominated in their asset currency, which is
-          // EUR for the seed (single-currency demo). The base-currency
-          // equivalent is identical.
-          currency: seed.asset.currency ?? "EUR",
-          amountBase: signed,
-          type: "transfer",
-          description: lot.description,
-          date: lot.date,
-          notes: lot.notes ?? null,
-          tags: JSON.stringify(["portfolio"]),
-        })
-        .returning({ id: transactions.id });
-
-      await db.insert(assetLots).values({
-        assetId: assetRow.id,
-        quantity: lot.quantity,
-        pricePerUnit: lot.pricePerUnit,
-        // Sample data is single-currency, so per-unit base = per-unit native.
-        // Without this the column falls through to its DEFAULT of 0 and every
-        // seeded asset reports a costBasisBase of 0, which makes pnlBase look
-        // like the entire current value is profit.
-        pricePerUnitBase: lot.pricePerUnit,
-        date: lot.date,
-        transactionId: txRow.id,
-        notes: lot.notes ?? null,
-      });
-
-      await db.insert(assetPrices).values({
-        assetId: assetRow.id,
-        pricePerUnit: lot.pricePerUnit,
-        recordedAt: `${lot.date}T12:00:00`,
-      });
-
-      totalLots++;
-    }
-
-    seedLogger.info(`  ${seed.asset.name}: ${seed.lots.length} lots`);
-  }
-
-  for (let i = 0; i < mpSeeds.length; i += BATCH) {
-    await db.insert(marketPrices).values(mpSeeds.slice(i, i + BATCH));
-  }
-  seedLogger.info(`  ${mpSeeds.length} market price points, ${totalLots} asset lots total.`);
-
-  // ── Multi-currency demo data ───────────────────────────────────────────
-  // Surfaces the sprint 27 multi-currency feature set on a fresh seed:
-  //   - Apple Inc. (USD investment, 2 lots at different FX rates) drives
-  //     the portfolio performance table's FX Effect column and the asset
-  //     detail's "≈ €..." subtitle on Cost Basis / Current Value.
-  //   - USD Travel Fund (USD deposit, 1 lot) exercises the deposit
-  //     dialog's foreign-currency preview path.
-  //   - "London co-working" (GBP recurring, monthly) populates 6 months
-  //     of foreign-currency expenses with month-by-month FX drift.
-  // All FX rates are pre-cached in market_prices so the seed never
-  // depends on a live network call.
-  seedLogger.info("Adding multi-currency demo data...");
-
-  // ── Apple Inc. (USD investment) ────────────────────────────────────────
-  // Two lots at different USD→EUR rates create a visible FX P&L
-  // contribution on top of the underlying price gain.
-  const appleLot1Month = months[2]; // ~9 months ago
-  const appleLot2Month = months[7]; // ~4 months ago
-  const appleLot1Date = isoDate(appleLot1Month.year, appleLot1Month.month, 15);
-  const appleLot2Date = isoDate(appleLot2Month.year, appleLot2Month.month, 10);
-  const appleLot1Rate = 0.95;
-  const appleLot2Rate = 0.93;
-  const todayUsdRate = 0.91;
-
-  await db.insert(marketPrices).values([
-    { symbol: "USD", currency: "EUR", price: appleLot1Rate, date: appleLot1Date, provider: "frankfurter" },
-    { symbol: "USD", currency: "EUR", price: appleLot2Rate, date: appleLot2Date, provider: "frankfurter" },
-    { symbol: "USD", currency: "EUR", price: todayUsdRate, date: todayStr, provider: "frankfurter" },
-  ]);
-
-  const [appleAsset] = await db
-    .insert(assets)
-    .values({
-      name: "Apple Inc.",
-      type: "investment",
-      currency: "USD",
-      symbolMap: JSON.stringify({ "alpha-vantage": "AAPL" }),
-      icon: "🍎",
-      color: "#94a3b8",
-    })
-    .returning({ id: assets.id });
-
-  const appleLots = [
-    { quantity: 10, pricePerUnit: 150, date: appleLot1Date, rate: appleLot1Rate },
-    { quantity: 5, pricePerUnit: 165, date: appleLot2Date, rate: appleLot2Rate },
-  ];
-
-  for (const lot of appleLots) {
-    const totalNative = lot.quantity * lot.pricePerUnit;
-    const totalBase = Math.round(totalNative * lot.rate * 100) / 100;
-    const [txRow] = await db
-      .insert(transactions)
-      .values({
-        amount: -totalNative,
-        currency: "USD",
-        amountBase: -totalBase,
-        type: "transfer",
-        description: `Buy ${lot.quantity} Apple Inc. @ ${lot.pricePerUnit.toFixed(2)} USD`,
-        date: lot.date,
-        tags: JSON.stringify(["portfolio"]),
-      })
-      .returning({ id: transactions.id });
-
-    await db.insert(assetLots).values({
-      assetId: appleAsset.id,
-      quantity: lot.quantity,
-      pricePerUnit: lot.pricePerUnit,
-      // Snapshotted at lot creation — exactly what AssetLotService.buy()
-      // would compute via toBase() at write time.
-      pricePerUnitBase: Math.round(lot.pricePerUnit * lot.rate * 10000) / 10000,
-      date: lot.date,
-      transactionId: txRow.id,
-    });
-
-    await db.insert(assetPrices).values({
-      assetId: appleAsset.id,
-      pricePerUnit: lot.pricePerUnit,
-      recordedAt: `${lot.date}T12:00:00`,
-    });
-  }
-
-  // Current Apple price snapshot — simulates the user clicking "Set Price"
-  // (or the daily cron caching a fresh quote) so the asset detail's
-  // "Current Value" card shows a value newer than the most recent lot.
-  // Without this, the price-resolver step 2 (user price) would return the
-  // lot2 price ($165) and currentValue would be stuck at the cost basis.
-  await db.insert(assetPrices).values({
-    assetId: appleAsset.id,
-    pricePerUnit: 180,
-    recordedAt: `${todayStr}T12:00:00`,
-  });
-
-  // ── USD Travel Fund (USD deposit) ──────────────────────────────────────
-  const [travelAsset] = await db
-    .insert(assets)
-    .values({
-      name: "USD Travel Fund",
-      type: "deposit",
-      currency: "USD",
-      icon: "✈️",
-      color: "#60a5fa",
-    })
-    .returning({ id: assets.id });
-
-  const travelDepositDate = appleLot2Date;
-  const travelDepositAmount = 800;
-  const travelDepositBase = Math.round(travelDepositAmount * appleLot2Rate * 100) / 100;
-  const [travelTx] = await db
-    .insert(transactions)
-    .values({
-      amount: -travelDepositAmount,
-      currency: "USD",
-      amountBase: -travelDepositBase,
-      type: "transfer",
-      // Custom description (as if the user typed it). The service would
-      // otherwise auto-generate "Deposit 800 USD Travel Fund @ 1.00 USD"
-      // which reads awkwardly because the asset name contains "USD".
-      description: "Initial USD travel funds",
-      date: travelDepositDate,
-      tags: JSON.stringify(["portfolio"]),
-    })
-    .returning({ id: transactions.id });
-
-  await db.insert(assetLots).values({
-    assetId: travelAsset.id,
-    quantity: travelDepositAmount,
-    // Deposits are always pricePerUnit=1 by definition (the quantity
-    // carries the foreign-currency amount). The base-side per-unit value
-    // is the FX rate at deposit time — same value the service would
-    // store via toBase() / pricePerUnitBase = totalBase/quantity.
-    pricePerUnit: 1,
-    pricePerUnitBase: appleLot2Rate,
-    date: travelDepositDate,
-    transactionId: travelTx.id,
-  });
-
-  // Mirror AssetLotService.buy()'s recordPriceSnapshot — every lot
-  // creation produces a corresponding asset_prices row. The existing
-  // seed does this for the EUR Savings Account too; without it the
-  // asset detail price chart shows no data points and `attachMetrics`'s
-  // user-price lookup misses entirely.
-  await db.insert(assetPrices).values({
-    assetId: travelAsset.id,
-    pricePerUnit: 1,
-    recordedAt: `${travelDepositDate}T12:00:00`,
-  });
-
-  // ── London co-working (GBP recurring) ──────────────────────────────────
-  // Monthly £150, generated for the last 6 months at slightly different
-  // GBP→EUR rates each month. Each generated transaction stores its own
-  // amount_base — that's the whole point of recomputing FX per generation.
-  const londonAmount = 150;
-  const gbpMonths = months.slice(-6);
-  const gbpRates = [1.16, 1.17, 1.18, 1.17, 1.16, 1.18];
-  const londonStartDate = isoDate(gbpMonths[0].year, gbpMonths[0].month, 1);
-
-  // Pre-cache one GBP→EUR rate per generation date. The existing airport
-  // coffee row uses a different day-of-month, so no unique-index collision.
-  for (let i = 0; i < gbpMonths.length; i++) {
-    const m = gbpMonths[i];
-    const date = isoDate(m.year, m.month, 1);
-    await db
-      .insert(marketPrices)
-      .values({ symbol: "GBP", currency: "EUR", price: gbpRates[i], date, provider: "frankfurter" })
-      .onConflictDoNothing();
-  }
-
-  // Tags live on the template and propagate to every generated row via
-  // RecurringService.generateForTemplate(`tags: r.tags`). Setting them on
-  // the template AND the generated rows below keeps the seed consistent
-  // with what the service would actually produce.
-  const londonTags = JSON.stringify(["work", "travel"]);
-
-  const [londonRecurring] = await db
-    .insert(recurringTransactions)
-    .values({
-      amount: londonAmount,
-      currency: "GBP",
-      type: "expense",
-      description: "London co-working",
-      merchant: "Workspace London",
-      categoryId: catIds.Subscriptions,
-      frequency: "monthly",
-      dayOfMonth: 1,
-      startDate: londonStartDate,
-      // Set to today (matches the existing-template convention in
-      // generateRecurringTemplates). The next-occurrence calculation is
-      // unaffected — `computeNextOccurrence` reads only the template
-      // schedule and `isoToday()`, not `lastGenerated` — and the on-startup
-      // generation engine uses lastGenerated only as a "don't re-emit
-      // before this" cursor, which a today sentinel satisfies.
-      lastGenerated: todayStr,
-      tags: londonTags,
-    })
-    .returning({ id: recurringTransactions.id });
-
-  for (let i = 0; i < gbpMonths.length; i++) {
-    const m = gbpMonths[i];
-    const date = isoDate(m.year, m.month, 1);
-    const amountBase = Math.round(londonAmount * gbpRates[i] * 100) / 100;
-    await db.insert(transactions).values({
-      amount: londonAmount,
-      currency: "GBP",
-      amountBase,
-      type: "expense",
-      description: "London co-working",
-      merchant: "Workspace London",
-      categoryId: catIds.Subscriptions,
-      date,
-      recurringId: londonRecurring.id,
-      tags: londonTags,
-    });
-  }
-
-  seedLogger.info(
-    `  Apple Inc. (USD investment, 2 lots), USD Travel Fund (USD deposit), London co-working (GBP recurring, ${gbpMonths.length} months).`
-  );
 
   // ── Reconcile recurring `lastGenerated` ────────────────────────────────
   // The template helpers set `lastGenerated = todayStr` as a sentinel
@@ -492,18 +331,29 @@ async function seed(): Promise<void> {
   // ── Settings (timezone + base currency + tutorial flag) ────────────────
   seedLogger.info("Configuring settings...");
   await db.insert(settings).values({ key: "timezone", value: "Europe/Amsterdam" });
-  await db.insert(settings).values({ key: "base_currency", value: "EUR" });
+  await db.insert(settings).values({ key: "base_currency", value: BASE_CURRENCY });
   await db.insert(settings).values({ key: "tutorial", value: "true" });
   await db.insert(settings).values({ key: "sample_data", value: "true" });
-  seedLogger.info("  Timezone: Europe/Amsterdam, base currency: EUR, tutorial: enabled.");
+  seedLogger.info(
+    `  Timezone: Europe/Amsterdam, base currency: ${BASE_CURRENCY}, tutorial: enabled.`
+  );
 
   // ── Summary ─────────────────────────────────────────────────────────────
-  const income = allTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const expenses = allTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  // Sum in base currency so foreign-currency rows aggregate correctly.
+  let income = 0;
+  let expenses = 0;
+  let transfers = 0;
+  for (const t of events) {
+    if (t.type === "income") income += t.amountBase;
+    else if (t.type === "expense") expenses += t.amountBase;
+    else transfers += t.amountBase; // already signed
+  }
+  const finalCash = income - expenses + transfers;
   seedLogger.info(`Done.`);
   seedLogger.info(`  Total income:   €${income.toFixed(2)}`);
   seedLogger.info(`  Total expenses: €${expenses.toFixed(2)}`);
-  seedLogger.info(`  Final balance:  €${balance.toFixed(2)}`);
+  seedLogger.info(`  Net transfers:  €${transfers.toFixed(2)}`);
+  seedLogger.info(`  Final cash:     €${finalCash.toFixed(2)}`);
 }
 
 seed().catch((err) => {
