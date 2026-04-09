@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatCurrency, formatDate, getBaseCurrency } from "@/lib/format";
 import type { TransactionResponse } from "@/lib/validators/transactions";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
@@ -45,13 +46,28 @@ export function RecentTransactions({
                       )}
                     </div>
                   </div>
-                  <span
-                    className={`shrink-0 text-sm font-medium tabular-nums ${
-                      tx.type === "income" ? "text-emerald-600" : "text-foreground"
-                    }`}
-                  >
-                    {formatCurrency(tx.amount)}
-                  </span>
+                  {tx.currency !== getBaseCurrency() ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={`shrink-0 text-sm font-medium tabular-nums ${
+                            tx.type === "income" ? "text-emerald-600" : "text-foreground"
+                          }`}
+                        >
+                          {formatCurrency(tx.amount, tx.currency)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>≈ {formatCurrency(tx.amountBase)} (base)</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <span
+                      className={`shrink-0 text-sm font-medium tabular-nums ${
+                        tx.type === "income" ? "text-emerald-600" : "text-foreground"
+                      }`}
+                    >
+                      {formatCurrency(tx.amount, tx.currency)}
+                    </span>
+                  )}
                 </div>
               );
             })}
