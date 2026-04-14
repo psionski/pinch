@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencyPicker } from "@/components/settings/currency-picker";
 import {
   Dialog,
   DialogContent,
@@ -135,15 +136,13 @@ export function AssetFormDialog({
           </div>
           <div className="space-y-1">
             <Label htmlFor="asset-currency">Currency</Label>
-            <Input
+            <CurrencyPicker
               id="asset-currency"
               value={currency}
-              onChange={(e) => {
-                setCurrency(e.target.value.toUpperCase());
+              onChange={(code) => {
+                setCurrency(code);
                 setCurrencyDirty(true);
               }}
-              placeholder={baseCurrency}
-              maxLength={10}
               disabled={loading}
             />
           </div>
