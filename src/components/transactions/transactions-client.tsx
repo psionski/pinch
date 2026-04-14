@@ -319,6 +319,7 @@ export function TransactionsClient({
 
       {/* Add form dialog */}
       <TransactionFormDialog
+        key={String(showAddForm)}
         open={showAddForm}
         onOpenChange={setShowAddForm}
         categories={categories}
