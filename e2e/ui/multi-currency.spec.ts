@@ -184,11 +184,10 @@ test.describe.serial("Multi-currency", () => {
     await page.locator("#asset-type").click();
     await page.locator("[role='option']").filter({ hasText: "Investment" }).click();
 
-    // Currency field is a free-text input on the asset form (not the
-    // CurrencyPicker — see asset-form-dialog.tsx). Override the EUR
-    // default with USD; uppercasing happens automatically on the field.
-    await page.locator("#asset-currency").clear();
-    await page.locator("#asset-currency").fill("USD");
+    // Open the CurrencyPicker and select USD.
+    await page.locator("#asset-currency").click();
+    await page.getByPlaceholder("Search currencies...").fill("USD");
+    await page.getByTestId("currency-option-USD").click();
 
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator("#asset-name")).not.toBeVisible({ timeout: 5_000 });
@@ -211,8 +210,9 @@ test.describe.serial("Multi-currency", () => {
     await page.getByRole("button", { name: "Add Asset" }).click();
     await page.locator("#asset-name").fill("USD Travel Fund");
     // Default type is Deposit — leave it. Override the EUR currency default.
-    await page.locator("#asset-currency").clear();
-    await page.locator("#asset-currency").fill("USD");
+    await page.locator("#asset-currency").click();
+    await page.getByPlaceholder("Search currencies...").fill("USD");
+    await page.getByTestId("currency-option-USD").click();
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator("#asset-name")).not.toBeVisible({ timeout: 5_000 });
     await expect(page.getByText("USD Travel Fund", { exact: true })).toBeVisible();
