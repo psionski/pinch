@@ -16,11 +16,10 @@ const logDir = process.env.LOG_DIR ?? "./logs";
 const isDev = process.env.NODE_ENV !== "production";
 const isTest = !!process.env.VITEST;
 
-// In tests, skip transports (no worker threads, no file I/O) — logs go to
-// stdout synchronously at whatever LOG_LEVEL is set (default: warn in tests
-// to keep output clean; set LOG_LEVEL=debug to see logs when debugging).
-// In dev/prod, use multi-transport: pretty console (dev) or JSON stdout (prod) + rotated file.
-const testLevel = logLevel === "debug" && !process.env.LOG_LEVEL ? "warn" : logLevel;
+// In tests, skip transports (no worker threads, no file I/O) — logs are
+// silent by default to avoid noise from intentional error-path tests.
+// Set LOG_LEVEL=debug (or any level) to see logs when debugging a test.
+const testLevel = !process.env.LOG_LEVEL ? "silent" : logLevel;
 
 // Singleton on globalThis so the logger (and its transports) survive
 // Next.js dev-mode re-bundling — prevents stacking EventEmitter listeners.
