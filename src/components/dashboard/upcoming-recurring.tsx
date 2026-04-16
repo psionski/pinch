@@ -27,7 +27,7 @@ export function UpcomingRecurring({ items }: UpcomingRecurringProps): React.Reac
                       item.type === "income" ? "text-emerald-600" : "text-foreground"
                     }`}
                   >
-                    {formatCurrency(item.amount)}
+                    {formatCurrency(item.amount, item.currency)}
                   </span>
                   {item.nextOccurrence && (
                     <div className="text-muted-foreground text-xs">

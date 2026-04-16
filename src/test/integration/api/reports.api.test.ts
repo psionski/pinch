@@ -78,17 +78,21 @@ describe("Report API Routes", () => {
       })
     );
     expect(res.status).toBe(200);
-    const body = await json<Array<{ percentage: number }>>(res);
-    expect(body).toHaveLength(1);
-    expect(body[0].percentage).toBe(100);
+    const body = await json<{ items: Array<{ percentage: number }>; currency: string }>(res);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].percentage).toBe(100);
+    expect(body.currency).toBe("EUR");
   });
 
   it("GET /trends returns trend data", async () => {
     await seedData();
     const res = await GET_TRENDS(makeGet("/api/reports/trends", { months: "3" }));
     expect(res.status).toBe(200);
-    const body = await json<Array<{ month: string; total: number }>>(res);
-    expect(body.length).toBeGreaterThanOrEqual(1);
+    const body = await json<{ points: Array<{ month: string; total: number }>; currency: string }>(
+      res
+    );
+    expect(body.points.length).toBeGreaterThanOrEqual(1);
+    expect(body.currency).toBe("EUR");
   });
 
   it("GET /top-merchants returns top merchants", async () => {
@@ -97,8 +101,12 @@ describe("Report API Routes", () => {
       makeGet("/api/reports/top-merchants", { dateFrom: "2025-01-01", dateTo: "2025-01-31" })
     );
     expect(res.status).toBe(200);
-    const body = await json<Array<{ merchant: string; total: number }>>(res);
-    expect(body).toHaveLength(2);
+    const body = await json<{
+      merchants: Array<{ merchant: string; total: number }>;
+      currency: string;
+    }>(res);
+    expect(body.merchants).toHaveLength(2);
+    expect(body.currency).toBe("EUR");
   });
 
   it("GET /summary returns 400 on missing params", async () => {
