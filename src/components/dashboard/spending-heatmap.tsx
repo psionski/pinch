@@ -42,8 +42,8 @@ const BUCKET_CLASSES = [
   "bg-primary",
 ];
 
-// Sunday-first week. Show every other label to keep the column compact.
-const DAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
+// Monday-first week. Show every other label to keep the column compact.
+const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
 
 function bucketize(points: DailySpendPoint[]): Map<string, Cell> {
   // Quantile thresholds from positive totals only — zero days are bucket 0.
@@ -76,9 +76,9 @@ function bucketize(points: DailySpendPoint[]): Map<string, Cell> {
   return cells;
 }
 
-/** Convert Temporal's 1=Mon..7=Sun to Sunday-first 0=Sun..6=Sat. */
-function sundayDow(date: Temporal.PlainDate): number {
-  return date.dayOfWeek === 7 ? 0 : date.dayOfWeek;
+/** Convert Temporal's 1=Mon..7=Sun to Monday-first 0=Mon..6=Sun. */
+function mondayDow(date: Temporal.PlainDate): number {
+  return date.dayOfWeek - 1;
 }
 
 interface Grid {
@@ -93,10 +93,10 @@ function buildGrid(points: DailySpendPoint[]): Grid | null {
   const firstDate = Temporal.PlainDate.from(points[0].date);
   const lastDate = Temporal.PlainDate.from(points[points.length - 1].date);
 
-  // Pad the grid to start on a Sunday and end on a Saturday so every column
+  // Pad the grid to start on a Monday and end on a Sunday so every column
   // is a full 7-day stack.
-  const gridStart = firstDate.subtract({ days: sundayDow(firstDate) });
-  const gridEnd = lastDate.add({ days: 6 - sundayDow(lastDate) });
+  const gridStart = firstDate.subtract({ days: mondayDow(firstDate) });
+  const gridEnd = lastDate.add({ days: 6 - mondayDow(lastDate) });
 
   const totalDays = gridStart.until(gridEnd, { largestUnit: "days" }).days + 1;
   const numWeeks = totalDays / ROWS;
