@@ -107,7 +107,7 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Record an asset purchase, or a deposit/contribution into a 'deposit' asset (e.g. money received into a savings account). " +
-        "Pinch handles the cash-side bookkeeping automatically. " +
+        "Kinti handles the cash-side bookkeeping automatically. " +
         "For ANY 'deposit' asset, regardless of currency: pricePerUnit=1 and quantity=the amount in the asset's currency. " +
         "For investments/crypto/other: pricePerUnit is the per-unit price in the asset's native currency, quantity is the number of units bought.",
       inputSchema: IdSchema.merge(BuyAssetSchema),
@@ -128,7 +128,7 @@ export function registerAssetTools(server: McpServer): void {
     {
       description:
         "Record an asset sale, or a withdrawal from a 'deposit' asset (e.g. money paid out of a savings account). " +
-        "Pinch handles the cash-side bookkeeping automatically. " +
+        "Kinti handles the cash-side bookkeeping automatically. " +
         "Errors if quantity exceeds current holdings. " +
         "Same conventions as buy_asset: deposits use pricePerUnit=1 with quantity=the amount; " +
         "investments/crypto use the per-unit price in the asset's native currency.",

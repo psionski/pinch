@@ -33,7 +33,7 @@ async function seed(): Promise<void> {
   if (existingCategories.length > 0 || existingTransactions.length > 0) {
     seedLogger.error(
       "Database is not empty. Delete the database file and run again.\n" +
-        "  rm data/pinch.db && npm run db:seed"
+        "  rm data/kinti.db && npm run db:seed"
     );
     logger.flush();
     process.exit(1);

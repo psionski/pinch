@@ -107,7 +107,7 @@ describe("MCP infrastructure", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect((body as { result?: { serverInfo?: { name: string } } }).result?.serverInfo?.name).toBe(
-      "pinch"
+      "kinti"
     );
   });
 

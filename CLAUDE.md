@@ -1,8 +1,8 @@
-# CLAUDE.md — Project Instructions for Pinch
+# CLAUDE.md — Project Instructions for Kinti
 
 ## Project Overview
 
-Pinch is an AI-powered personal finance tracker. Web dashboard (Next.js 16) + MCP server for AI-driven data entry/analysis. Single-user (for now), self-hosted, SQLite-backed. Multi-currency: each Pinch instance has an immutable base currency (set at onboarding) into which all reports, budgets, and net worth roll up. Transactions can be in any ISO 4217 currency and are converted to the base at write time using configured FX providers.
+Kinti is an AI-powered personal finance tracker. Web dashboard (Next.js 16) + MCP server for AI-driven data entry/analysis. Single-user (for now), self-hosted, SQLite-backed. Multi-currency: each Kinti instance has an immutable base currency (set at onboarding) into which all reports, budgets, and net worth roll up. Transactions can be in any ISO 4217 currency and are converted to the base at write time using configured FX providers.
 
 See `plan.md` for full architecture, schema, and roadmap.
 
@@ -79,7 +79,7 @@ The app has a single **user-configured timezone** stored in the `settings` table
 
 ### Currency Conventions
 
-Each Pinch instance has a single **base currency** stored in the `settings` table (key `"base_currency"`, ISO 4217 like `"EUR"` or `"USD"`). It is set once during onboarding and **immutable** thereafter — migrating between base currencies requires a fresh database. The base currency is the unit that every aggregate report, budget, cash balance, and net-worth figure is denominated in.
+Each Kinti instance has a single **base currency** stored in the `settings` table (key `"base_currency"`, ISO 4217 like `"EUR"` or `"USD"`). It is set once during onboarding and **immutable** thereafter — migrating between base currencies requires a fresh database. The base currency is the unit that every aggregate report, budget, cash balance, and net-worth figure is denominated in.
 
 **Storage on `transactions`:**
 - `amount` — native amount in the transaction's own currency (signed for transfers).
@@ -177,10 +177,10 @@ e2e/                              # E2E tests (separate from Vitest)
 
 ### E2E Testing & Debugging
 
-You can run `npm run dev` to start the dev server, then use the **Pinch MCP tools** to perform end-to-end testing against the running app (create transactions, check budgets, verify portfolio reports, etc.). This is the primary way to validate features and debug issues beyond unit tests.
+You can run `npm run dev` to start the dev server, then use the **Kinti MCP tools** to perform end-to-end testing against the running app (create transactions, check budgets, verify portfolio reports, etc.). This is the primary way to validate features and debug issues beyond unit tests.
 
 - Start the server: `npm run dev`
-- Use Pinch MCP tools to interact with the app (create data, query reports, verify behavior)
+- Use Kinti MCP tools to interact with the app (create data, query reports, verify behavior)
 - Add temporary logging (`financialLogger.debug`, etc.) to trace issues — read the server output to see logs. It refreshes automatically when in `dev` mode.
 - Clean up debug logging before committing - but only if you think the debug log message is unlikely to be needed again.
 

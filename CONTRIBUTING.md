@@ -1,10 +1,10 @@
-# Contributing to Pinch
+# Contributing to Kinti
 
 ## Getting Started
 
 ```bash
-git clone https://github.com/psionski/pinch.git
-cd pinch
+git clone https://github.com/psionski/kinti.git
+cd kinti
 npm install
 cp .env.example .env
 npm run dev

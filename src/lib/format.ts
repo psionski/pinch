@@ -5,28 +5,28 @@ import { Temporal } from "@js-temporal/polyfill";
 // Stored on globalThis so the value survives Next.js re-bundling across
 // server components, API routes, and instrumentation — same pattern as the
 // timezone cache in date-ranges.ts.
-const g = globalThis as unknown as { __pinchBaseCurrency?: string };
+const g = globalThis as unknown as { __kintiBaseCurrency?: string };
 
 const FALLBACK_BASE_CURRENCY = "EUR";
 
 /**
  * Returns the cached base currency. Defaults to EUR until
  * setBaseCurrencyCache() is called by instrumentation or the client init.
- * Pinch is base-currency-immutable per database, so this value never changes
+ * Kinti is base-currency-immutable per database, so this value never changes
  * during a process lifetime once set.
  */
 export function getBaseCurrency(): string {
-  return g.__pinchBaseCurrency ?? FALLBACK_BASE_CURRENCY;
+  return g.__kintiBaseCurrency ?? FALLBACK_BASE_CURRENCY;
 }
 
 /** Set the cached base currency. Called at server startup from settings DB. */
 export function setBaseCurrencyCache(currency: string): void {
-  g.__pinchBaseCurrency = currency;
+  g.__kintiBaseCurrency = currency;
 }
 
 /** Clear the cached base currency. Used by tests. */
 export function clearBaseCurrencyCache(): void {
-  g.__pinchBaseCurrency = undefined;
+  g.__kintiBaseCurrency = undefined;
 }
 
 // ─── Currency Formatting (per-currency) ───────────────────────────────────────

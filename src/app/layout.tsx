@@ -27,7 +27,7 @@ const geistMono = Geist_Mono({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Pinch",
+  title: "Kinti",
   description: "AI-powered personal finance tracker",
 };
 
@@ -75,9 +75,9 @@ export default function RootLayout({
                     <Menu className="size-4" />
                     <span className="sr-only">Toggle Sidebar</span>
                   </SidebarTrigger>
-                  {/* Mobile: centered Pinch branding, also opens sidebar */}
+                  {/* Mobile: centered Kinti branding, also opens sidebar */}
                   <SidebarTrigger className="absolute left-1/2 -translate-x-1/2 gap-2 px-0 md:hidden">
-                    <span className="text-base font-bold tracking-tight">Pinch</span>
+                    <span className="text-base font-bold tracking-tight">Kinti</span>
                   </SidebarTrigger>
                 </header>
                 <SampleDataBar show={sampleData} initiallyHidden={tutorial} />

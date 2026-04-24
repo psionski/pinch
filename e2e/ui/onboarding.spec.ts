@@ -69,7 +69,7 @@ test.describe.serial("Onboarding wizard", () => {
     // Should NOT have sample data bar
     await expect(page.getByRole("button", { name: "Clear sample data" })).not.toBeVisible();
     // Should NOT have tutorial overlay
-    await expect(page.getByText("Welcome to Pinch!")).not.toBeVisible();
+    await expect(page.getByText("Welcome to Kinti!")).not.toBeVisible();
     // Page should load without errors
     await expect(page.locator('[data-tour="kpi-cards"]')).toBeVisible();
   });

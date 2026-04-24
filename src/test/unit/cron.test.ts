@@ -21,14 +21,14 @@ vi.mock("@/lib/db", () => ({
 }));
 describe("initCronJobs singleton guard", () => {
   beforeEach(() => {
-    const g = globalThis as unknown as { __pinchCronInit?: boolean };
-    delete g.__pinchCronInit;
+    const g = globalThis as unknown as { __kintiCronInit?: boolean };
+    delete g.__kintiCronInit;
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    const g = globalThis as unknown as { __pinchCronInit?: boolean };
-    delete g.__pinchCronInit;
+    const g = globalThis as unknown as { __kintiCronInit?: boolean };
+    delete g.__kintiCronInit;
   });
 
   it("sets the global flag and schedules three jobs on first call", async () => {
@@ -37,8 +37,8 @@ describe("initCronJobs singleton guard", () => {
 
     initCronJobs();
 
-    const g = globalThis as unknown as { __pinchCronInit?: boolean };
-    expect(g.__pinchCronInit).toBe(true);
+    const g = globalThis as unknown as { __kintiCronInit?: boolean };
+    expect(g.__kintiCronInit).toBe(true);
     expect(cron.schedule).toHaveBeenCalledTimes(3);
 
     expect(cron.schedule).toHaveBeenCalledWith("0 2 * * *", expect.any(Function));

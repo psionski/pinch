@@ -9,7 +9,7 @@ import { isoToday } from "@/lib/date-ranges";
 import { getBaseCurrency } from "@/lib/format";
 import type { SymbolMap } from "@/lib/validators/assets";
 
-const DB_PATH = process.env.DATABASE_URL ?? "./data/pinch.db";
+const DB_PATH = process.env.DATABASE_URL ?? "./data/kinti.db";
 
 /** Cron callback: generate pending recurring transactions up to today. */
 export async function runRecurringJob(): Promise<void> {
@@ -39,9 +39,9 @@ export async function runBackupJob(): Promise<void> {
  * Next.js dev-mode hot reloads don't spawn duplicate schedulers.
  */
 export function initCronJobs(): void {
-  const g = globalThis as unknown as { __pinchCronInit?: boolean };
-  if (g.__pinchCronInit) return;
-  g.__pinchCronInit = true;
+  const g = globalThis as unknown as { __kintiCronInit?: boolean };
+  if (g.__kintiCronInit) return;
+  g.__kintiCronInit = true;
 
   cron.schedule("0 2 * * *", () => void runRecurringJob());
   cron.schedule("0 3 * * *", () => void runBackupJob());

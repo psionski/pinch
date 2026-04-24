@@ -1,6 +1,6 @@
 -- Multi-currency: each transaction now stores its native currency plus a
 -- denormalized base-currency amount, so report aggregations are O(N) sums
--- with no FX joins. Pinch instances are base-currency-immutable per DB.
+-- with no FX joins. Kinti instances are base-currency-immutable per DB.
 --
 -- Backfill assumption: existing rows are EUR-only. The currency column is
 -- backfilled from the configured base_currency setting (falling back to

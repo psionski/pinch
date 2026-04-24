@@ -79,7 +79,7 @@ describe("FrankfurterProvider", () => {
   });
 
   it("supports arbitrary from/to without EUR pivot (USD→GBP direct)", async () => {
-    // Pinch is no longer EUR-only — Frankfurter must accept any base. This
+    // Kinti is no longer EUR-only — Frankfurter must accept any base. This
     // test guards against a regression where call sites accidentally pivot
     // through EUR (rate(USD→GBP) = rate(EUR→GBP) / rate(EUR→USD)).
     const fetchMock = vi.fn().mockResolvedValue({

@@ -1,4 +1,4 @@
-# Pinch — Personal Finance Tracker
+# Kinti — Personal Finance Tracker
 
 *AI-powered personal finance app. Track spending, scan receipts, manage budgets — with an MCP interface for AI-driven data entry and analysis.*
 
@@ -8,10 +8,10 @@ Web dashboard (Next.js) for viewing and analyzing spending. MCP server embedded 
 
 ## Actors
 
-| Actor | What it is | How it interacts with Pinch |
+| Actor | What it is | How it interacts with Kinti |
 |-------|-----------|----------------------------|
 | **User** | The human (app owner). | Browses the web UI from any device. Sends receipts/commands to the AI assistant via Telegram. |
-| **AI** | An AI assistant (e.g. built on [OpenClaw](https://github.com/openclaw/openclaw)). May run on the same host or a different machine. | Connects to Pinch's MCP endpoint over HTTP. Uses MCP tools for structured operations (transactions, categories, reports, budgets). Uses companion REST endpoint for binary uploads (receipt images). Discovery: MCP server `instructions` field tells clients about the REST upload endpoint. |
+| **AI** | An AI assistant (e.g. built on [OpenClaw](https://github.com/openclaw/openclaw)). May run on the same host or a different machine. | Connects to Kinti's MCP endpoint over HTTP. Uses MCP tools for structured operations (transactions, categories, reports, budgets). Uses companion REST endpoint for binary uploads (receipt images). Discovery: MCP server `instructions` field tells clients about the REST upload endpoint. |
 
 ## Tech Stack
 
@@ -163,7 +163,7 @@ Three cron jobs run in-process via `node-cron`, started from `src/instrumentatio
 | 03:00 | SQLite backup | `.backup` to `data/backups/`, keeps last 7 daily |
 | 04:00 | Market price auto-fetch | For each asset with a `symbolMap`, fetches today's price from the linked provider |
 
-**Why in-process cron:** Pinch is self-hosted (long-lived Node.js process, not serverless). `instrumentation.ts` runs exactly once on server start — perfect for scheduling. A `globalThis` singleton guard prevents duplicate jobs from dev-mode hot-reload.
+**Why in-process cron:** Kinti is self-hosted (long-lived Node.js process, not serverless). `instrumentation.ts` runs exactly once on server start — perfect for scheduling. A `globalThis` singleton guard prevents duplicate jobs from dev-mode hot-reload.
 
 **Recurring engine behavior:**
 1. Templates define amount, description, category, frequency, schedule details, start/end date
@@ -248,13 +248,13 @@ Stored as JSON text arrays on transactions and recurring templates. Filter via `
 
 ## Currency
 
-Pinch is **multi-currency**. Each instance picks an immutable **base currency** at onboarding (any ISO 4217 code, default EUR). All reports, budgets, cash balance, and net worth are denominated in the base. Transactions store both their native amount/currency and a denormalized `amount_base` computed at write time via the configured FX provider chain (Frankfurter → fawazahmed0). The base currency cannot be changed after setup — migrating between bases requires a fresh database. See the *Currency Conventions* section in `CLAUDE.md` for service-layer details.
+Kinti is **multi-currency**. Each instance picks an immutable **base currency** at onboarding (any ISO 4217 code, default EUR). All reports, budgets, cash balance, and net worth are denominated in the base. Transactions store both their native amount/currency and a denormalized `amount_base` computed at write time via the configured FX provider chain (Frankfurter → fawazahmed0). The base currency cannot be changed after setup — migrating between bases requires a fresh database. See the *Currency Conventions* section in `CLAUDE.md` for service-layer details.
 
 ## Data Storage
 
-- **Database:** `data/pinch.db` (SQLite, gitignored)
+- **Database:** `data/kinti.db` (SQLite, gitignored)
 - **Receipt images:** `data/receipts/YYYY-MM/receipt-{id}.{ext}` (gitignored)
-- **Backups:** `data/backups/pinch-YYYY-MM-DD.db` (daily, last 7 kept)
+- **Backups:** `data/backups/kinti-YYYY-MM-DD.db` (daily, last 7 kept)
 
 ## Project Structure
 
@@ -287,7 +287,7 @@ src/
 │       ├── api/
 │       └── mcp/
 e2e/                             # E2E tests (Playwright) + MCP test prompts
-data/                            # Runtime (gitignored): pinch.db, backups/, receipts/
+data/                            # Runtime (gitignored): kinti.db, backups/, receipts/
 drizzle/                         # Generated migrations
 ```
 
@@ -302,7 +302,7 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 ---
 
 ### Sprint 23: Packaging & Auto-Updates
-**Goal:** Make Pinch trivial to deploy and maintain for anyone (human or AI agent).
+**Goal:** Make Kinti trivial to deploy and maintain for anyone (human or AI agent).
 
 - [ ] Provide simple, robust packaging (e.g., Docker container or single install script)
 - [ ] Build an auto-updater mechanism for easy rolling releases
@@ -327,11 +327,11 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 **Goal:** Create a public face for the project.
 
 - [ ] Build a standalone project website (e.g., hosted on GitHub Pages) to serve as the main landing page and documentation hub
-- [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Pinch)
+- [ ] Write definitive Quick Start installation instructions hosted on the website, specifically formatted for an AI agent (so a user can just drop the URL to their agent to deploy Kinti)
 - [ ] Donation button / MCP instructions ("if user is saving lots of money...")
 
 ### Sprint 28: UI Translations (i18n)
-**Goal:** Make Pinch translatable with full translator context — translators should understand what each string means and where it appears, not just see a flat key-value file.
+**Goal:** Make Kinti translatable with full translator context — translators should understand what each string means and where it appears, not just see a flat key-value file.
 
 **Library:** next-intl (purpose-built for Next.js App Router, native server/client component support, ICU message format built-in, PO extraction with source file references and descriptions).
 
@@ -358,7 +358,7 @@ Each sprint is a self-contained chunk of work. Sprints are organized into two ph
 **Phase 3 — Translator experience**
 - [ ] **Inline descriptions for ambiguous strings** — audit all extracted strings. For any string where the meaning isn't clear from the key path alone (e.g. "Balance", "Note", "Right", "Net"), add descriptions via `t({ message: '...', description: '...' })`.
 - [ ] **ICU plurals & formatting** — convert plural constructs (e.g. "3 transactions", "1 item") to ICU `{count, plural, ...}` syntax. Use ICU `{amount, number}` for formatted numbers where applicable.
-- [ ] **Crowdin setup** — register Pinch on Crowdin (free OSS plan). Configure Crowdin CLI for CI push/pull. Upload `.po` files. Tag screenshots for key pages (dashboard, transactions, budgets, portfolio, settings).
+- [ ] **Crowdin setup** — register Kinti on Crowdin (free OSS plan). Configure Crowdin CLI for CI push/pull. Upload `.po` files. Tag screenshots for key pages (dashboard, transactions, budgets, portfolio, settings).
 - [ ] **Bulgarian translation** — add `bg.json` as the first non-English locale. Translate all namespaces.
 - [ ] **Contributing guide for translators** — add a section to CONTRIBUTING.md explaining how to contribute translations via Crowdin, what context is available (key paths, descriptions, screenshots), and how to request new languages.
 

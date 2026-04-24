@@ -1,5 +1,5 @@
 export const INSTRUCTIONS = [
-  "Pinch — personal finance tracker. Manage transactions, categories, budgets, recurring templates, and portfolio assets.",
+  "Kinti — personal finance tracker. Manage transactions, categories, budgets, recurring templates, and portfolio assets.",
   "All dates and timestamps are in the user's configured timezone (not UTC). Use get_timezone to check.",
   "All amounts roll up into a single base currency configured at onboarding (immutable). Use get_base_currency to check. Native amounts on transactions/assets can be in any currency, but report totals, budgets, cash balance, and net worth are always in the base currency.",
 
@@ -17,7 +17,7 @@ export const INSTRUCTIONS = [
   "Accounts and wallets (bank accounts, Revolut, savings, exchange accounts) are modeled as 'deposit' type assets. " +
     "When a user pays FROM a specific account, call list_assets to find it, then create_transaction for the expense AND sell_asset on the account. " +
     "When a user receives money INTO a specific account, call list_assets to find it, then create_transaction for the income AND buy_asset on the account. " +
-    "If the account doesn't exist yet, offer to create it with create_asset (type: 'deposit'). Pinch handles the cash-side bookkeeping automatically.",
+    "If the account doesn't exist yet, offer to create it with create_asset (type: 'deposit'). Kinti handles the cash-side bookkeeping automatically.",
 
   // Asset creation conventions — currency vs symbolMap
   "An asset's `currency` field is always an ISO 4217 fiat code (USD, EUR, GBP, JPY, …) — the currency the asset is denominated/priced in. " +
@@ -25,7 +25,7 @@ export const INSTRUCTIONS = [
   "Deposit assets ALWAYS use pricePerUnit=1 with quantity=the amount, regardless of currency. " +
     "A €500 EUR savings deposit: currency='EUR', quantity=500, pricePerUnit=1. " +
     "A $500 USD account on a EUR-base instance: currency='USD', quantity=500, pricePerUnit=1. " +
-    "Pinch converts to the base currency automatically at the FX rate on the date.",
+    "Kinti converts to the base currency automatically at the FX rate on the date.",
   "Investments (stocks, ETFs): currency = the listing currency (USD for NYSE, GBP for LSE, etc.). " +
     "Call search_symbol first and pass the result as symbolMap for automatic price tracking. " +
     "search_symbol results often include a `currency` hint — use it to fill the currency field.",

@@ -23,7 +23,7 @@ const testLevel = !process.env.LOG_LEVEL ? "silent" : logLevel;
 
 // Singleton on globalThis so the logger (and its transports) survive
 // Next.js dev-mode re-bundling — prevents stacking EventEmitter listeners.
-const g = globalThis as unknown as { __pinchLogger?: pino.Logger };
+const g = globalThis as unknown as { __kintiLogger?: pino.Logger };
 
 function createLogger(): pino.Logger {
   if (isTest) return pino({ level: testLevel });
@@ -49,7 +49,7 @@ function createLogger(): pino.Logger {
         {
           target: "pino-roll",
           options: {
-            file: `${logDir}/pinch`,
+            file: `${logDir}/kinti`,
             frequency: "daily",
             size: "10m",
             mkdir: true,
@@ -63,7 +63,7 @@ function createLogger(): pino.Logger {
   );
 }
 
-const logger = g.__pinchLogger ?? (g.__pinchLogger = createLogger());
+const logger = g.__kintiLogger ?? (g.__kintiLogger = createLogger());
 
 export { logger };
 export const cronLogger = logger.child({ module: "cron" });

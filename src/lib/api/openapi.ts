@@ -17,7 +17,7 @@ export function generateOpenApiDocument(): ReturnType<typeof createDocument> {
   return createDocument({
     openapi: "3.1.0",
     info: {
-      title: "Pinch API",
+      title: "Kinti API",
       version: "1.0.0",
       description:
         "Personal finance tracker API. " +
