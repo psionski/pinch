@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AssetHistoryResult } from "@/lib/validators/portfolio-reports";
 import { Temporal } from "@js-temporal/polyfill";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/format";
 
 const chartConfig = {
   value: {
@@ -37,26 +38,6 @@ interface ChartPoint {
 
 function formatShortMonth(date: string): string {
   return Temporal.PlainDate.from(date.slice(0, 10)).toLocaleString("en-US", { month: "short" });
-}
-
-function formatCurrency(amount: number, currency: string): string {
-  // Per-currency precision via Intl — JPY = 0, BHD = 3, etc.
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
-}
-
-/** Currency symbol for axis ticks, derived via Intl so it works for any code. */
-function currencySymbol(currency: string): string {
-  try {
-    const fmt = new Intl.NumberFormat("en", {
-      style: "currency",
-      currency,
-      currencyDisplay: "narrowSymbol",
-    });
-    const part = fmt.formatToParts(0).find((p) => p.type === "currency");
-    return part?.value ?? currency;
-  } catch {
-    return currency;
-  }
 }
 
 export function ValueChart({ data, currency }: ValueChartProps): React.ReactElement {
@@ -101,7 +82,7 @@ export function ValueChart({ data, currency }: ValueChartProps): React.ReactElem
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v: number) => `${currencySymbol(currency)}${v}`}
+                tickFormatter={(v: number) => formatCurrencyCompact(v, currency)}
               />
               <ChartTooltip
                 content={

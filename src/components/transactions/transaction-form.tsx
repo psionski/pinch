@@ -239,7 +239,13 @@ export function TransactionFormDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : isEdit ? "Save Changes" : "Add Transaction"}
+              {loading
+                ? currency !== getBaseCurrency()
+                  ? "Converting..."
+                  : "Saving..."
+                : isEdit
+                  ? "Save Changes"
+                  : "Add Transaction"}
             </Button>
           </DialogFooter>
         </form>

@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CategorySelectItems } from "@/components/categories/category-select-items";
-import { formatMonth } from "@/lib/format";
+import { formatCurrency, formatCurrencyCompact, formatMonth } from "@/lib/format";
 import type { TrendPoint } from "@/lib/validators/reports";
 import type { CategoryWithCountResponse } from "@/lib/validators/categories";
 
@@ -108,14 +108,14 @@ export function TrendsChart({
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value: number) => `€${value}`}
+                  tickFormatter={(value: number) => formatCurrencyCompact(value)}
                 />
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
                       formatter={(value, name) => {
                         const label = chartConfig[name as keyof typeof chartConfig]?.label ?? name;
-                        return `${label}: €${(value as number).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
+                        return `${label}: ${formatCurrency(value as number)}`;
                       }}
                       labelFormatter={formatMonth}
                     />
